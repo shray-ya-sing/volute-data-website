@@ -105,9 +105,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     if (company['Notes'] && company['Notes'][dataKey]) {
                         cell.setAttribute('data-notes', company['Notes'][dataKey]);
-                    } else if (dataKey === 'Company Name' && company['Notes']['Company Name']) {
+                    } else if (dataKey === 'Company Name' && company['Notes'] && company['Notes']['Company Name']) {
                         // Special handling if Company Name has a note
-                        cell.setAttribute('data-notes', company['Notes']['Company Name']); 
+                        cell.setAttribute('data-notes', company['Notes']['Company Name']);
                     }
 
 
