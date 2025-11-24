@@ -74,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const tableHeaders = Array.from(document.querySelectorAll('#dataTable thead th')).map(th => th.textContent.trim());
 
     // 1. Fetch Data and Build Table
-    fetch('data.json')
+    fetch('data/data.json')
         .then(response => {
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
