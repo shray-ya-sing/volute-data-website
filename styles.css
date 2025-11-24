@@ -101,6 +101,19 @@ td:hover {
     background: #e7f3ff;
 }
 
+td.clickable {
+    color: #667eea;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 3px;
+}
+
+td.clickable:hover {
+    color: #5568d3;
+    text-decoration-style: solid;
+    background: #e7f3ff;
+}
+
 td.sticky-col {
     position: sticky;
     left: 0;

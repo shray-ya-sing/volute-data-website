@@ -85,12 +85,13 @@ document.addEventListener('DOMContentLoaded', () => {
             data.forEach(company => {
                 const row = document.createElement('tr');
                 let isFirstColumn = true;
+                const filingURL = company['Filing URL'];
 
                 tableHeaders.forEach(header => {
-                    const dataKey = header; 
+                    const dataKey = header;
                     const cell = document.createElement('td');
                     // Get the main value, defaulting to N/A
-                    let value = company[dataKey] || 'N/A'; 
+                    let value = company[dataKey] || 'N/A';
 
                     // Set value and classes
                     cell.textContent = value;
@@ -98,7 +99,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         cell.classList.add('sticky-col');
                         isFirstColumn = false;
                     }
-                    
+
                     // Add Page Number and Notes from nested objects
                     if (company['Page Number'] && company['Page Number'][dataKey]) {
                         cell.setAttribute('data-page', company['Page Number'][dataKey]);
@@ -110,6 +111,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         cell.setAttribute('data-notes', company['Notes']['Company Name']);
                     }
 
+                    // Add click handler for cells with page numbers
+                    if (filingURL && cell.getAttribute('data-page') && cell.getAttribute('data-page') !== 'N/A') {
+                        cell.classList.add('clickable');
+                        cell.style.cursor = 'pointer';
+                        cell.addEventListener('click', function() {
+                            window.open(filingURL, '_blank');
+                        });
+                    }
 
                     row.appendChild(cell);
                 });
