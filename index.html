@@ -9,42 +9,55 @@
 <body>
     <div class="container">
         <h1>IPO Data</h1>
-        
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="companySearch">Search Companies:</label>
+                <div class="search-container">
+                    <input type="text" id="companySearch" placeholder="Type to search companies..." autocomplete="off">
+                    <div id="searchResults" class="search-results"></div>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label for="columnSelector">Select Columns:</label>
+                <div class="dropdown-container">
+                    <button id="columnSelectorBtn" class="dropdown-btn">Select Columns</button>
+                    <div id="columnDropdown" class="dropdown-menu">
+                        <div class="dropdown-search">
+                            <input type="text" id="columnSearchInput" placeholder="Search columns...">
+                        </div>
+                        <div class="dropdown-options" id="columnOptions">
+                            <!-- Options will be populated dynamically -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="selected-companies" id="selectedCompanies">
+            <!-- Selected company chips will appear here -->
+        </div>
+
         <button id="downloadBtn" class="download-btn">Download as CSV</button>
-        
+
         <div class="table-wrapper">
             <table id="dataTable">
-                <thead>
-                    <tr>
-                        <th class="sticky-col">Company Name</th>
-                        <th>Company Ticker</th>
-                        <th>Exchange</th>
-                        <th>S1 Filing Date</th>
-                        <th>IPO Date</th>
-                        <th>IPO Price Range</th>
-                        <th>Final Price</th>
-                        <th>Shares Offered (Primary)</th>
-                        <th>Shares Offered (Secondary)</th>
-                        <th>Total Shares Outstanding</th>
-                        <th>Gross Proceeds</th>
-                        <th>Net Proceeds</th>
-                        <th>Greenshoe Option</th>
-                        <th>Underwriter Discount (Per Share)</th>
-                        <th>Underwriter Discount (Total)</th>
-                        <th>Lead Bookrunners</th>
-                        <th>Co-Bookrunners</th>
-                        <th>Syndicate Members</th>
-                        <th>Directed Share Program</th>
-                        <th>Post-IPO Voting Control</th>
-                        <th>Shares Delivery Date</th>
+                <thead id="dataHead">
+                    <tr id="headerRow">
+                        <!-- Headers will be dynamically generated -->
                     </tr>
                 </thead>
                 <tbody id="dataBody">
-                    
+                    <!-- Rows will be dynamically generated -->
                 </tbody>
             </table>
         </div>
-        
+
+        <div id="emptyState" class="empty-state">
+            <p>Add companies and select columns to build your custom table</p>
+        </div>
+
         <div id="tooltip" class="tooltip"></div>
     </div>
 

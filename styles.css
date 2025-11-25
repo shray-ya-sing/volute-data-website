@@ -26,6 +26,234 @@ h1 {
     text-align: center;
 }
 
+/* Controls Section */
+.controls {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.control-group {
+    flex: 1;
+    min-width: 250px;
+}
+
+.control-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #333;
+    font-size: 14px;
+}
+
+/* Search Container */
+.search-container {
+    position: relative;
+}
+
+#companySearch {
+    width: 100%;
+    padding: 10px 15px;
+    border: 2px solid #dee2e6;
+    border-radius: 5px;
+    font-size: 14px;
+    transition: border-color 0.3s ease;
+}
+
+#companySearch:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.search-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-top: none;
+    border-radius: 0 0 5px 5px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 100;
+    display: none;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.search-results.active {
+    display: block;
+}
+
+.search-result-item {
+    padding: 10px 15px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.search-result-item:last-child {
+    border-bottom: none;
+}
+
+.search-result-item:hover {
+    background: #f8f9fa;
+}
+
+.search-result-item.disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+    background: #f8f9fa;
+}
+
+.already-added {
+    float: right;
+    color: #667eea;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.no-results {
+    padding: 10px 15px;
+    color: #999;
+    font-style: italic;
+}
+
+/* Dropdown Container */
+.dropdown-container {
+    position: relative;
+}
+
+.dropdown-btn {
+    width: 100%;
+    padding: 10px 15px;
+    background: white;
+    border: 2px solid #dee2e6;
+    border-radius: 5px;
+    font-size: 14px;
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 0.3s ease;
+}
+
+.dropdown-btn:hover {
+    border-color: #667eea;
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 5px;
+    margin-top: 5px;
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 100;
+    display: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.dropdown-menu.active {
+    display: block;
+}
+
+.dropdown-search {
+    padding: 10px;
+    border-bottom: 1px solid #dee2e6;
+    position: sticky;
+    top: 0;
+    background: white;
+}
+
+.dropdown-search input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+.dropdown-search input:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.dropdown-options {
+    padding: 5px;
+}
+
+.dropdown-option {
+    display: flex;
+    align-items: center;
+    padding: 8px 10px;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 0.2s ease;
+}
+
+.dropdown-option:hover {
+    background: #f8f9fa;
+}
+
+.dropdown-option input[type="checkbox"] {
+    margin-right: 10px;
+    cursor: pointer;
+}
+
+.dropdown-option label {
+    cursor: pointer;
+    flex: 1;
+    font-size: 14px;
+    margin: 0;
+    font-weight: normal;
+}
+
+/* Selected Companies Chips */
+.selected-companies {
+    display: none;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.company-chip {
+    display: inline-flex;
+    align-items: center;
+    background: #667eea;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 14px;
+    gap: 8px;
+}
+
+.remove-chip {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 0;
+    margin: 0;
+    line-height: 1;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background 0.2s ease;
+}
+
+.remove-chip:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Download Button */
 .download-btn {
     background: #667eea;
     color: white;
@@ -44,6 +272,17 @@ h1 {
 
 .download-btn:active {
     transform: translateY(1px);
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #999;
+    font-size: 16px;
+    border: 2px dashed #dee2e6;
+    border-radius: 5px;
+    margin-top: 20px;
 }
 
 .table-wrapper {

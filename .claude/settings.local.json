@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:pfrilrbw7rdy0sj5.public.blob.vercel-storage.com)",
+      "Bash(python -m http.server:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
