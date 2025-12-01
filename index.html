@@ -1,66 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IPO Data Dashboard</title>
-    <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-    <div class="container">
-        <h1>IPO Data</h1>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Volute Data - IPO Filing Search</title>
+  </head>
 
-        <div class="controls">
-            <div class="control-group">
-                <label for="companySearch">Search Companies:</label>
-                <div class="search-container">
-                    <input type="text" id="companySearch" placeholder="Type to search companies..." autocomplete="off">
-                    <div id="searchResults" class="search-results"></div>
-                </div>
-            </div>
-
-            <div class="control-group">
-                <label for="columnSelector">Select Columns:</label>
-                <div class="dropdown-container">
-                    <button id="columnSelectorBtn" class="dropdown-btn">Select Columns</button>
-                    <div id="columnDropdown" class="dropdown-menu">
-                        <div class="dropdown-search">
-                            <input type="text" id="columnSearchInput" placeholder="Search columns...">
-                        </div>
-                        <div class="dropdown-options" id="columnOptions">
-                            <!-- Options will be populated dynamically -->
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="selected-companies" id="selectedCompanies">
-            <!-- Selected company chips will appear here -->
-        </div>
-
-        <button id="downloadBtn" class="download-btn">Download as CSV</button>
-
-        <div class="table-wrapper">
-            <table id="dataTable">
-                <thead id="dataHead">
-                    <tr id="headerRow">
-                        <!-- Headers will be dynamically generated -->
-                    </tr>
-                </thead>
-                <tbody id="dataBody">
-                    <!-- Rows will be dynamically generated -->
-                </tbody>
-            </table>
-        </div>
-
-        <div id="emptyState" class="empty-state">
-            <p>Add companies and select columns to build your custom table</p>
-        </div>
-
-        <div id="tooltip" class="tooltip"></div>
-    </div>
-
-    <script src="script.js"></script>
-</body>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>
