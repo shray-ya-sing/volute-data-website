@@ -11,7 +11,7 @@ export default function HomePage() {
         {/* Hero Section */}
         <div className="text-center w-full">
           <h2 className="text-6xl sm:text-7xl font-bold tracking-tight mb-6">
-            Volute is the financial data aggregation agent.
+            Volute is the financial data aggregation agent for analysts.
           </h2>
                     <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-8">
                       Volute delivers clean, thoughtfully aggregated data in a simple and delightful user experience. 
