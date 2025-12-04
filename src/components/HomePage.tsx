@@ -3,18 +3,18 @@ import { Play } from "lucide-react"
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-white text-black flex flex-col">
+    <div className="h-screen bg-white text-black flex flex-col">
 
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex-grow flex items-center">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex-grow flex flex-col justify-center">
         {/* Hero Section */}
         <div className="text-center w-full">
           <h2 className="text-6xl sm:text-7xl font-bold tracking-tight mb-6">
             Volute is the financial data aggregation agent.
           </h2>
                     <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-8">
-                      Volute delivers clean, thoughtfully aggregated data for every layer of the AI ecosystem in a simple and delightful user experience. 
+                      Volute delivers clean, thoughtfully aggregated data in a simple and delightful user experience. 
                     </p>
                     <p className="text-xl text-gray-600 max-w-2xl mx-auto mb-8">
                       Differentiated from other data providers by thoughtful, human validated accuracy and thoroughness. 
