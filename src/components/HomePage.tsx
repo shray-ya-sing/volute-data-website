@@ -3,13 +3,13 @@ import { Play } from "lucide-react"
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-white text-black">
+    <div className="min-h-screen bg-white text-black flex flex-col">
 
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-96">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex-grow flex items-center">
         {/* Hero Section */}
-        <div className="text-center">
+        <div className="text-center w-full">
           <h2 className="text-6xl sm:text-7xl font-bold tracking-tight mb-6">
             Volute is the financial data aggregation agent.
           </h2>
