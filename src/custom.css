@@ -1,0 +1,141 @@
+/* Custom color utilities for glassmorphism effect */
+@layer utilities {
+  /* Slate colors */
+  .from-slate-50 {
+    --tw-gradient-from: #f8fafc;
+    --tw-gradient-to: rgb(248 250 252 / 0);
+    --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+  }
+
+  /* Blue colors */
+  .via-blue-50 {
+    --tw-gradient-to: rgb(239 246 255 / 0);
+    --tw-gradient-stops: var(--tw-gradient-from), #eff6ff, var(--tw-gradient-to);
+  }
+
+  .bg-blue-50 {
+    background-color: #eff6ff;
+  }
+
+  /* Indigo colors */
+  .to-indigo-100 {
+    --tw-gradient-to: #e0e7ff;
+  }
+
+  .bg-indigo-100 {
+    background-color: #e0e7ff;
+  }
+
+  /* Purple colors */
+  .bg-purple-300 {
+    background-color: #d8b4fe;
+  }
+
+  /* Yellow colors */
+  .bg-yellow-300 {
+    background-color: #fde047;
+  }
+
+  /* Pink colors */
+  .bg-pink-300 {
+    background-color: #f9a8d4;
+  }
+
+  /* Blob animation */
+  .animate-blob {
+    animation: blob 7s infinite;
+  }
+
+  .animation-delay-2000 {
+    animation-delay: 2s;
+  }
+
+  .animation-delay-4000 {
+    animation-delay: 4s;
+  }
+
+  /* Blur utilities */
+  .blur-xl {
+    --tw-blur: blur(24px);
+    filter: var(--tw-blur);
+  }
+
+  /* Mix blend mode */
+  .mix-blend-multiply {
+    mix-blend-mode: multiply;
+  }
+
+  /* Filter utility */
+  .filter {
+    filter: var(--tw-blur, ) var(--tw-brightness, ) var(--tw-contrast, ) var(--tw-grayscale, ) var(--tw-hue-rotate, ) var(--tw-invert, ) var(--tw-saturate, ) var(--tw-sepia, ) var(--tw-drop-shadow, );
+  }
+
+  /* Gradient utilities */
+  .bg-gradient-to-br {
+    background-image: linear-gradient(to bottom right, var(--tw-gradient-stops));
+  }
+
+  /* Pointer events */
+  .pointer-events-none {
+    pointer-events: none;
+  }
+
+  /* Absolute positioning */
+  .absolute {
+    position: absolute;
+  }
+
+  .top-20 {
+    top: 5rem;
+  }
+
+  .top-40 {
+    top: 10rem;
+  }
+
+  .left-10 {
+    left: 2.5rem;
+  }
+
+  .left-20 {
+    left: 5rem;
+  }
+
+  .right-10 {
+    right: 2.5rem;
+  }
+
+  .-bottom-8 {
+    bottom: -2rem;
+  }
+
+  /* Size utilities */
+  .w-72 {
+    width: 18rem;
+  }
+
+  .h-72 {
+    height: 18rem;
+  }
+
+  /* Opacity */
+  .opacity-20 {
+    opacity: 0.2;
+  }
+}
+
+/* Blob animation keyframes */
+@keyframes blob {
+  0% {
+    transform: translate(0px, 0px) scale(1);
+  }
+  33% {
+    transform: translate(30px, -50px) scale(1.1);
+  }
+  66% {
+    transform: translate(-20px, 20px) scale(0.9);
+  }
+  100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+}

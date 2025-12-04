@@ -10,6 +10,10 @@ build/
 out/
 *.tsbuildinfo
 
+# Figma references
+figma references/
+*.webp
+
 # Environment variables
 .env
 .env*.local

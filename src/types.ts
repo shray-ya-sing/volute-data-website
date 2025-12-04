@@ -37,3 +37,41 @@ export interface SearchResult {
   description: string;
   fullData: IPOData;
 }
+
+// Comps category types
+export interface CompsCategory {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  companyCount: number;
+  metricCount: number;
+}
+
+// Metrics table types
+export interface Company {
+  id: string;
+  name: string;
+  ticker: string;
+  logo: string;
+}
+
+export interface Metric {
+  id: string;
+  name: string;
+}
+
+export interface Source {
+  type: 'website' | 'news' | 'filing' | 'database';
+  name: string;
+  value: string;
+  date: string;
+  url?: string;
+}
+
+export interface MetricValue {
+  companyId: string;
+  metricId: string;
+  value: string;
+  sources: Source[];
+}
