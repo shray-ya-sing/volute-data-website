@@ -80,6 +80,22 @@ export default function HomePage() {
 
           {/* Demo Video */}
           <div className="relative mx-auto" style={{ maxWidth: '80rem', marginTop: '4rem' }}>
+            {/* Demo Badge */}
+            <div className="flex justify-center mb-4">
+              <span 
+                className="inline-flex items-center text-gray-500 bg-gray-50 border border-gray-200"
+                style={{
+                  fontSize: '0.875rem',
+                  fontWeight: '500',
+                  padding: '0.5rem 1rem',
+                  borderRadius: '2rem',
+                  letterSpacing: '0.025em'
+                }}
+              >
+                Demo Video
+              </span>
+            </div>
+            
             <div className="relative">
               {/* Video container */}
               <div 
