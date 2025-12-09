@@ -7,7 +7,7 @@ import { compsCategories } from './compsData';
 import { getCompanyLogoUrl } from './config';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<'landing' | 'table' | 'home'>('home');
+  const [currentView, setCurrentView] = useState<'landing' | 'table' | 'home'>('landing');
   const [selectedCategory, setSelectedCategory] = useState<CompsCategory | null>(null);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [metrics] = useState<Metric[]>([
@@ -92,7 +92,7 @@ export default function App() {
   };
 
   const handleBackToLanding = () => {
-    setCurrentView('home');
+    setCurrentView('landing');
     setSelectedCategory(null);
   };
 
