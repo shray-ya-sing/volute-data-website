@@ -1,0 +1,260 @@
+{
+  "companyId": "astera-labs",
+  "companyName": "Astera Labs",
+  "ticker": "ALAB",
+  "metrics": {
+    "finalPrice": {
+      "aggregatedValue": "$36.00 per share",
+      "lastUpdated": "2024-03-20",
+      "sources": [
+        {
+          "id": "src-alab-filing-s1a",
+          "type": "filing",
+          "name": "S-1/A Filing (PDF)",
+          "value": "$36.00 per share",
+          "date": "2024-03-19",
+          "url": "https://www.sec.gov/Archives/edgar/data/1736297/000119312524069611/d285484ds1a.htm",
+          "contentType": "pdf",
+          "contentPath": "/source-content/astera-labs/ALAB_S1A.pdf",
+          "highlights": [
+            {
+              "searchText": "$33.0",
+              "pageNumber": 20,
+              "boundingBox": {
+                "x": 449,
+                "y": 249,
+                "width": 30,
+                "height": 11
+              },
+              "highlightColor": "#FFEB3B"
+            }
+          ]
+        },
+        {
+          "id": "src-alab-yahoo",
+          "type": "news",
+          "name": "Yahoo Finance - Astera Labs IPO",
+          "value": "$36.00 per share",
+          "date": "2024-03-19",
+          "url": "https://finance.yahoo.com/news/1-astera-labs-seeks-raise-022814539.html",
+          "contentType": "html",
+          "contentPath": "/source-content/astera-labs/finance-yahoo-1-astera-labs-seeks-raise-022814539.html",
+          "highlights": [
+            {
+              "searchText": "$36",
+              "contextBefore": "at",
+              "contextAfter": "apiece",
+              "highlightColor": "#FFEB3B"
+            }
+          ]
+        },
+        {
+          "id": "src-alab-techcrunch",
+          "type": "news",
+          "name": "TechCrunch - Astera Labs IPO Success",
+          "value": "$36 per share",
+          "date": "2024-03-20",
+          "url": "https://techcrunch.com/2024/03/20/astera-labs-ipo-pops-54-showing-that-investor-demand-for-tech-with-an-ai-twist-is-high/",
+          "contentType": "html",
+          "contentPath": "/source-content/astera-labs/techcrunch-astera-labs-ipo-pops-54-showing-that-investor-dema.html",
+          "highlights": [
+            {
+              "searchText": "$36",
+              "contextBefore": "",
+              "contextAfter": "per share",
+              "highlightColor": "#FFEB3B"
+            }
+          ]
+        },
+        {
+          "id": "src-alab-test",
+          "type": "news",
+          "name": "TEST - Simple HTML (Should Work!)",
+          "value": "$36 per share",
+          "date": "2024-03-19",
+          "url": "#",
+          "contentType": "html",
+          "contentPath": "/source-content/astera-labs/test-simple.html",
+          "highlights": [
+            {
+              "searchText": "$36",
+              "contextBefore": "priced at",
+              "contextAfter": "per share",
+              "highlightColor": "#FFEB3B"
+            }
+          ]
+        }
+      ]
+    },
+    "grossProceeds": {
+      "aggregatedValue": "$712.8M",
+      "lastUpdated": "2024-03-20",
+      "sources": [
+        {
+          "id": "src-alab-filing-proceeds",
+          "type": "filing",
+          "name": "S-1/A Filing (PDF)",
+          "value": "$712,800,000",
+          "date": "2024-03-19",
+          "url": "https://www.sec.gov/Archives/edgar/data/1736297/000119312524069611/d285484ds1a.htm",
+          "contentType": "pdf",
+          "contentPath": "/source-content/astera-labs/ALAB_S1A.pdf",
+          "highlights": [
+            {
+              "searchText": "712,800,000",
+              "pageNumber": 1,
+              "boundingBox": {
+                "x": 100,
+                "y": 300,
+                "width": 120,
+                "height": 20
+              },
+              "highlightColor": "#FFEB3B"
+            }
+          ]
+        },
+        {
+          "id": "src-alab-yahoo-proceeds",
+          "type": "news",
+          "name": "Yahoo Finance - IPO Proceeds",
+          "value": "$712.8M",
+          "date": "2024-03-19",
+          "url": "https://finance.yahoo.com/news/1-astera-labs-seeks-raise-022814539.html",
+          "contentType": "html",
+          "contentPath": "/source-content/astera-labs/finance-yahoo-1-astera-labs-seeks-raise-022814539.html",
+          "highlights": [
+            {
+              "searchText": "$712.8 million",
+              "contextBefore": "raise around",
+              "contextAfter": ".",
+              "highlightColor": "#FFEB3B"
+            }
+          ]
+        },
+        {
+          "id": "src-alab-stblaw",
+          "type": "news",
+          "name": "Simpson Thacher - IPO Announcement",
+          "value": "$819.7M",
+          "date": "2024-03-22",
+          "url": "https://www.stblaw.com/about-us/news/view/2024/03/22/astera-labs-completes-$819.7-million-initial-public-offering",
+          "contentType": "html",
+          "contentPath": "/source-content/astera-labs/stblaw-astera-labs-completes-819-7-million-initial-publi.html",
+          "highlights": [
+            {
+              "searchText": "819.7",
+              "contextBefore": "",
+              "contextAfter": "million",
+              "highlightColor": "#FFEB3B"
+            }
+          ]
+        }
+      ]
+    },
+    "netProceeds": {
+      "aggregatedValue": "$667.3M",
+      "lastUpdated": "2024-03-20",
+      "sources": [
+        {
+          "id": "src-alab-filing-net",
+          "type": "filing",
+          "name": "S-1/A Filing (PDF)",
+          "value": "$667,300,000",
+          "date": "2024-03-19",
+          "url": "https://www.sec.gov/Archives/edgar/data/1736297/000119312524069611/d285484ds1a.htm",
+          "contentType": "pdf",
+          "contentPath": "/source-content/astera-labs/ALAB_S1A.pdf",
+          "highlights": [
+            {
+              "searchText": "667,300,000",
+              "pageNumber": 1,
+              "boundingBox": {
+                "x": 100,
+                "y": 350,
+                "width": 120,
+                "height": 20
+              },
+              "highlightColor": "#FFEB3B"
+            }
+          ]
+        }
+      ]
+    },
+    "sharesOffered": {
+      "aggregatedValue": "19.8M shares",
+      "lastUpdated": "2024-03-20",
+      "sources": [
+        {
+          "id": "src-alab-filing-shares",
+          "type": "filing",
+          "name": "S-1/A Filing (PDF)",
+          "value": "19,800,000 shares",
+          "date": "2024-03-19",
+          "url": "https://www.sec.gov/Archives/edgar/data/1736297/000119312524069611/d285484ds1a.htm",
+          "contentType": "pdf",
+          "contentPath": "/source-content/astera-labs/ALAB_S1A.pdf",
+          "highlights": [
+            {
+              "searchText": "19,800,000",
+              "pageNumber": 1,
+              "boundingBox": {
+                "x": 100,
+                "y": 400,
+                "width": 110,
+                "height": 20
+              },
+              "highlightColor": "#FFEB3B"
+            }
+          ]
+        },
+        {
+          "id": "src-alab-nasdaq-shares",
+          "type": "news",
+          "name": "NASDAQ - Astera Labs IPO",
+          "value": "19.8M shares",
+          "date": "2024-03-20",
+          "url": "https://www.nasdaq.com/articles/alab-stock%3A-astera-labs-pops-a-stunning-70-after-ipo",
+          "contentType": "html",
+          "contentPath": "/source-content/astera-labs/nasdaq-alab-stock-3A-astera-labs-pops-a-stunning-70-after.html",
+          "highlights": [
+            {
+              "searchText": "19.8",
+              "contextBefore": "",
+              "contextAfter": "million",
+              "highlightColor": "#FFEB3B"
+            }
+          ]
+        }
+      ]
+    },
+    "underwriterDiscount": {
+      "aggregatedValue": "$45.5M",
+      "lastUpdated": "2024-03-20",
+      "sources": [
+        {
+          "id": "src-alab-filing-discount",
+          "type": "filing",
+          "name": "S-1/A Filing (PDF)",
+          "value": "$45,500,000",
+          "date": "2024-03-19",
+          "url": "https://www.sec.gov/Archives/edgar/data/1736297/000119312524069611/d285484ds1a.htm",
+          "contentType": "pdf",
+          "contentPath": "/source-content/astera-labs/ALAB_S1A.pdf",
+          "highlights": [
+            {
+              "searchText": "45,500,000",
+              "pageNumber": 1,
+              "boundingBox": {
+                "x": 100,
+                "y": 450,
+                "width": 110,
+                "height": 20
+              },
+              "highlightColor": "#FFEB3B"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -2,12 +2,19 @@ import { useState, useEffect } from 'react';
 import { LandingPage } from './components/LandingPage';
 import { TablePage } from './components/TablePage';
 import HomePage from './components/HomePage';
+import { PdfAnnotationTool } from './components/PdfAnnotationTool';
 import { Company, Metric, MetricValue, IPOData, CompsCategory } from './types';
 import { compsCategories } from './compsData';
 import { getCompanyLogoUrl } from './config';
 
 export default function App() {
-  const [currentView, setCurrentView] = useState<'landing' | 'table' | 'home'>('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'table' | 'home' | 'annotate'>(() => {
+    // Check URL hash for annotation tool
+    if (window.location.hash === '#annotate') {
+      return 'annotate';
+    }
+    return 'landing';
+  });
   const [selectedCategory, setSelectedCategory] = useState<CompsCategory | null>(null);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [metrics] = useState<Metric[]>([
@@ -20,9 +27,17 @@ export default function App() {
   const [metricValues, setMetricValues] = useState<MetricValue[]>([]);
 
   useEffect(() => {
-    fetch('/data.json')
-      .then((res) => res.json())
-      .then((data: IPOData[]) => {
+    // Load data.json and enhanced sources for multiple companies
+    Promise.all([
+      fetch('/data.json').then((res) => res.json()),
+      fetch('/data/astera-sources.json')
+        .then((res) => res.json())
+        .catch(() => null), // Gracefully handle if enhanced sources don't exist
+      fetch('/data/rubrik-sources.json')
+        .then((res) => res.json())
+        .catch(() => null),
+    ])
+      .then(([data, asteraData, rubrikData]: [IPOData[], any, any]) => {
         // Convert IPO data to companies
         const companiesList: Company[] = data.map((ipo, index) => ({
           id: (index + 1).toString(),
@@ -45,7 +60,7 @@ export default function App() {
               value: ipo['Final Price'],
               sources: [
                 { type: 'filing', name: '424B4 Filing', value: ipo['Final Price'], date: filingDate, url: ipo['Filing URL'] },
-              ]
+              ],
             },
             {
               companyId,
@@ -53,7 +68,7 @@ export default function App() {
               value: ipo['Gross Proceeds'],
               sources: [
                 { type: 'filing', name: '424B4 Filing', value: ipo['Gross Proceeds'], date: filingDate, url: ipo['Filing URL'] },
-              ]
+              ],
             },
             {
               companyId,
@@ -61,7 +76,7 @@ export default function App() {
               value: ipo['Net Proceeds'],
               sources: [
                 { type: 'filing', name: '424B4 Filing', value: ipo['Net Proceeds'], date: filingDate, url: ipo['Filing URL'] },
-              ]
+              ],
             },
             {
               companyId,
@@ -69,7 +84,7 @@ export default function App() {
               value: ipo['Shares Offered (Primary)'],
               sources: [
                 { type: 'filing', name: '424B4 Filing', value: ipo['Shares Offered (Primary)'], date: filingDate, url: ipo['Filing URL'] },
-              ]
+              ],
             },
             {
               companyId,
@@ -77,14 +92,53 @@ export default function App() {
               value: ipo['Underwriter Discount (Total)'],
               sources: [
                 { type: 'filing', name: '424B4 Filing', value: ipo['Underwriter Discount (Total)'], date: filingDate, url: ipo['Filing URL'] },
-              ]
+              ],
             }
           );
         });
+
+        // Merge enhanced sources for companies with additional data
+        if (asteraData) {
+          mergeEnhancedSources(values, asteraData, companiesList);
+        }
+        if (rubrikData) {
+          mergeEnhancedSources(values, rubrikData, companiesList);
+        }
+
         setMetricValues(values);
       })
       .catch((error) => console.error('Error loading IPO data:', error));
   }, []);
+
+  // Function to merge enhanced sources for specific companies
+  function mergeEnhancedSources(
+    values: MetricValue[],
+    enhancedData: any,
+    companiesList: Company[]
+  ) {
+    // Find the company ID for the enhanced data
+    const company = companiesList.find((c) => c.ticker === enhancedData.ticker);
+    if (!company) {
+      console.warn(`Company with ticker ${enhancedData.ticker} not found`);
+      return;
+    }
+
+    // Update metric values with enhanced sources
+    Object.entries(enhancedData.metrics).forEach(([metricKey, metricData]: any) => {
+      const valueIndex = values.findIndex(
+        (v) => v.companyId === company.id && v.metricId === metricKey
+      );
+
+      if (valueIndex !== -1) {
+        // Replace with enhanced data
+        values[valueIndex] = {
+          ...values[valueIndex],
+          value: metricData.aggregatedValue,
+          sources: metricData.sources,
+        };
+      }
+    });
+  }
 
   const handleCategoryClick = (category: CompsCategory) => {
     setSelectedCategory(category);
@@ -95,6 +149,10 @@ export default function App() {
     setCurrentView('landing');
     setSelectedCategory(null);
   };
+
+  if (currentView === 'annotate') {
+    return <PdfAnnotationTool />;
+  }
 
   if (currentView === 'home') {
     return <HomePage />;

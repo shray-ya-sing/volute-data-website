@@ -1,5 +1,7 @@
-import { X, ExternalLink, FileText, Newspaper, Globe, Database } from 'lucide-react';
+import { useState } from 'react';
+import { X, ExternalLink, FileText, Newspaper, Globe, Database, Eye, File } from 'lucide-react';
 import { Source } from '../types';
+import { SourcePreviewModal } from './SourcePreviewModal';
 
 interface SourcesPanelProps {
   isOpen: boolean;
@@ -18,6 +20,8 @@ export function SourcesPanel({
   metricValue,
   sources,
 }: SourcesPanelProps) {
+  const [previewSource, setPreviewSource] = useState<Source | null>(null);
+
   if (!isOpen) return null;
 
   const getSourceIcon = (type: Source['type']) => {
@@ -121,19 +125,65 @@ export function SourcesPanel({
                           </span>
                         </div>
                       </div>
-                      {source.url && (
-                        <a
-                          href={source.url}
-                          className="flex-shrink-0 p-2 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-900 transition-colors"
-                          onClick={(e) => e.preventDefault()}
-                        >
-                          <ExternalLink className="w-4 h-4" />
-                        </a>
+                    </div>
+
+                    {/* Value with discrepancy indicator */}
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="inline-flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
+                        <span className="text-gray-600">Value:</span>
+                        <span className="text-gray-900">{source.value}</span>
+                      </div>
+                      {source.value !== metricValue && (
+                        <span className="px-2 py-0.5 text-xs bg-orange-100 text-orange-700 rounded-full border border-orange-200">
+                          Differs
+                        </span>
                       )}
                     </div>
-                    <div className="inline-flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
-                      <span className="text-gray-600">Value:</span>
-                      <span className="text-gray-900">{source.value}</span>
+
+                    {/* Preview and open buttons */}
+                    <div className="flex items-center gap-2">
+                      {(source.contentPath || source.contentUrl) ? (
+                        <>
+                          <button
+                            onClick={() => setPreviewSource(source)}
+                            className="flex items-center gap-2 px-3 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
+                          >
+                            <Eye className="w-4 h-4" />
+                            View in Source
+                          </button>
+                          {source.contentType === 'pdf' ? (
+                            <a
+                              href={source.contentPath || source.contentUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                              title="Open PDF in new tab"
+                            >
+                              <File className="w-4 h-4" />
+                            </a>
+                          ) : source.url ? (
+                            <a
+                              href={source.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                              title="Open original article"
+                            >
+                              <ExternalLink className="w-4 h-4" />
+                            </a>
+                          ) : null}
+                        </>
+                      ) : source.url ? (
+                        <a
+                          href={source.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          Open Original
+                        </a>
+                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -165,6 +215,17 @@ export function SourcesPanel({
           </p>
         </div>
       </div>
+
+      {/* Source Preview Modal */}
+      {previewSource && (
+        <SourcePreviewModal
+          isOpen={previewSource !== null}
+          onClose={() => setPreviewSource(null)}
+          source={previewSource}
+          companyName={companyName}
+          metricName={metricName}
+        />
+      )}
     </>
   );
 }
