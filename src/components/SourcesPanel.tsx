@@ -201,19 +201,6 @@ export function SourcesPanel({
             </div>
           )}
         </div>
-
-        {/* Footer */}
-        <div className="sticky bottom-0 px-6 py-4 bg-white border-t border-gray-200">
-          <p className="text-gray-600 text-center">
-            Last updated: {new Date().toLocaleDateString('en-US', {
-              month: 'short',
-              day: 'numeric',
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
-            })}
-          </p>
-        </div>
       </div>
 
       {/* Source Preview Modal */}
