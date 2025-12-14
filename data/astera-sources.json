@@ -65,24 +65,6 @@
               "highlightColor": "#FFEB3B"
             }
           ]
-        },
-        {
-          "id": "src-alab-test",
-          "type": "news",
-          "name": "TEST - Simple HTML (Should Work!)",
-          "value": "$36 per share",
-          "date": "2024-03-19",
-          "url": "#",
-          "contentType": "html",
-          "contentPath": "/source-content/astera-labs/test-simple.html",
-          "highlights": [
-            {
-              "searchText": "$36",
-              "contextBefore": "priced at",
-              "contextAfter": "per share",
-              "highlightColor": "#FFEB3B"
-            }
-          ]
         }
       ]
     },
