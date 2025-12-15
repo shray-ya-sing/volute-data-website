@@ -18,11 +18,27 @@ export default function App() {
   const [selectedCategory, setSelectedCategory] = useState<CompsCategory | null>(null);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [metrics] = useState<Metric[]>([
+    { id: 'ipoDate', name: 'IPO Date' },
     { id: 'finalPrice', name: 'Final Price' },
+    { id: 'openingPrice', name: 'Opening Price' },
+    { id: 'firstDayClosingPrice', name: 'First Day Closing Price' },
+    { id: 'priceRange', name: 'Expected Price Range' },
+    { id: 'ipoValuation', name: 'IPO Valuation' },
+    { id: 'lastPrivateValuation', name: 'Last Private Valuation' },
+    { id: 'upsizedOrDownsized', name: 'Upsized/Downsized' },
+    { id: 'sharesOffered', name: 'Shares Offered (Primary)' },
+    { id: 'sharesCompany', name: 'Shares Sold by Company' },
+    { id: 'sharesSellingStockholders', name: 'Shares Sold by Selling Stockholders' },
+    { id: 'greenshoeShares', name: 'Greenshoe Shares' },
+    { id: 'commonStockOutstanding', name: 'Common Stock Outstanding' },
     { id: 'grossProceeds', name: 'Gross Proceeds' },
     { id: 'netProceeds', name: 'Net Proceeds' },
-    { id: 'sharesOffered', name: 'Shares Offered' },
+    { id: 'proceedsToCompany', name: 'Proceeds to Company' },
+    { id: 'proceedsToSellingStockholders', name: 'Proceeds to Selling Stockholders' },
     { id: 'underwriterDiscount', name: 'Underwriter Discount' },
+    { id: 'bookrunners', name: 'Bookrunning Banks' },
+    { id: 'attorneys', name: 'Attorneys' },
+    { id: 'notes', name: 'Notes' },
   ]);
   const [metricValues, setMetricValues] = useState<MetricValue[]>([]);
 
@@ -123,19 +139,27 @@ export default function App() {
       return;
     }
 
-    // Update metric values with enhanced sources
+    // Update or add metric values with enhanced sources
     Object.entries(enhancedData.metrics).forEach(([metricKey, metricData]: any) => {
       const valueIndex = values.findIndex(
         (v) => v.companyId === company.id && v.metricId === metricKey
       );
 
       if (valueIndex !== -1) {
-        // Replace with enhanced data
+        // Replace existing metric with enhanced data
         values[valueIndex] = {
           ...values[valueIndex],
           value: metricData.aggregatedValue,
           sources: metricData.sources,
         };
+      } else {
+        // Add new metric that doesn't exist in base data
+        values.push({
+          companyId: company.id,
+          metricId: metricKey,
+          value: metricData.aggregatedValue,
+          sources: metricData.sources,
+        });
       }
     });
   }
