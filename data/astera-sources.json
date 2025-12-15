@@ -3,6 +3,30 @@
   "companyName": "Astera Labs",
   "ticker": "ALAB",
   "metrics": {
+    "ipoDate": {
+      "aggregatedValue": "March 20, 2024",
+      "lastUpdated": "2024-03-20",
+      "sources": [
+        {
+          "id": "src-alab-ipo-date-yahoo",
+          "type": "news",
+          "name": "Yahoo Finance - IPO Date",
+          "value": "March 20, 2024",
+          "date": "2024-03-19",
+          "url": "https://finance.yahoo.com/news/1-astera-labs-seeks-raise-022814539.html",
+          "contentType": "html",
+          "contentPath": "/source-content/astera-labs/finance-yahoo-1-astera-labs-seeks-raise-022814539.html",
+          "highlights": [
+            {
+              "searchText": "March 20",
+              "contextBefore": "expected to begin trading on Nasdaq Global Select Market under the the ticker symbol \"ALAB\" on",
+              "contextAfter": "",
+              "highlightColor": "#FFEB3B"
+            }
+          ]
+        }
+      ]
+    },
     "finalPrice": {
       "aggregatedValue": "$36.00 per share",
       "lastUpdated": "2024-03-20",
@@ -65,6 +89,161 @@
               "highlightColor": "#FFEB3B"
             }
           ]
+        }
+      ]
+    },
+    "priceRange": {
+      "aggregatedValue": "$32-$34 per share (raised from initial $27-$30)",
+      "lastUpdated": "2024-03-19",
+      "sources": [
+        {
+          "id": "src-alab-price-range-yahoo",
+          "type": "news",
+          "name": "Yahoo Finance - Price Range",
+          "value": "$32-$34 per share",
+          "date": "2024-03-19",
+          "url": "https://finance.yahoo.com/news/1-astera-labs-seeks-raise-022814539.html",
+          "contentType": "html",
+          "contentPath": "/source-content/astera-labs/finance-yahoo-1-astera-labs-seeks-raise-022814539.html",
+          "highlights": [
+            {
+              "searchText": "$32 to $34",
+              "contextBefore": "priced its IPO above its previous target range of",
+              "contextAfter": "apiece",
+              "highlightColor": "#FFEB3B"
+            }
+          ]
+        }
+      ]
+    },
+    "openingPrice": {
+      "aggregatedValue": "$52.56 per share",
+      "lastUpdated": "2024-03-20",
+      "sources": [
+        {
+          "id": "src-alab-opening-techcrunch",
+          "type": "news",
+          "name": "TechCrunch - Opening Price",
+          "value": "$52.56 per share",
+          "date": "2024-03-20",
+          "url": "https://techcrunch.com/2024/03/20/astera-labs-ipo-pops-54-showing-that-investor-demand-for-tech-with-an-ai-twist-is-high/",
+          "contentType": "html",
+          "contentPath": "/source-content/astera-labs/techcrunch-astera-labs-ipo-pops-54-showing-that-investor-dema.html",
+          "highlights": [
+            {
+              "searchText": "$52.56",
+              "contextBefore": "started its life as a public company trading at",
+              "contextAfter": "per share",
+              "highlightColor": "#FFEB3B"
+            }
+          ]
+        }
+      ]
+    },
+    "firstDayClosingPrice": {
+      "aggregatedValue": "$62.03 per share",
+      "lastUpdated": "2024-03-20",
+      "sources": [
+        {
+          "id": "src-alab-closing-techcrunch",
+          "type": "news",
+          "name": "TechCrunch - First Day Closing",
+          "value": "$62.03",
+          "date": "2024-03-20",
+          "url": "https://techcrunch.com/2024/03/20/astera-labs-ipo-pops-54-showing-that-investor-demand-for-tech-with-an-ai-twist-is-high/",
+          "contentType": "html",
+          "contentPath": "/source-content/astera-labs/techcrunch-astera-labs-ipo-pops-54-showing-that-investor-dema.html",
+          "highlights": [
+            {
+              "searchText": "$62.03",
+              "contextBefore": "Shares closed on their first day of trading at",
+              "contextAfter": ", a gain of 72%",
+              "highlightColor": "#FFEB3B"
+            }
+          ]
+        }
+      ]
+    },
+    "ipoValuation": {
+      "aggregatedValue": "$5.5 billion",
+      "lastUpdated": "2024-03-20",
+      "sources": [
+        {
+          "id": "src-alab-valuation-yahoo",
+          "type": "news",
+          "name": "Yahoo Finance - IPO Valuation",
+          "value": "$5.5 billion",
+          "date": "2024-03-19",
+          "url": "https://finance.yahoo.com/news/1-astera-labs-seeks-raise-022814539.html",
+          "contentType": "html",
+          "contentPath": "/source-content/astera-labs/finance-yahoo-1-astera-labs-seeks-raise-022814539.html",
+          "highlights": [
+            {
+              "searchText": "$5.5 billion",
+              "contextBefore": "giving it a valuation of about",
+              "contextAfter": "based on the outstanding shares",
+              "highlightColor": "#FFEB3B"
+            }
+          ]
+        }
+      ]
+    },
+    "lastPrivateValuation": {
+      "aggregatedValue": "$3.1 billion (2022)",
+      "lastUpdated": "2024-03-20",
+      "sources": [
+        {
+          "id": "src-alab-private-val-techcrunch",
+          "type": "news",
+          "name": "TechCrunch - Private Valuation",
+          "value": "$3.1 billion",
+          "date": "2024-03-20",
+          "url": "https://techcrunch.com/2024/03/20/astera-labs-ipo-pops-54-showing-that-investor-demand-for-tech-with-an-ai-twist-is-high/",
+          "contentType": "html",
+          "contentPath": "/source-content/astera-labs/techcrunch-astera-labs-ipo-pops-54-showing-that-investor-dema.html",
+          "highlights": [
+            {
+              "searchText": "$3.1 billion",
+              "contextBefore": "was last valued at",
+              "contextAfter": "which makes it a better comp",
+              "highlightColor": "#FFEB3B"
+            }
+          ]
+        }
+      ]
+    },
+    "upsizedOrDownsized": {
+      "aggregatedValue": "Upsized (price and share count both increased)",
+      "lastUpdated": "2024-03-20",
+      "sources": [
+        {
+          "id": "src-alab-upsized-yahoo",
+          "type": "news",
+          "name": "Yahoo Finance - Upsized",
+          "value": "Priced above raised range",
+          "date": "2024-03-19",
+          "url": "https://finance.yahoo.com/news/1-astera-labs-seeks-raise-022814539.html",
+          "contentType": "html",
+          "contentPath": "/source-content/astera-labs/finance-yahoo-1-astera-labs-seeks-raise-022814539.html",
+          "highlights": [
+            {
+              "searchText": "above its previous target range",
+              "contextBefore": "priced its IPO",
+              "contextAfter": "of $32 to $34",
+              "highlightColor": "#FFEB3B"
+            }
+          ]
+        },
+        {
+          "id": "src-alab-upsized-goodwin",
+          "type": "news",
+          "name": "Goodwin Law - Upsized IPO",
+          "value": "Upsized $774M",
+          "date": "2024-03-22",
+          "url": "https://www.goodwinlaw.com/en/news-and-events/news/2024/03/announcements-technology-cm-astera-labs-completes-upsized",
+          "contentType": "html",
+          "contentPath": "/source-content/astera-labs/goodwinlaw-announcements-technology-cm-astera-labs-completes.html",
+          "highlights": []
         }
       ]
     },
@@ -203,6 +382,231 @@
               "searchText": "19.8",
               "contextBefore": "",
               "contextAfter": "million",
+              "highlightColor": "#FFEB3B"
+            }
+          ]
+        }
+      ]
+    },
+    "sharesCompany": {
+      "aggregatedValue": "19,758,903 shares (including greenshoe)",
+      "lastUpdated": "2024-03-22",
+      "sources": [
+        {
+          "id": "src-alab-company-shares",
+          "type": "news",
+          "name": "Web Search - Company Shares",
+          "value": "19,758,903 shares (16,788,903 base + 2,970,000 greenshoe)",
+          "date": "2024-03-22",
+          "url": "https://www.goodwinlaw.com/en/news-and-events/news/2024/03/announcements-technology-cm-astera-labs-completes-upsized",
+          "contentType": "html",
+          "contentPath": null,
+          "highlights": []
+        }
+      ]
+    },
+    "sharesSellingStockholders": {
+      "aggregatedValue": "3,011,097 shares",
+      "lastUpdated": "2024-03-22",
+      "sources": [
+        {
+          "id": "src-alab-selling-shares",
+          "type": "news",
+          "name": "Web Search - Selling Stockholder Shares",
+          "value": "3,011,097 shares",
+          "date": "2024-03-22",
+          "url": "https://www.asteralabs.com/news/astera-labs-announces-pricing-of-initial-public-offering/",
+          "contentType": "html",
+          "contentPath": null,
+          "highlights": []
+        }
+      ]
+    },
+    "greenshoeShares": {
+      "aggregatedValue": "2,970,000 shares (fully exercised)",
+      "lastUpdated": "2024-03-22",
+      "sources": [
+        {
+          "id": "src-alab-greenshoe",
+          "type": "news",
+          "name": "Web Search - Greenshoe Option",
+          "value": "2,970,000 shares over-allotment option, fully exercised",
+          "date": "2024-03-22",
+          "url": "https://www.stblaw.com/about-us/news/view/2024/03/22/astera-labs-completes-$819.7-million-initial-public-offering",
+          "contentType": "html",
+          "contentPath": null,
+          "highlights": []
+        }
+      ]
+    },
+    "commonStockOutstanding": {
+      "aggregatedValue": "155,473,008 shares (with greenshoe exercised)",
+      "lastUpdated": "2024-03-20",
+      "sources": [
+        {
+          "id": "src-alab-common-stock",
+          "type": "filing",
+          "name": "424B4 Prospectus - Common Stock Outstanding",
+          "value": "152,503,008 shares (or 155,473,008 shares if underwriters' option exercised in full)",
+          "date": "2024-03-20",
+          "url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0001736297&type=424B4&dateb=&owner=exclude&count=40",
+          "contentType": "pdf",
+          "contentPath": "/source-content/astera-labs/ALAB_424B.pdf",
+          "highlights": [
+            {
+              "searchText": "155,473,008 shares",
+              "contextBefore": "Common stock to be outstanding immediately after this offering",
+              "contextAfter": "if the underwriters' option to purchase additional shares in this offering is exercised in full",
+              "highlightColor": "#FFEB3B"
+            }
+          ]
+        }
+      ]
+    },
+    "proceedsToCompany": {
+      "aggregatedValue": "Gross: $711.3M, Net: ~$665M (estimated)",
+      "lastUpdated": "2024-03-22",
+      "sources": [
+        {
+          "id": "src-alab-company-proceeds",
+          "type": "news",
+          "name": "Yahoo Finance - Company Proceeds",
+          "value": "Gross proceeds expected around $604.4 million to company",
+          "date": "2024-03-19",
+          "url": "https://finance.yahoo.com/news/1-astera-labs-seeks-raise-022814539.html",
+          "contentType": "html",
+          "contentPath": "/source-content/astera-labs/finance-yahoo-1-astera-labs-seeks-raise-022814539.html",
+          "highlights": [
+            {
+              "searchText": "$604.4 million",
+              "contextBefore": "gross proceeds are expected to be around",
+              "contextAfter": "",
+              "highlightColor": "#FFEB3B"
+            }
+          ]
+        }
+      ]
+    },
+    "proceedsToSellingStockholders": {
+      "aggregatedValue": "Gross: $108.4M (3,011,097 shares × $36)",
+      "lastUpdated": "2024-03-22",
+      "sources": [
+        {
+          "id": "src-alab-selling-proceeds",
+          "type": "news",
+          "name": "Calculated from shares sold",
+          "value": "$108.4M gross proceeds",
+          "date": "2024-03-22",
+          "url": "https://www.asteralabs.com/news/astera-labs-announces-pricing-of-initial-public-offering/",
+          "contentType": "html",
+          "contentPath": null,
+          "highlights": []
+        }
+      ]
+    },
+    "bookrunners": {
+      "aggregatedValue": "Morgan Stanley & Co. LLC and J.P. Morgan Securities LLC (lead bookrunners)",
+      "lastUpdated": "2024-03-20",
+      "sources": [
+        {
+          "id": "src-alab-bookrunners-yahoo",
+          "type": "news",
+          "name": "Yahoo Finance - Bookrunners",
+          "value": "Morgan Stanley and J.P. Morgan",
+          "date": "2024-03-19",
+          "url": "https://finance.yahoo.com/news/1-astera-labs-seeks-raise-022814539.html",
+          "contentType": "html",
+          "contentPath": "/source-content/astera-labs/finance-yahoo-1-astera-labs-seeks-raise-022814539.html",
+          "highlights": [
+            {
+              "searchText": "Morgan Stanley and J.P. Morgan",
+              "contextBefore": "",
+              "contextAfter": "are the joint book runners for the offering",
+              "highlightColor": "#FFEB3B"
+            }
+          ]
+        },
+        {
+          "id": "src-alab-bookrunners-stb",
+          "type": "news",
+          "name": "Simpson Thacher - Underwriters",
+          "value": "Morgan Stanley & Co. LLC and J.P. Morgan Securities LLC",
+          "date": "2024-03-22",
+          "url": "https://www.stblaw.com/about-us/news/view/2024/03/22/astera-labs-completes-$819.7-million-initial-public-offering",
+          "contentType": "html",
+          "contentPath": null,
+          "highlights": []
+        }
+      ]
+    },
+    "attorneys": {
+      "aggregatedValue": "Company: Goodwin Procter LLP | Underwriters: Simpson Thacher & Bartlett LLP",
+      "lastUpdated": "2024-03-22",
+      "sources": [
+        {
+          "id": "src-alab-attorneys-goodwin",
+          "type": "news",
+          "name": "Goodwin - Company Counsel",
+          "value": "Goodwin Procter LLP represented Astera Labs",
+          "date": "2024-03-22",
+          "url": "https://www.goodwinlaw.com/en/news-and-events/news/2024/03/announcements-technology-cm-astera-labs-completes-upsized",
+          "contentType": "html",
+          "contentPath": "/source-content/astera-labs/goodwinlaw-announcements-technology-cm-astera-labs-completes.html",
+          "highlights": []
+        },
+        {
+          "id": "src-alab-attorneys-stb",
+          "type": "news",
+          "name": "Simpson Thacher - Underwriters Counsel",
+          "value": "Simpson Thacher & Bartlett LLP represented underwriters",
+          "date": "2024-03-22",
+          "url": "https://www.stblaw.com/about-us/news/view/2024/03/22/astera-labs-completes-$819.7-million-initial-public-offering",
+          "contentType": "html",
+          "contentPath": "/source-content/astera-labs/stblaw-astera-labs-completes-819-7-million-initial-publi.html",
+          "highlights": []
+        },
+        {
+          "id": "src-alab-attorneys-law360",
+          "type": "news",
+          "name": "Law360 - Legal Counsel",
+          "value": "Goodwin and Simpson Thacher steered the IPO",
+          "date": "2024-03-19",
+          "url": "https://www.law360.com/articles/1815019/goodwin-simpson-thacher-steer-astera-s-upsized-713m-ipo",
+          "contentType": "html",
+          "contentPath": null,
+          "highlights": []
+        }
+      ]
+    },
+    "notes": {
+      "aggregatedValue": "Directed Share Program for directors, business partners, friends and family | Last private valuation: $3.1B (2022) | Total VC raised: $206M | First material tech IPO of 2024",
+      "lastUpdated": "2024-03-20",
+      "sources": [
+        {
+          "id": "src-alab-dsp",
+          "type": "news",
+          "name": "SEC S-1 - Directed Share Program",
+          "value": "DSP for directors, business partners, friends and family",
+          "date": "2024-03-08",
+          "url": "https://www.sec.gov/Archives/edgar/data/1736297/000119312524040419/d285484ds1.htm",
+          "contentType": "html",
+          "contentPath": null,
+          "highlights": []
+        },
+        {
+          "id": "src-alab-vc-history",
+          "type": "news",
+          "name": "TechCrunch - VC History",
+          "value": "Founded in 2017, raised $206M in VC, last valued at $3.1B",
+          "date": "2024-03-20",
+          "url": "https://techcrunch.com/2024/03/20/astera-labs-ipo-pops-54-showing-that-investor-demand-for-tech-with-an-ai-twist-is-high/",
+          "contentType": "html",
+          "contentPath": "/source-content/astera-labs/techcrunch-astera-labs-ipo-pops-54-showing-that-investor-dema.html",
+          "highlights": [
+            {
+              "searchText": "$206 million",
+              "contextBefore": "founded in 2017, has raised",
+              "contextAfter": "in venture capital",
               "highlightColor": "#FFEB3B"
             }
           ]
