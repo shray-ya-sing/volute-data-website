@@ -7,6 +7,7 @@ import { AdminPanel } from './components/AdminPanel';
 import { Company, Metric, MetricValue, IPOData, CompsCategory } from './types';
 import { compsCategories } from './compsData';
 import { getCompanyLogoUrl } from './config';
+import { SearchResult } from './services/searchService';
 
 export default function App() {
   const [currentView, setCurrentView] = useState<'landing' | 'table' | 'home' | 'annotate' | 'admin'>(() => {
@@ -22,6 +23,7 @@ export default function App() {
     return 'landing';
   });
   const [selectedCategory, setSelectedCategory] = useState<CompsCategory | null>(null);
+  const [searchResult, setSearchResult] = useState<SearchResult | null>(null);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [metrics] = useState<Metric[]>([
     { id: 'ipoDate', name: 'IPO Date' },
@@ -283,12 +285,20 @@ export default function App() {
 
   const handleCategoryClick = (category: CompsCategory) => {
     setSelectedCategory(category);
+    setSearchResult(null); // Clear search results when clicking category
+    setCurrentView('table');
+  };
+
+  const handleSearchResults = (result: SearchResult) => {
+    setSearchResult(result);
+    setSelectedCategory(null); // Clear category when showing search results
     setCurrentView('table');
   };
 
   const handleBackToLanding = () => {
     setCurrentView('landing');
     setSelectedCategory(null);
+    setSearchResult(null); // Clear search results when going back
   };
 
   if (currentView === 'annotate') {
@@ -304,15 +314,39 @@ export default function App() {
   }
 
   if (currentView === 'landing') {
-    return <LandingPage categories={compsCategories} onCategoryClick={handleCategoryClick} />;
+    return (
+      <LandingPage
+        categories={compsCategories}
+        onCategoryClick={handleCategoryClick}
+        companies={companies}
+        metrics={metrics}
+        metricValues={metricValues}
+        onSearchResults={handleSearchResults}
+      />
+    );
   }
+
+  // Determine what data to show in table: search results or category data
+  const tableData = searchResult
+    ? {
+        companies: searchResult.companies,
+        metrics: searchResult.metrics,
+        metricValues: searchResult.metricValues,
+        categoryName: searchResult.meta.interpretation,
+      }
+    : {
+        companies: companies,
+        metrics: metrics,
+        metricValues: metricValues,
+        categoryName: selectedCategory?.name || 'IPO Metrics Dashboard',
+      };
 
   return (
     <TablePage
-      companies={companies}
-      metrics={metrics}
-      metricValues={metricValues}
-      categoryName={selectedCategory?.name || 'IPO Metrics Dashboard'}
+      companies={tableData.companies}
+      metrics={tableData.metrics}
+      metricValues={tableData.metricValues}
+      categoryName={tableData.categoryName}
       onBack={handleBackToLanding}
     />
   );

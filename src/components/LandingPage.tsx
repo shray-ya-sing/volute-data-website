@@ -2,18 +2,31 @@ import { useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CompsCategoryCard } from './CompsCategoryCard';
-import { CompsCategory } from '../types';
+import { CompsCategory, Company, Metric, MetricValue } from '../types';
+import { searchIPOData, SearchResult } from '../services/searchService';
 
 interface LandingPageProps {
   categories: CompsCategory[];
   onCategoryClick: (category: CompsCategory) => void;
+  companies: Company[];
+  metrics: Metric[];
+  metricValues: MetricValue[];
+  onSearchResults?: (result: SearchResult) => void;
 }
 
-const popularSearches = ['SaaS', 'IPO 2024', 'Cloud', 'Infrastructure', 'Technology', 'Comps'];
+const popularSearches = ['coreweave opening price', 'rubrik shares', 'compare opening prices', 'astera ipo date', 'all saas metrics'];
 
-export function LandingPage({ categories, onCategoryClick }: LandingPageProps) {
+export function LandingPage({
+  categories,
+  onCategoryClick,
+  companies,
+  metrics,
+  metricValues,
+  onSearchResults
+}: LandingPageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [results, setResults] = useState<CompsCategory[]>([]);
+  const [searchMode, setSearchMode] = useState<'categories' | 'metrics'>('categories');
   const viewMode = 'list'; // Default to list view
 
   const handleSearch = (query: string) => {
@@ -21,9 +34,25 @@ export function LandingPage({ categories, onCategoryClick }: LandingPageProps) {
 
     if (query.trim() === '') {
       setResults([]);
+      setSearchMode('categories');
       return;
     }
 
+    // Try IPO metrics search first
+    const searchResult = searchIPOData(query, companies, metrics, metricValues);
+
+    // If we found specific companies/metrics, switch to metrics mode
+    if (searchResult.meta.companiesFound.length > 0 || searchResult.meta.metricsFound.length > 0) {
+      setSearchMode('metrics');
+      if (onSearchResults) {
+        onSearchResults(searchResult);
+      }
+      setResults([]);
+      return;
+    }
+
+    // Otherwise, fall back to category search
+    setSearchMode('categories');
     const filtered = categories.filter((category) => {
       const searchLower = query.toLowerCase();
       return (
@@ -62,13 +91,13 @@ export function LandingPage({ categories, onCategoryClick }: LandingPageProps) {
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => handleSearch(e.target.value)}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && searchQuery.trim()) {
                     handleSearch(searchQuery);
                   }
                 }}
-                placeholder="Search for comps categories, industries, metrics..."
+                placeholder="Ask anything about IPO metrics (e.g., 'coreweave opening price' or 'compare rubrik and astera')..."
                 className="flex-1 px-6 py-5 rounded-xl bg-white/50 focus:outline-none focus:bg-white/70 transition-all placeholder:text-gray-500"
               />
               <button
@@ -107,8 +136,8 @@ export function LandingPage({ categories, onCategoryClick }: LandingPageProps) {
         )}
         </div>
 
-        {/* Results Count */}
-        {results.length > 0 && (
+        {/* Results Count - only for category search */}
+        {results.length > 0 && searchMode === 'categories' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-4">
             <p className="text-gray-600">
               Found <span className="font-semibold text-gray-900">{results.length}</span>{' '}
@@ -117,9 +146,9 @@ export function LandingPage({ categories, onCategoryClick }: LandingPageProps) {
           </motion.div>
         )}
 
-        {/* Results */}
+        {/* Results - only for category search */}
         <AnimatePresence mode="popLayout">
-          {results.length > 0 && (
+          {results.length > 0 && searchMode === 'categories' && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -144,8 +173,8 @@ export function LandingPage({ categories, onCategoryClick }: LandingPageProps) {
           )}
         </AnimatePresence>
 
-        {/* No Results */}
-        {searchQuery && results.length === 0 && (
+        {/* No Results - only show for category search, not metrics search */}
+        {searchQuery && results.length === 0 && searchMode === 'categories' && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
