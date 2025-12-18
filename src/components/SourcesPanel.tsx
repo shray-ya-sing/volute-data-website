@@ -166,13 +166,6 @@ export function SourcesPanel({
                         />
                       )}
                     </div>
-                    {source.highlights && source.highlights.length > 0 && (
-                      <div className="px-4 py-2 bg-yellow-50 border-t border-yellow-200">
-                        <p className="text-xs text-yellow-800 text-center">
-                          <span className="font-semibold">💡</span> Yellow highlights show where the value appears
-                        </p>
-                      </div>
-                    )}
                   </div>
                 )}
 
