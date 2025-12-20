@@ -38,6 +38,21 @@ async function getActiveBatches(): Promise<ActiveBatch[]> {
 }
 
 /**
+ * Map Claude API status to database status
+ */
+function mapBatchStatus(apiStatus: string): string {
+  const statusMap: Record<string, string> = {
+    'in_progress': 'processing',
+    'ended': 'completed',
+    'canceling': 'canceled',
+    'canceled': 'canceled',
+    'expired': 'expired',
+  };
+
+  return statusMap[apiStatus] || apiStatus;
+}
+
+/**
  * Update batch job status
  */
 async function updateBatchStatus(
@@ -47,9 +62,11 @@ async function updateBatchStatus(
   resultUrl: string | null,
   endedAt: string | null
 ) {
+  const dbStatus = mapBatchStatus(status);
+
   await sql`
     UPDATE batch_jobs
-    SET status = ${status},
+    SET status = ${dbStatus},
         request_counts = ${JSON.stringify(requestCounts)},
         result_url = ${resultUrl},
         completed_at = ${endedAt ? new Date(endedAt) : null},

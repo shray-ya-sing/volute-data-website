@@ -30,6 +30,7 @@ const sql = neon(process.env.DATABASE_URL);
 // Dynamic imports for handlers (to ensure env vars are loaded first)
 let extractProspectusHandler: any;
 let submitProspectusBatchHandler: any;
+let pollBatchesHandler: any;
 
 async function loadHandlers() {
   const extractModule = await import('../api/cron/extract-prospectus.js');
@@ -37,6 +38,9 @@ async function loadHandlers() {
 
   const submitModule = await import('../api/cron/submit-prospectus-batch.js');
   submitProspectusBatchHandler = submitModule.default;
+
+  const pollModule = await import('../api/cron/poll-batches.js');
+  pollBatchesHandler = pollModule.default;
 }
 
 // Helper to send JSON response
@@ -253,6 +257,30 @@ const server = createServer((req, res) => {
       console.error('Error in submit-prospectus-batch:', error);
       sendJSON(res, 500, { error: error.message });
     });
+  } else if (pathname === '/api/cron/poll-batches' && req.method === 'GET') {
+    // Create mock request/response for the poll batches handler
+    const mockReq: any = {
+      query: parsedUrl.query || {},
+      headers: req.headers,
+      method: req.method,
+      url: req.url,
+    };
+
+    const mockRes: any = {
+      status: (code: number) => {
+        mockRes.statusCode = code;
+        return mockRes;
+      },
+      json: (data: any) => {
+        sendJSON(res, mockRes.statusCode || 200, data);
+      },
+      statusCode: 200,
+    };
+
+    pollBatchesHandler(mockReq, mockRes).catch((error: any) => {
+      console.error('Error in poll-batches:', error);
+      sendJSON(res, 500, { error: error.message });
+    });
   } else {
     sendJSON(res, 404, { error: 'Not found' });
   }
@@ -270,6 +298,7 @@ loadHandlers().then(() => {
     console.log(`  GET http://localhost:${PORT}/api/filing/TTAN`);
     console.log(`  GET http://localhost:${PORT}/api/cron/extract-prospectus?limit=10`);
     console.log(`  GET http://localhost:${PORT}/api/cron/submit-prospectus-batch (processes ALL unprocessed)`);
+    console.log(`  GET http://localhost:${PORT}/api/cron/poll-batches`);
     console.log();
     console.log('To test integration:');
     console.log('  1. Keep this server running');
