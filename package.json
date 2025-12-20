@@ -91,6 +91,7 @@
             "db:migrate": "tsx scripts/migrate-to-neon.ts",
             "db:create-schema": "tsx scripts/create-metrics-schema.ts",
             "db:add-batch-tracking": "tsx scripts/add-batch-tracking.ts",
+            "db:fix-schema": "tsx scripts/fix-filings-schema.ts",
             "db:clear-metrics": "tsx scripts/clear-metrics.ts",
             "blob:upload-424b4": "tsx scripts/upload-424b4-to-blob.ts",
             "blob:upload-all": "tsx scripts/upload-all-424b4-to-blob.ts",
