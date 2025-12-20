@@ -61,12 +61,48 @@ export interface Metric {
   name: string;
 }
 
+export interface SourceHighlight {
+  searchText: string;              // Exact text to highlight
+  contextBefore?: string;          // Text before for disambiguation
+  contextAfter?: string;           // Text after for disambiguation
+
+  // For HTML
+  cssSelector?: string;            // CSS selector to target element
+
+  // For PDF
+  pageNumber?: number;             // PDF page number (1-indexed)
+  boundingBox?: {                  // Coordinates on page
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+
+  highlightColor?: string;         // Default: #FFEB3B (yellow)
+}
+
 export interface Source {
   type: 'website' | 'news' | 'filing' | 'database';
   name: string;
   value: string;
   date: string;
   url?: string;
+
+  // NEW FIELDS for source highlighting
+  contentType?: 'html' | 'pdf';
+  contentPath?: string;            // e.g., '/source-content/astera-labs/filing.html'
+  contentUrl?: string;             // Vercel Blob URL for large files
+  highlights?: SourceHighlight[];
+  fetchedAt?: string;
+
+  // NEW FIELDS for PDF page navigation and bounding boxes
+  pageNumber?: number;             // Page number where this metric appears (1-based)
+  boundingBox?: {                  // Bounding box coordinates (percentages 0-100)
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
 }
 
 export interface MetricValue {

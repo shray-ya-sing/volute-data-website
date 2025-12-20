@@ -3,6 +3,7 @@ import { ArrowLeft, Download } from 'lucide-react';
 import { MetricsTable } from './MetricsTable';
 import { SourcesPanel } from './SourcesPanel';
 import { ExportModal } from './ExportModal';
+import { ChartGeneratorButton } from './ChartGeneratorButton';
 import { Company, Metric, MetricValue } from '../types';
 
 interface TablePageProps {
@@ -56,13 +57,20 @@ export function TablePage({ companies, metrics, metricValues, categoryName, onBa
               <h1 className="text-gray-900 mb-2">{categoryName}</h1>
               <p className="text-gray-600">Click on any metric to view data sources and insights</p>
             </div>
-            <button
-              onClick={() => setIsExportModalOpen(true)}
-              className="flex items-center justify-center gap-3 w-48 py-4 bg-black text-white rounded-xl hover:bg-gray-800 transition-colors shadow-lg"
-            >
-              <Download className="w-5 h-5" />
-              Export
-            </button>
+            <div className="flex items-center gap-3">
+              <ChartGeneratorButton
+                companies={companies}
+                metrics={metrics}
+                metricValues={metricValues}
+              />
+              <button
+                onClick={() => setIsExportModalOpen(true)}
+                className="flex items-center justify-center gap-3 w-48 py-4 bg-black text-white rounded-xl hover:bg-gray-800 transition-colors shadow-lg"
+              >
+                <Download className="w-5 h-5" />
+                Export
+              </button>
+            </div>
           </div>
         </div>
 

@@ -1,0 +1,152 @@
+{
+  "companyId": "rubrik",
+  "companyName": "Rubrik",
+  "ticker": "RBRK",
+  "metrics": {
+    "finalPrice": {
+      "aggregatedValue": "$32.00 per share",
+      "lastUpdated": "2024-04-25",
+      "sources": [
+        {
+          "id": "src-rbrk-filing-s1a",
+          "type": "filing",
+          "name": "S-1/A Filing (PDF)",
+          "value": "$32.00 per share",
+          "date": "2024-04-25",
+          "url": "https://www.sec.gov/Archives/edgar/data/1654430/000162828024015055/rbrk-20240131.htm",
+          "contentType": "pdf",
+          "contentPath": "/source-content/rubrik/RBRK_S1A.pdf",
+          "highlights": [
+            {
+              "searchText": "$32.00",
+              "pageNumber": 1,
+              "boundingBox": {
+                "x": 100,
+                "y": 200,
+                "width": 80,
+                "height": 20
+              },
+              "highlightColor": "#FFEB3B"
+            }
+          ]
+        }
+      ]
+    },
+    "grossProceeds": {
+      "aggregatedValue": "$752M",
+      "lastUpdated": "2024-04-25",
+      "sources": [
+        {
+          "id": "src-rbrk-filing-proceeds",
+          "type": "filing",
+          "name": "S-1/A Filing (PDF)",
+          "value": "$752,000,000",
+          "date": "2024-04-25",
+          "url": "https://www.sec.gov/Archives/edgar/data/1654430/000162828024015055/rbrk-20240131.htm",
+          "contentType": "pdf",
+          "contentPath": "/source-content/rubrik/RBRK_S1A.pdf",
+          "highlights": [
+            {
+              "searchText": "752,000,000",
+              "pageNumber": 1,
+              "boundingBox": {
+                "x": 100,
+                "y": 250,
+                "width": 100,
+                "height": 20
+              },
+              "highlightColor": "#FFEB3B"
+            }
+          ]
+        }
+      ]
+    },
+    "netProceeds": {
+      "aggregatedValue": "$687M",
+      "lastUpdated": "2024-04-25",
+      "sources": [
+        {
+          "id": "src-rbrk-filing-net",
+          "type": "filing",
+          "name": "S-1/A Filing (PDF)",
+          "value": "$687,000,000",
+          "date": "2024-04-25",
+          "url": "https://www.sec.gov/Archives/edgar/data/1654430/000162828024015055/rbrk-20240131.htm",
+          "contentType": "pdf",
+          "contentPath": "/source-content/rubrik/RBRK_S1A.pdf",
+          "highlights": [
+            {
+              "searchText": "687,000,000",
+              "pageNumber": 1,
+              "boundingBox": {
+                "x": 100,
+                "y": 300,
+                "width": 100,
+                "height": 20
+              },
+              "highlightColor": "#FFEB3B"
+            }
+          ]
+        }
+      ]
+    },
+    "sharesOffered": {
+      "aggregatedValue": "23.5M shares",
+      "lastUpdated": "2024-04-25",
+      "sources": [
+        {
+          "id": "src-rbrk-filing-shares",
+          "type": "filing",
+          "name": "S-1/A Filing (PDF)",
+          "value": "23,500,000 shares",
+          "date": "2024-04-25",
+          "url": "https://www.sec.gov/Archives/edgar/data/1654430/000162828024015055/rbrk-20240131.htm",
+          "contentType": "pdf",
+          "contentPath": "/source-content/rubrik/RBRK_S1A.pdf",
+          "highlights": [
+            {
+              "searchText": "23,500,000",
+              "pageNumber": 1,
+              "boundingBox": {
+                "x": 100,
+                "y": 350,
+                "width": 100,
+                "height": 20
+              },
+              "highlightColor": "#FFEB3B"
+            }
+          ]
+        }
+      ]
+    },
+    "underwriterDiscount": {
+      "aggregatedValue": "$52.6M",
+      "lastUpdated": "2024-04-25",
+      "sources": [
+        {
+          "id": "src-rbrk-filing-discount",
+          "type": "filing",
+          "name": "S-1/A Filing (PDF)",
+          "value": "$52,640,000",
+          "date": "2024-04-25",
+          "url": "https://www.sec.gov/Archives/edgar/data/1654430/000162828024015055/rbrk-20240131.htm",
+          "contentType": "pdf",
+          "contentPath": "/source-content/rubrik/RBRK_S1A.pdf",
+          "highlights": [
+            {
+              "searchText": "52,640,000",
+              "pageNumber": 1,
+              "boundingBox": {
+                "x": 100,
+                "y": 400,
+                "width": 100,
+                "height": 20
+              },
+              "highlightColor": "#FFEB3B"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

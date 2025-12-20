@@ -1264,3 +1264,27 @@ html {
     opacity: .5;
   }
 }
+
+/* HTML Source Viewer Highlight Styles */
+.html-viewer mark.source-highlight {
+  background-color: #FFEB3B !important;
+  color: inherit !important;
+  padding: 2px 4px !important;
+  border-radius: 2px !important;
+  font-weight: 600 !important;
+  box-shadow: 0 0 0 2px rgba(255, 235, 59, 0.3) !important;
+}
+
+.html-viewer mark.source-highlight.active {
+  background-color: #FDD835 !important;
+  animation: highlight-pulse 2s ease-in-out infinite !important;
+}
+
+@keyframes highlight-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 2px rgba(255, 235, 59, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(255, 235, 59, 0.8);
+  }
+}

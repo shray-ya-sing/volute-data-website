@@ -4,8 +4,22 @@
   "framework": "vite",
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/((?!api).*)",
       "destination": "/index.html"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/check-new-filings",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/submit-batch",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/poll-batches",
+      "schedule": "*/2 * * * *"
     }
   ]
 }

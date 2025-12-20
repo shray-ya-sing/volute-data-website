@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Source Viewer Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        .test-section h3 {
+            margin-top: 0;
+        }
+        mark {
+            background-color: #FFEB3B;
+            padding: 2px 4px;
+        }
+        iframe {
+            width: 100%;
+            height: 400px;
+            border: 1px solid #ddd;
+        }
+        .success {
+            color: green;
+        }
+        .error {
+            color: red;
+        }
+    </style>
+</head>
+<body>
+    <h1>Source Viewer Debug Test</h1>
+
+    <div class="test-section">
+        <h3>Test 1: Can we load the HTML file?</h3>
+        <p>Testing: <code>/source-content/astera-labs/finance-yahoo-1-astera-labs-seeks-raise-022814539.html</code></p>
+        <button onclick="testFetch()">Test Fetch</button>
+        <div id="fetch-result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>Test 2: Can we display it in an iframe?</h3>
+        <iframe src="/source-content/astera-labs/finance-yahoo-1-astera-labs-seeks-raise-022814539.html"></iframe>
+    </div>
+
+    <div class="test-section">
+        <h3>Test 3: Can we search for text?</h3>
+        <div id="content-test"></div>
+    </div>
+
+    <script>
+        async function testFetch() {
+            const resultDiv = document.getElementById('fetch-result');
+            resultDiv.innerHTML = '<p>Fetching...</p>';
+
+            try {
+                const response = await fetch('/source-content/astera-labs/finance-yahoo-1-astera-labs-seeks-raise-022814539.html');
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const html = await response.text();
+                const contentLength = html.length;
+                const hasTargetText = html.includes('$712.8 million');
+                const hasPrice = html.includes('$36');
+
+                resultDiv.innerHTML = `
+                    <p class="success">✅ Fetch successful!</p>
+                    <ul>
+                        <li>Content length: ${contentLength} bytes</li>
+                        <li>Contains "$712.8 million": ${hasTargetText ? '✅ YES' : '❌ NO'}</li>
+                        <li>Contains "$36": ${hasPrice ? '✅ YES' : '❌ NO'}</li>
+                    </ul>
+                `;
+
+                // Test 3: Display a snippet with the text
+                if (hasTargetText) {
+                    const contentTestDiv = document.getElementById('content-test');
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(html, 'text/html');
+
+                    // Find paragraphs with our target text
+                    const paragraphs = doc.querySelectorAll('p');
+                    let found = false;
+
+                    paragraphs.forEach(p => {
+                        if (p.textContent.includes('$712.8 million')) {
+                            contentTestDiv.innerHTML = `
+                                <p class="success">✅ Found target text in paragraph:</p>
+                                <p style="background: #f0f0f0; padding: 10px; border-radius: 5px;">
+                                    ${p.innerHTML.replace(/\$712\.8 million/g, '<mark>$712.8 million</mark>')}
+                                </p>
+                            `;
+                            found = true;
+                        }
+                    });
+
+                    if (!found) {
+                        contentTestDiv.innerHTML = '<p class="error">❌ Text exists in HTML but not in paragraph tags</p>';
+                    }
+                }
+
+            } catch (error) {
+                resultDiv.innerHTML = `<p class="error">❌ Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>
