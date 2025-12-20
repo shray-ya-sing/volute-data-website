@@ -3,13 +3,9 @@
       "version": "1.0.0",
       "private": true,
       "dependencies": {
-            "@neondatabase/serverless": "^0.10.4",
-            "@vercel/blob": "^0.27.0",
             "@ai-sdk/anthropic": "^1.0.11",
-            "ai": "^4.0.62",
-            "zod": "^3.24.1",
-            "dotenv": "^16.4.7",
-            "ws": "^8.18.0",
+            "@anthropic-ai/sdk": "^0.71.2",
+            "@neondatabase/serverless": "^0.10.4",
             "@radix-ui/react-accordion": "^1.2.3",
             "@radix-ui/react-alert-dialog": "^1.1.6",
             "@radix-ui/react-aspect-ratio": "^1.1.2",
@@ -37,10 +33,13 @@
             "@radix-ui/react-toggle-group": "^1.1.2",
             "@radix-ui/react-tooltip": "^1.1.8",
             "@types/dompurify": "^3.2.0",
+            "@vercel/blob": "^2.0.0",
+            "ai": "^4.0.62",
             "class-variance-authority": "^0.7.1",
             "clsx": "*",
             "cmdk": "^1.1.1",
             "dompurify": "^3.3.1",
+            "dotenv": "^16.4.7",
             "embla-carousel-react": "^8.6.0",
             "exceljs": "^4.4.0",
             "input-otp": "^1.4.2",
@@ -48,6 +47,8 @@
             "mark.js": "^8.11.1",
             "motion": "*",
             "next-themes": "^0.4.6",
+            "pdf-lib": "^1.17.1",
+            "pdf-to-img": "^5.0.0",
             "pdfjs-dist": "^5.4.449",
             "pptxgenjs": "^4.0.1",
             "react": "^18.3.1",
@@ -59,7 +60,9 @@
             "recharts": "^2.15.2",
             "sonner": "^2.0.3",
             "tailwind-merge": "*",
-            "vaul": "^1.1.2"
+            "vaul": "^1.1.2",
+            "ws": "^8.18.0",
+            "zod": "^3.24.1"
       },
       "devDependencies": {
             "@testing-library/jest-dom": "^6.9.1",
@@ -79,10 +82,20 @@
       },
       "scripts": {
             "dev": "vite",
+            "dev:api": "tsx scripts/dev-api-server.ts",
             "build": "vite build",
             "test": "vitest",
             "test:ui": "vitest --ui",
             "test:run": "vitest run",
-            "db:migrate": "tsx scripts/migrate-to-neon.ts"
+            "db:migrate": "tsx scripts/migrate-to-neon.ts",
+            "db:create-schema": "tsx scripts/create-metrics-schema.ts",
+            "db:add-batch-tracking": "tsx scripts/add-batch-tracking.ts",
+            "db:clear-metrics": "tsx scripts/clear-metrics.ts",
+            "blob:upload-424b4": "tsx scripts/upload-424b4-to-blob.ts",
+            "blob:upload-all": "tsx scripts/upload-all-424b4-to-blob.ts",
+            "blob:upload-extracted": "tsx scripts/upload-extracted-pages.ts",
+            "extract:metrics": "tsx scripts/extract-424b4-metrics.ts",
+            "extract:metrics-blob": "tsx scripts/extract-metrics-from-blob.ts",
+            "export:metrics": "tsx scripts/export-metrics-json.ts"
       }
 }

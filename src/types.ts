@@ -94,6 +94,15 @@ export interface Source {
   contentUrl?: string;             // Vercel Blob URL for large files
   highlights?: SourceHighlight[];
   fetchedAt?: string;
+
+  // NEW FIELDS for PDF page navigation and bounding boxes
+  pageNumber?: number;             // Page number where this metric appears (1-based)
+  boundingBox?: {                  // Bounding box coordinates (percentages 0-100)
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
 }
 
 export interface MetricValue {

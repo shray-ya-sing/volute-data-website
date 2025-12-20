@@ -68,10 +68,13 @@ export default function App() {
   }, []);
 
   // Load data function (extracted so we can reload)
-  const loadData = () => {
-    // Load data from both static files and localStorage
+  const loadData = async () => {
+    // Import the data service
+    const { fetchAllFilings } = await import('./services/dataService');
+
+    // Load data from API (Neon), fallback to local JSON, and enhanced sources
     Promise.all([
-      fetch('/data.json').then((res) => res.json()),
+      fetchAllFilings(), // This now fetches from Neon API or falls back to JSON
       fetch('/data/astera-sources.json')
         .then((res) => res.json())
         .catch(() => null), // Gracefully handle if enhanced sources don't exist
@@ -116,54 +119,111 @@ export default function App() {
 
         setCompanies(companiesList);
 
+        // Helper function to create source with page number and bounding box
+        const createSource = (ipo: IPOData, metricName: string, value: any) => {
+          const filingDate = ipo['IPO Date'] || ipo['Filing Date'];
+          const pageNumber = ipo['Page Number']?.[metricName];
+          const boundingBox = ipo['Bounding Boxes']?.[metricName];
+
+          // Create highlights array if we have bounding box data
+          const highlights = boundingBox && pageNumber ? [{
+            searchText: value?.toString() || '',
+            pageNumber: pageNumber,
+            boundingBox: boundingBox,
+            highlightColor: '#FFEB3B', // Yellow highlight
+          }] : [];
+
+          return {
+            type: 'filing' as const,
+            name: '424B4 Filing',
+            value: value,
+            date: filingDate,
+            url: ipo['Filing URL'],
+            contentPath: ipo['Filing URL'],
+            contentType: 'pdf' as const,
+            pageNumber: pageNumber,
+            boundingBox: boundingBox,
+            highlights: highlights,
+          };
+        };
+
+        // Mapping from API field names to metricIds
+        const metricMapping: Record<string, string> = {
+          'IPO Date': 'ipoDate',
+          'Final Price': 'finalPrice',
+          'Opening Price': 'openingPrice',
+          'First Day Closing Price': 'firstDayClosingPrice',
+          'Expected Price Range': 'priceRange',
+          'IPO Valuation': 'ipoValuation',
+          'Last Private Valuation': 'lastPrivateValuation',
+          'Upsized/Downsized': 'upsizedOrDownsized',
+          'Shares Offered (Primary)': 'sharesOffered',
+          'Shares Sold by Company': 'sharesCompany',
+          'Shares Offered (Secondary)': 'sharesSellingStockholders',
+          'Greenshoe Option': 'greenshoeShares',
+          'Total Shares Outstanding': 'commonStockOutstanding',
+          'Gross Proceeds': 'grossProceeds',
+          'Net Proceeds': 'netProceeds',
+          'Proceeds to Company': 'proceedsToCompany',
+          'Proceeds to Selling Stockholders': 'proceedsToSellingStockholders',
+          'Underwriter Discount (Per Share)': 'underwriterDiscount',
+          'Underwriter Discount (Total)': 'underwriterDiscount',
+          'Lead Bookrunners': 'bookrunners',
+          'Co-Bookrunners': 'bookrunners', // Append to bookrunners
+          'Syndicate Members': 'bookrunners', // Append to bookrunners
+          'Directed Share Program': 'notes',
+          'Shares Delivery Date': 'notes',
+        };
+
         // Convert IPO data to metric values
         const values: MetricValue[] = [];
         data.forEach((ipo, index) => {
           const companyId = (index + 1).toString();
-          const filingDate = ipo['IPO Date'];
 
-          values.push(
-            {
-              companyId,
-              metricId: 'finalPrice',
-              value: ipo['Final Price'],
-              sources: [
-                { type: 'filing', name: '424B4 Filing', value: ipo['Final Price'], date: filingDate, url: ipo['Filing URL'] },
-              ],
-            },
-            {
-              companyId,
-              metricId: 'grossProceeds',
-              value: ipo['Gross Proceeds'],
-              sources: [
-                { type: 'filing', name: '424B4 Filing', value: ipo['Gross Proceeds'], date: filingDate, url: ipo['Filing URL'] },
-              ],
-            },
-            {
-              companyId,
-              metricId: 'netProceeds',
-              value: ipo['Net Proceeds'],
-              sources: [
-                { type: 'filing', name: '424B4 Filing', value: ipo['Net Proceeds'], date: filingDate, url: ipo['Filing URL'] },
-              ],
-            },
-            {
-              companyId,
-              metricId: 'sharesOffered',
-              value: ipo['Shares Offered (Primary)'],
-              sources: [
-                { type: 'filing', name: '424B4 Filing', value: ipo['Shares Offered (Primary)'], date: filingDate, url: ipo['Filing URL'] },
-              ],
-            },
-            {
-              companyId,
-              metricId: 'underwriterDiscount',
-              value: ipo['Underwriter Discount (Total)'],
-              sources: [
-                { type: 'filing', name: '424B4 Filing', value: ipo['Underwriter Discount (Total)'], date: filingDate, url: ipo['Filing URL'] },
-              ],
+          // Dynamically create metric values for all fields in the response
+          Object.entries(ipo).forEach(([fieldName, fieldValue]) => {
+            // Skip metadata fields
+            if (
+              fieldName === 'Company Name' ||
+              fieldName === 'Company Ticker' ||
+              fieldName === 'Filing URL' ||
+              fieldName === 'Exchange' ||
+              fieldName === 'Filing Date' ||
+              fieldName === 'Page Number' ||
+              fieldName === 'Bounding Boxes' ||
+              !fieldValue
+            ) {
+              return;
             }
-          );
+
+            // Get the metricId for this field
+            const metricId = metricMapping[fieldName];
+            if (!metricId) {
+              console.warn(`No metricId mapping for field: ${fieldName}`);
+              return;
+            }
+
+            // Check if this metric already exists (for bookrunners, we might append)
+            const existingValueIndex = values.findIndex(
+              (v) => v.companyId === companyId && v.metricId === metricId
+            );
+
+            if (existingValueIndex !== -1 && metricId === 'bookrunners') {
+              // Append to existing bookrunners value
+              const existingValue = values[existingValueIndex].value;
+              values[existingValueIndex].value = `${existingValue}, ${fieldValue}`;
+              // Add source to existing sources array
+              values[existingValueIndex].sources.push(createSource(ipo, fieldName, fieldValue));
+            } else if (existingValueIndex === -1) {
+              // Create new metric value
+              values.push({
+                companyId,
+                metricId,
+                value: fieldValue,
+                sources: [createSource(ipo, fieldName, fieldValue)],
+              });
+            }
+          });
         });
 
         // Merge enhanced sources for companies with additional data

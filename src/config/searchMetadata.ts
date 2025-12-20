@@ -5,26 +5,62 @@
 
 // Company aliases for keyword matching (include common misspellings)
 // NOTE: Keys MUST match the company IDs in the database!
-// - Static data companies use numeric IDs: "1", "2", etc.
+// - Neon database companies use numeric IDs: "1", "2", etc. (assigned by order in API response)
 // - localStorage companies use friendly IDs: "coreweave", etc.
 export const COMPANY_ALIASES: Record<string, string[]> = {
-  // Rubrik (ID = "1" from static data)
+  // ServiceTitan (ID = "1" from Neon)
   '1': [
-    'rubrik', 'rbrk', 'rubrik inc',
+    'servicetitan', 'ttan', 'service titan', 'service-titan',
     // Common misspellings
-    'rubric', 'rubrick', 'rubrk'
+    'servicetitan inc', 'servicetitan inc.', 'service tita'
   ],
-  // Astera (ID = "2" from static data)
+  // WEBTOON (ID = "2" from Neon)
   '2': [
-    'astera', 'alab', 'astera labs', 'astera-labs', 'astera labs inc',
+    'webtoon', 'wbtn', 'web toon', 'webtoon entertainment',
     // Common misspellings
-    'asteria', 'astera lab', 'asteralabs'
+    'webtune', 'webtooon', 'web-toon'
+  ],
+  // Tempus AI (ID = "3" from Neon)
+  '3': [
+    'tempus', 'tem', 'tempus ai', 'tempus-ai', 'tempus ai inc',
+    // Common misspellings
+    'tempus a i', 'tempusai'
+  ],
+  // Alto Neuroscience (ID = "4" from Neon)
+  '4': [
+    'alto', 'anro', 'alto neuroscience', 'alto-neuroscience',
+    // Common misspellings
+    'alto neuro', 'altoneuroscience', 'alto neuroscience inc'
+  ],
+  // BrightSpring (ID = "5" from Neon)
+  '5': [
+    'brightspring', 'btsg', 'bright spring', 'brightspring health',
+    // Common misspellings
+    'bright-spring', 'brightspring health services'
+  ],
+  // WeRide (ID = "6" from Neon)
+  '6': [
+    'weride', 'wrd', 'we ride', 'we-ride',
+    // Common misspellings
+    'weride inc', 'we-ride inc'
   ],
   // CoreWeave (ID = "coreweave" from localStorage)
   'coreweave': [
     'coreweave', 'crwv', 'core weave', 'core-weave',
     // Common misspellings
     'corweave', 'corewave', 'coreweavw', 'corewaive', 'core wave'
+  ],
+  // Reddit (ID = "reddit" from localStorage)
+  'reddit': [
+    'reddit', 'rddt', 'red dit', 'reddit inc',
+    // Common misspellings
+    'redit', 'reditt'
+  ],
+  // UiPath (ID = "uipath" from localStorage)
+  'uipath': [
+    'uipath', 'path', 'ui path', 'ui-path', 'uipath inc',
+    // Common misspellings
+    'upath', 'uipathe'
   ],
 };
 
@@ -69,9 +105,15 @@ export const METRIC_KEYWORDS: Record<string, string[]> = {
 // Category tags for metadata filtering
 // NOTE: Keys MUST match the company IDs in the database!
 export const COMPANY_CATEGORIES: Record<string, string[]> = {
-  '1': ['saas', 'enterprise', 'cloud', 'security', 'data'], // Rubrik
-  '2': ['hardware', 'ai', 'connectivity', 'infrastructure'], // Astera
+  '1': ['saas', 'enterprise', 'software', 'field service'], // ServiceTitan
+  '2': ['media', 'entertainment', 'digital', 'webtoons'], // WEBTOON
+  '3': ['healthcare', 'ai', 'precision medicine', 'biotech'], // Tempus AI
+  '4': ['biotech', 'neuroscience', 'pharmaceutical', 'clinical'], // Alto Neuroscience
+  '5': ['healthcare', 'services', 'pharmacy', 'home care'], // BrightSpring
+  '6': ['automotive', 'autonomous', 'mobility', 'av'], // WeRide
   'coreweave': ['saas', 'ai', 'infrastructure', 'cloud', 'gpu'], // CoreWeave
+  'reddit': ['social', 'media', 'internet', 'community'], // Reddit
+  'uipath': ['saas', 'automation', 'rpa', 'enterprise'], // UiPath
 };
 
 // Helper to get all aliases for a company

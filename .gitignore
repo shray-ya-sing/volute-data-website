@@ -60,3 +60,9 @@ coverage/
 .vercel/
 .next/
 .vercel
+
+# Generated data and test files
+extracted-pages/
+blob-upload-results.*
+exported-metrics.json
+extracted-pages-upload-results.json
