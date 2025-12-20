@@ -4,16 +4,40 @@
  * Mimics the Vercel API routes
  */
 
+// Load environment variables FIRST before any other imports
+import dotenv from 'dotenv';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, '..', '.env.local') });
+
+// Verify env vars loaded
+if (!process.env.DATABASE_URL) {
+  console.error('ERROR: DATABASE_URL not found in environment');
+  console.error('Check that .env.local exists and contains DATABASE_URL');
+  process.exit(1);
+}
+
+// Now import everything else after env vars are loaded
 import { createServer } from 'http';
 import { parse } from 'url';
 import { neon } from '@neondatabase/serverless';
-import dotenv from 'dotenv';
-import * as path from 'path';
-
-dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 
 const PORT = 3001;
-const sql = neon(process.env.DATABASE_URL!);
+const sql = neon(process.env.DATABASE_URL);
+
+// Dynamic imports for handlers (to ensure env vars are loaded first)
+let extractProspectusHandler: any;
+let submitProspectusBatchHandler: any;
+
+async function loadHandlers() {
+  const extractModule = await import('../api/cron/extract-prospectus.js');
+  extractProspectusHandler = extractModule.default;
+
+  const submitModule = await import('../api/cron/submit-prospectus-batch.js');
+  submitProspectusBatchHandler = submitModule.default;
+}
 
 // Helper to send JSON response
 function sendJSON(res: any, statusCode: number, data: any) {
@@ -181,26 +205,82 @@ const server = createServer((req, res) => {
   } else if (pathname.startsWith('/api/filing/') && req.method === 'GET') {
     const ticker = pathname.replace('/api/filing/', '');
     handleFilingByTicker(res, ticker);
+  } else if (pathname === '/api/cron/extract-prospectus' && req.method === 'GET') {
+    // Create mock request/response for the cron handler
+    const mockReq: any = {
+      query: parsedUrl.query || {},
+      headers: req.headers,
+      method: req.method,
+      url: req.url,
+    };
+
+    const mockRes: any = {
+      status: (code: number) => {
+        mockRes.statusCode = code;
+        return mockRes;
+      },
+      json: (data: any) => {
+        sendJSON(res, mockRes.statusCode || 200, data);
+      },
+      statusCode: 200,
+    };
+
+    extractProspectusHandler(mockReq, mockRes).catch((error: any) => {
+      console.error('Error in extract-prospectus:', error);
+      sendJSON(res, 500, { error: error.message });
+    });
+  } else if (pathname === '/api/cron/submit-prospectus-batch' && req.method === 'GET') {
+    // Create mock request/response for the batch submission handler
+    const mockReq: any = {
+      query: parsedUrl.query || {},
+      headers: req.headers,
+      method: req.method,
+      url: req.url,
+    };
+
+    const mockRes: any = {
+      status: (code: number) => {
+        mockRes.statusCode = code;
+        return mockRes;
+      },
+      json: (data: any) => {
+        sendJSON(res, mockRes.statusCode || 200, data);
+      },
+      statusCode: 200,
+    };
+
+    submitProspectusBatchHandler(mockReq, mockRes).catch((error: any) => {
+      console.error('Error in submit-prospectus-batch:', error);
+      sendJSON(res, 500, { error: error.message });
+    });
   } else {
     sendJSON(res, 404, { error: 'Not found' });
   }
 });
 
-server.listen(PORT, () => {
-  console.log('🚀 Local Dev API Server Running');
-  console.log('='.repeat(50));
-  console.log(`API Server: http://localhost:${PORT}`);
-  console.log();
-  console.log('Available endpoints:');
-  console.log(`  GET http://localhost:${PORT}/api/filings`);
-  console.log(`  GET http://localhost:${PORT}/api/filing/TTAN`);
-  console.log();
-  console.log('To test integration:');
-  console.log('  1. Keep this server running');
-  console.log('  2. In another terminal: npm run dev');
-  console.log('  3. Open http://localhost:5173');
-  console.log('  4. Update vite.config to proxy to :3001');
-  console.log();
-  console.log('Press Ctrl+C to stop');
-  console.log('='.repeat(50));
+// Load handlers and start server
+loadHandlers().then(() => {
+  server.listen(PORT, () => {
+    console.log('🚀 Local Dev API Server Running');
+    console.log('='.repeat(50));
+    console.log(`API Server: http://localhost:${PORT}`);
+    console.log();
+    console.log('Available endpoints:');
+    console.log(`  GET http://localhost:${PORT}/api/filings`);
+    console.log(`  GET http://localhost:${PORT}/api/filing/TTAN`);
+    console.log(`  GET http://localhost:${PORT}/api/cron/extract-prospectus?limit=10`);
+    console.log(`  GET http://localhost:${PORT}/api/cron/submit-prospectus-batch (processes ALL unprocessed)`);
+    console.log();
+    console.log('To test integration:');
+    console.log('  1. Keep this server running');
+    console.log('  2. In another terminal: npm run dev');
+    console.log('  3. Open http://localhost:5173');
+    console.log('  4. Update vite.config to proxy to :3001');
+    console.log();
+    console.log('Press Ctrl+C to stop');
+    console.log('='.repeat(50));
+  });
+}).catch(error => {
+  console.error('Failed to start server:', error);
+  process.exit(1);
 });

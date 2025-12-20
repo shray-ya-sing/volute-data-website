@@ -6,6 +6,7 @@
 import { put } from '@vercel/blob';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as readline from 'readline';
 import dotenv from 'dotenv';
 
 // Load environment variables from .env.local
@@ -21,7 +22,7 @@ if (!BLOB_TOKEN) {
 }
 
 // Directory containing the PDFs
-const PDF_DIR = path.join('..', 'fin_data_project', '424B4_all_ipos_2020_onwards');
+const PDF_DIR = path.join('..', 'fin_data_project', '424B4_filings');
 const ABSOLUTE_PDF_DIR = path.resolve(PDF_DIR);
 
 // Progress tracking file
@@ -90,15 +91,15 @@ async function uploadPDFs() {
   console.log(`Remaining to upload: ${filesToProcess.length}\n`);
 
   const confirm = await new Promise<string>((resolve) => {
-    const readline = require('readline').createInterface({
+    const rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout
     });
 
-    readline.question(
+    rl.question(
       `This will upload ${filesToProcess.length} files. Estimated time: ~${Math.ceil(filesToProcess.length * 3 / 60)} minutes.\nContinue? (yes/no): `,
       (answer: string) => {
-        readline.close();
+        rl.close();
         resolve(answer.trim().toLowerCase());
       }
     );

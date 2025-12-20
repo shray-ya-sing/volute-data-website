@@ -1,6 +1,7 @@
 /**
  * Cron Job: Check SEC RSS feed for new 424B4 filings
  * Runs: Every hour
+ * Filters for specific 2025 IPO tickers
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
@@ -10,6 +11,47 @@ const sql = neon(process.env.DATABASE_URL!);
 
 // SEC RSS feed for 424B4 filings
 const SEC_RSS_URL = 'https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=424B4&count=100&output=atom';
+// SEC company tickers JSON for mapping tickers to CIKs
+const SEC_COMPANY_TICKERS_URL = 'https://www.sec.gov/files/company_tickers.json';
+
+// 2025 IPO tickers to monitor
+const IPO_TICKERS = [
+  'BEBE', 'ADAC', 'LPCV', 'VHCP', 'ANDG', 'CCXI', 'IRHO', 'MDLN', 'CRAN', 'ITHA',
+  'TWLV', 'WLTH', 'BLRK', 'KBON', 'LMRI', 'CDNL', 'JMG', 'MESH', 'DSAC', 'LFAC',
+  'AEAQ', 'NWAX', 'RGNT', 'SAC', 'SMJF', 'GPAC', 'PARK', 'SBXE', 'BIXI', 'SCII',
+  'IGAC', 'HCAC', 'GLOO', 'OTH', 'POAS', 'BPAC', 'EVOX', 'CRAC', 'TDWD', 'AERO',
+  'BLLN', 'EVMN', 'ELWT', 'XZO', 'BETA', 'CEPV', 'WSTN', 'VACI', 'DNMX', 'NAVN',
+  'DYOR', 'APXT', 'MPLT', 'LAFA', 'HAVA', 'MMTX', 'AGCC', 'ALIS', 'NPT', 'AHMA',
+  'BGIN', 'MCTA', 'ACCL', 'SLGB', 'TCGL', 'RPGL', 'ALH', 'LFS', 'PXED', 'YDDL',
+  'POM', 'LKSP', 'GIW', 'AIIA', 'CCHH', 'RNGT', 'CBK', 'AGRZ', 'FRMI', 'KRSP',
+  'NP', 'YCY', 'APAC', 'BCSS', 'BDCI', 'KNRX', 'AEXA', 'FCRS', 'MGN', 'DMII',
+  'EMIS', 'LATA', 'PLTS', 'PTRN', 'NTSK', 'STUB', 'WBI', 'CHEC', 'CHOW', 'BRCB',
+  'FOFO', 'GEMI', 'LGN', 'OTGA', 'VIA', 'FIGR', 'LBRX', 'BLZR', 'KLAR', 'TLNC',
+  'ZGM', 'FCHL', 'GSRF', 'SVAC', 'PMI', 'ELOG', 'TGHL', 'THH', 'KOYN', 'MBVI',
+  'CURX', 'CEPF', 'ETS', 'YMT', 'NUTR', 'BUUU', 'MIAX', 'NSRX', 'RYOJ', 'BLSH',
+  'HVMC', 'MAGH', 'MKLY', 'DKI', 'EFTY', 'HTFL', 'SSEA', 'FLY', 'WYFI', 'CTW',
+  'QUMS', 'HCMA', 'BCAR', 'FIG', 'SI', 'AMBQ', 'APAD', 'YMAT', 'ARX', 'LHAI',
+  'MH', 'CARL', 'CRE', 'NIQ', 'TDIC', 'MJID', 'LAWR', 'PAII', 'KMRK', 'MGRT',
+  'SOCA', 'SPEG', 'BMHL', 'DLXY', 'GTER', 'ANPA', 'MSGY', 'TLIH', 'MAMK', 'CV',
+  'EMPG', 'EVAC', 'ONCH', 'ORIQ', 'VNME', 'CCII', 'GRAN', 'INAC', 'NMP', 'FIGX',
+  'YORK', 'CAEP', 'JCAP', 'JLHL', 'FMFC', 'LWAC', 'OBA', 'HCHL', 'AXIN', 'CAI',
+  'EGG', 'PACH', 'SLDE', 'AIRO', 'BACC', 'BSAA', 'CHYM', 'VNTG', 'ASIC', 'VOYG',
+  'BLUW', 'JEM', 'OMDA', 'CRCL', 'PTNM', 'JENA', 'WTG', 'KCHV', 'CRA', 'FTRK',
+  'PELI', 'HNGE', 'MNTN', 'OYSE', 'AACI', 'OFAL', 'PCAP', 'CCCM', 'WENN', 'RTAC',
+  'TVAI', 'ANTA', 'CCCX', 'ETOR', 'OMSE', 'PMTR', 'APUS', 'EGHA', 'AHL', 'AII',
+  'IPOD', 'CEPT', 'CGCT', 'GTEN', 'SDM', 'COPL', 'RDAG', 'LCCC', 'TACO', 'YB',
+  'DAAQ', 'RAAQ', 'CHAC', 'IPCX', 'PHOE', 'NPAC', 'TVA', 'CIGL', 'PFAI', 'TMDE',
+  'CHA', 'EDHL', 'HXHX', 'ATHR', 'CUPR', 'IOTR', 'MB', 'TACH', 'FATN', 'RYET',
+  'BLIV', 'LHSW', 'SMA', 'SORA', 'SZZL', 'ENGS', 'SDHI', 'WTF', 'WXM', 'NMAX',
+  'UYSC', 'CRWV', 'NCT', 'WFF', 'EPSM', 'LGPS', 'BIYA', 'GSHR', 'RCT', 'QSEA',
+  'MWYN', 'MCRP', 'SAGT', 'ADVB', 'JFB', 'KMTS', 'TBH', 'PN', 'FERA', 'LOKV',
+  'NHIC', 'LUD', 'LZMH', 'RAC', 'WETO', 'STAK', 'BMGL', 'WGRX', 'NNNN', 'NPB',
+  'AACB', 'AARD', 'IPEX', 'KRMN', 'SAIL', 'XHLD', 'AGH', 'ATII', 'SION', 'TTAM',
+  'EPWK', 'FBGL', 'CJMB', 'HCAI', 'KFII', 'PLUT', 'INR', 'MAZE', 'MTSR', 'BBNX',
+  'SVCC', 'FGMC', 'DMAA', 'SFD', 'AAPG', 'VG', 'COLA', 'SKBL', 'DGNX', 'DXST',
+  'MCTR', 'TOPP', 'HVII', 'FLOC', 'PCLA', 'HKPD', 'PLMK', 'RIBB', 'UFG', 'MIMI',
+  'MASK', 'CEPO', 'ZYBT', 'INLF'
+];
 
 interface SECFiling {
   ticker: string;
@@ -18,6 +60,10 @@ interface SECFiling {
   accessionNumber: string;
   filingDate: string;
   filingUrl: string;
+}
+
+interface TickerCIKMap {
+  [ticker: string]: string;
 }
 
 /**
