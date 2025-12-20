@@ -181,10 +181,15 @@ async function processBatchResult(batchId: string): Promise<{
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // Verify cron secret
-  const authHeader = req.headers.authorization;
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return res.status(401).json({ error: 'Unauthorized' });
+  // Verify cron secret (only if CRON_SECRET is set)
+  if (process.env.CRON_SECRET) {
+    const authHeader = req.headers.authorization;
+    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+      console.error('❌ Unauthorized: Invalid or missing cron secret');
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+  } else {
+    console.warn('⚠️ CRON_SECRET not set - running without authentication');
   }
 
   console.log('🔄 Starting batch polling...');
