@@ -10,7 +10,7 @@ import {
   getBatchStatus,
   getBatchResults,
   parseMetricsFromResult,
-} from '../../lib/batch-api';
+} from '../../lib/batch-api.js';
 
 const sql = neon(process.env.DATABASE_URL!);
 const anthropic = new Anthropic({
