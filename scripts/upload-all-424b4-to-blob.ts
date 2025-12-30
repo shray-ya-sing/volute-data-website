@@ -22,7 +22,7 @@ if (!BLOB_TOKEN) {
 }
 
 // Directory containing the PDFs
-const PDF_DIR = path.join('..', 'fin_data_project', '424B4_filings');
+const PDF_DIR = path.join(process.cwd(), '424B4_filings_pdf/2023');
 const ABSOLUTE_PDF_DIR = path.resolve(PDF_DIR);
 
 // Progress tracking file
@@ -58,7 +58,7 @@ async function uploadPDFs() {
   // Check if directory exists
   if (!fs.existsSync(ABSOLUTE_PDF_DIR)) {
     console.error(`ERROR: Directory not found: ${ABSOLUTE_PDF_DIR}`);
-    console.error('Run fetch_all_424b4_since_2020.py first to download the PDFs');
+    console.error('Run download_424b4_free.py and convert_html_to_pdf_playwright.py first to download and convert the PDFs');
     process.exit(1);
   }
 

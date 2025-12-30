@@ -1,0 +1,346 @@
+IPO Date
+	Symbol	Company Name	IPO Price	Current	Return
+Dec 19, 2025	BEBE	TGE Value Creative Solutions Corp	$10.00	$9.95	-0.50%
+Dec 18, 2025	ADAC	American Drive Acquisition Company	$10.00	$9.95	-0.50%
+Dec 18, 2025	LPCV	Launchpad Cadenza Acquisition Corp I	$10.00	$9.99	-0.10%
+Dec 18, 2025	VHCP	Vine Hill Capital Investment Corp. II	$10.00	$10.04	0.35%
+Dec 17, 2025	ANDG	Andersen Group Inc.	$16.00	$24.42	52.63%
+Dec 17, 2025	CCXI	Churchill Capital Corp XI	$10.00	$10.22	2.20%
+Dec 17, 2025	IRHO	Iron Horse Acquisitions Corp. II	$10.00	$9.95	-0.50%
+Dec 17, 2025	MDLN	Medline Inc.	$29.00	$41.65	43.62%
+Dec 16, 2025	CRAN	Crane Harbor Acquisition Corp. II	$10.00	$10.06	0.60%
+Dec 12, 2025	ITHA	ITHAX Acquisition Corp III	$10.00	$9.96	-0.45%
+Dec 12, 2025	TWLV	Twelve Seas Investment Company III	$10.00	$9.96	-0.40%
+Dec 12, 2025	WLTH	Wealthfront Corporation	$14.00	$12.95	-7.50%
+Dec 11, 2025	BLRK	Bluerock Acquisition Corp.	$10.00	$10.01	0.05%
+Dec 11, 2025	KBON	Karbon Capital Partners Corp.	$10.00	$10.08	0.80%
+Dec 11, 2025	LMRI	Lumexa Imaging Holdings, Inc.	$18.50	$17.74	-4.11%
+Dec 10, 2025	CDNL	Cardinal Infrastructure Group Inc.	$21.00	$24.06	14.57%
+Dec 10, 2025	JMG	JM Group Limited	$4.00	$6.07	51.75%
+Dec 10, 2025	MESH	Meshflow Acquisition Corp.	$10.00	$10.00	-
+Dec 9, 2025	DSAC	Daedalus Special Acquisition Corp.	$10.00	$10.04	0.40%
+Dec 5, 2025	LFAC	Leapfrog Acquisition Corporation	$10.00	$10.01	0.05%
+Dec 4, 2025	AEAQ	Activate Energy Acquisition Corp.	$10.00	$10.01	0.10%
+Dec 4, 2025	NWAX	New America Acquisition I Corp.	$10.00	$10.30	3.00%
+Dec 4, 2025	RGNT	Regentis Biomaterials Ltd.	$8.00	$6.10	-23.75%
+Dec 4, 2025	SAC	Safeguard Acquisition Corp.	$10.00	$10.05	0.50%
+Dec 4, 2025	SMJF	SMJ International Holdings Inc.	$4.00	$4.74	18.50%
+Dec 3, 2025	GPAC	General Purpose Acquisition Corp.	$10.00	$10.00	-
+Dec 3, 2025	PARK	Park Dental Partners, Inc.	$13.00	$14.10	8.46%
+Dec 3, 2025	SBXE	SilverBox Corp V	$10.00	$10.06	0.60%
+Dec 2, 2025	BIXI	Bitcoin Infrastructure Acquisition Corp Ltd.	$10.00	$9.99	-0.10%
+Nov 26, 2025	SCII	SC II Acquisition Corp.	$10.00	$10.08	0.80%
+Nov 25, 2025	IGAC	Invest Green Acquisition Corporation	$10.00	$10.10	0.95%
+Nov 21, 2025	HCAC	Hall Chadwick Acquisition Corp.	$10.00	$10.03	0.30%
+Nov 19, 2025	GLOO	Gloo Holdings, Inc.	$8.00	$6.39	-20.13%
+Nov 13, 2025	OTH	Off The Hook YS Inc.	$4.00	$2.34	-41.50%
+Nov 13, 2025	POAS	Phaos Technology Holdings (Cayman) Limited	$4.00	$3.75	-6.25%
+Nov 12, 2025	BPAC	Blueport Acquisition Ltd	$10.00	$10.05	0.45%
+Nov 11, 2025	EVOX	Evolution Global Acquisition Corp	$10.00	$10.06	0.60%
+Nov 7, 2025	CRAC	Crown Reserve Acquisition Corp. I	$10.00	$10.14	1.40%
+Nov 7, 2025	TDWD	Tailwind 2.0 Acquisition Corp.	$10.00	$10.04	0.40%
+Nov 6, 2025	AERO	Grupo Aeroméxico, S.A.B. de C.V.	$19.00	$21.30	12.11%
+Nov 6, 2025	BLLN	BillionToOne, Inc.	$60.00	$102.60	71.00%
+Nov 6, 2025	EVMN	Evommune, Inc.	$16.00	$18.25	14.06%
+Nov 5, 2025	ELWT	Elauwit Connection, Inc.	$9.00	$5.21	-42.11%
+Nov 5, 2025	XZO	Exzeo Group, Inc.	$21.00	$20.72	-1.33%
+Nov 4, 2025	BETA	BETA Technologies, Inc.	$34.00	$30.56	-10.12%
+Nov 4, 2025	CEPV	Cantor Equity Partners V, Inc.	$10.00	$10.24	2.40%
+Nov 4, 2025	WSTN	Westin Acquisition Corp	$10.00	$10.03	0.30%
+Oct 31, 2025	VACI	Viking Acquisition Corp. I	$10.00	$10.04	0.40%
+Oct 30, 2025	DNMX	Dynamix Corporation III	$10.00	$10.10	1.00%
+Oct 30, 2025	NAVN	Navan, Inc.	$25.00	$15.11	-39.56%
+Oct 29, 2025	DYOR	Insight Digital Partners II	$10.00	$10.07	0.70%
+Oct 28, 2025	APXT	Apex Treasury Corporation	$10.00	$10.03	0.30%
+Oct 27, 2025	MPLT	MapLight Therapeutics, Inc.	$17.00	$20.55	20.88%
+Oct 24, 2025	LAFA	LaFayette Acquisition Corp.	$10.00	$10.02	0.20%
+Oct 23, 2025	HAVA	Harvard Ave Acquisition Corporation	$10.00	$10.01	0.10%
+Oct 23, 2025	MMTX	Miluna Acquisition Corp	$10.00	$9.97	-0.30%
+Oct 22, 2025	AGCC	Agencia Comercial Spirits Ltd	$4.00	$10.12	153.00%
+Oct 22, 2025	ALIS	Calisa Acquisition Corp	$10.00	$10.20	2.00%
+Oct 22, 2025	NPT	Texxon Holding Limited	$5.00	$5.34	6.80%
+Oct 21, 2025	AHMA	Ambitions Enterprise Management Co. L.L.C	$4.00	$7.21	80.25%
+Oct 21, 2025	BGIN	Bgin Blockchain Limited	$6.00	$2.82	-53.00%
+Oct 21, 2025	MCTA	Charming Medical Limited	$4.00	$29.36	633.88%
+Oct 17, 2025	ACCL	Acco Group Holdings Limited	$4.00	$3.16	-21.08%
+Oct 15, 2025	SLGB	Smart Logistics Global Limited	$5.00	$1.12	-77.60%
+Oct 15, 2025	TCGL	TechCreate Group Ltd.	$4.00	$5.10	27.50%
+Oct 14, 2025	RPGL	Republic Power Group Limited	$4.00	$0.27	-93.20%
+Oct 9, 2025	ALH	Alliance Laundry Holdings Inc.	$22.00	$20.44	-7.09%
+Oct 9, 2025	LFS	Leifras Co., Ltd.	$4.00	$3.77	-5.75%
+Oct 9, 2025	PXED	Phoenix Education Partners, Inc.	$32.00	$33.00	3.13%
+Oct 9, 2025	YDDL	One and one Green Technologies. Inc	$5.00	$5.94	18.80%
+Oct 8, 2025	POM	Pomdoctor Limited	$4.00	$0.30	-92.50%
+Oct 7, 2025	LKSP	Lake Superior Acquisition Corp.	$10.00	$9.90	-1.00%
+Oct 6, 2025	GIW	GigCapital8 Corp.	$10.00	$9.88	-1.20%
+Oct 3, 2025	AIIA	AI Infrastructure Acquisition Corp.	$10.00	$9.93	-0.70%
+Oct 3, 2025	CCHH	CCH Holdings Ltd	$4.00	$0.61	-84.75%
+Oct 3, 2025	RNGT	Range Capital Acquisition Corp II	$10.00	$9.97	-0.30%
+Oct 2, 2025	CBK	Commercial Bancgroup, Inc.	$24.00	$25.32	5.50%
+Oct 1, 2025	AGRZ	Agroz Inc.	$4.00	$1.92	-52.00%
+Oct 1, 2025	FRMI	Fermi Inc.	$21.00	$8.44	-59.81%
+Oct 1, 2025	KRSP	Rice Acquisition Corporation 3	$10.00	$10.34	3.40%
+Oct 1, 2025	NP	Neptune Insurance Holdings Inc.	$20.00	$28.17	40.85%
+Oct 1, 2025	YCY	AA Mission Acquisition Corp. II	$10.00	$9.96	-0.40%
+Sep 30, 2025	APAC	StoneBridge Acquisition II Corporation	$10.00	$9.93	-0.70%
+Sep 30, 2025	BCSS	Bain Capital GSS Investment Corp.	$10.00	$10.09	0.90%
+Sep 30, 2025	BDCI	BTC Development Corp.	$10.00	$10.02	0.15%
+Sep 29, 2025	KNRX	Knorex Ltd.	$4.00	$1.45	-63.75%
+Sep 26, 2025	AEXA	American Exceptionalism Acquisition Corp. A	$10.00	$11.14	11.40%
+Sep 26, 2025	FCRS	FutureCrest Acquisition Corp.	$10.00	$10.07	0.70%
+Sep 26, 2025	MGN	Megan Holdings Limited	$4.00	$1.90	-52.50%
+Sep 25, 2025	DMII	Drugs Made In America Acquisition II Corp.	$10.00	$9.99	-0.10%
+Sep 25, 2025	EMIS	Emmis Acquisition Corp.	$10.00	$10.01	0.10%
+Sep 19, 2025	LATA	Galata Acquisition Corp. II	$10.00	$9.97	-0.30%
+Sep 19, 2025	PLTS	Platinum Analytics Cayman Limited	$4.00	$17.50	337.50%
+Sep 19, 2025	PTRN	Pattern Group Inc.	$14.00	$11.91	-14.93%
+Sep 18, 2025	NTSK	Netskope, Inc.	$19.00	$19.26	1.37%
+Sep 17, 2025	STUB	StubHub Holdings, Inc.	$23.50	$13.77	-41.40%
+Sep 17, 2025	WBI	WaterBridge Infrastructure LLC	$20.00	$20.28	1.40%
+Sep 16, 2025	CHEC	Chenghe Acquisition III Co.	$10.00	$9.96	-0.40%
+Sep 16, 2025	CHOW	ChowChow Cloud International Holdings Limited	$4.00	$0.88	-78.00%
+Sep 12, 2025	BRCB	Black Rock Coffee Bar, Inc.	$20.00	$22.69	13.45%
+Sep 12, 2025	FOFO	Hang Feng Technology Innovation Co., Ltd.	$4.00	$9.54	138.50%
+Sep 12, 2025	GEMI	Gemini Space Station, Inc.	$28.00	$11.42	-59.21%
+Sep 12, 2025	LGN	Legence Corp.	$28.00	$44.15	57.68%
+Sep 12, 2025	OTGA	OTG Acquisition Corp. I	$10.00	$10.00	0.00%
+Sep 12, 2025	VIA	Via Transportation, Inc.	$46.00	$33.30	-27.61%
+Sep 11, 2025	FIGR	Figure Technology Solutions, Inc.	$25.00	$42.21	68.84%
+Sep 11, 2025	LBRX	LB Pharmaceuticals Inc	$15.00	$21.07	40.47%
+Sep 10, 2025	BLZR	Trailblazer Acquisition Corp.	$10.00	$10.04	0.35%
+Sep 10, 2025	KLAR	Klarna Group plc	$40.00	$30.78	-23.05%
+Sep 9, 2025	TLNC	Talon Capital Corp.	$10.00	$10.11	1.08%
+Sep 9, 2025	ZGM	Zenta Group Company Limited	$4.00	$2.49	-37.75%
+Sep 4, 2025	FCHL	Fitness Champs Holdings Limited	$4.00	$0.28	-93.12%
+Sep 4, 2025	GSRF	GSR IV Acquisition Corp.	$10.00	$9.98	-0.25%
+Sep 4, 2025	SVAC	Spring Valley Acquisition Corp. III	$10.00	$10.32	3.19%
+Aug 29, 2025	PMI	Picard Medical, Inc.	$4.00	$2.33	-41.75%
+Aug 28, 2025	ELOG	Eastern International Ltd.	$4.00	$1.64	-59.00%
+Aug 28, 2025	TGHL	The Growhub Limited	$4.00	$0.40	-90.03%
+Aug 28, 2025	THH	TryHard Holdings Limited	$4.00	$15.39	284.75%
+Aug 27, 2025	KOYN	CSLM Digital Asset Acquisition Corp III, Ltd	$10.00	$9.94	-0.60%
+Aug 27, 2025	MBVI	M3-Brigade Acquisition Vi Corp.	$10.00	$10.02	0.20%
+Aug 26, 2025	CURX	Curanex Pharmaceuticals Inc	$4.00	$8.60	112.00%
+Aug 21, 2025	CEPF	Cantor Equity Partners IV, Inc.	$10.00	$10.29	2.90%
+Aug 21, 2025	ETS	Elite Express Holding Inc.	$4.00	$0.50	-87.63%
+Aug 19, 2025	YMT	Yimutian Inc.	$4.10	$1.28	-68.78%
+Aug 15, 2025	NUTR	NusaTrip Incorporated	$4.00	$9.00	125.00%
+Aug 14, 2025	BUUU	BUUU Group Limited	$4.00	$7.91	97.75%
+Aug 14, 2025	MIAX	Miami International Holdings, Inc.	$23.00	$44.62	94.00%
+Aug 14, 2025	NSRX	Nasus Pharma Ltd.	$8.00	$7.58	-5.31%
+Aug 14, 2025	RYOJ	rYojbaba Co., Ltd.	$4.00	$3.55	-11.25%
+Aug 13, 2025	BLSH	Bullish	$37.00	$44.60	20.54%
+Aug 12, 2025	HVMC	Highview Merger Corp.	$10.00	$10.03	0.30%
+Aug 12, 2025	MAGH	Magnitude International Ltd	$4.00	$6.76	69.00%
+Aug 12, 2025	MKLY	McKinley Acquisition Corporation	$10.00	$9.96	-0.40%
+Aug 8, 2025	DKI	Darkiris Inc.	$4.00	$0.38	-90.43%
+Aug 8, 2025	EFTY	Etoiles Capital Group Co., Ltd	$4.00	$15.02	275.50%
+Aug 8, 2025	HTFL	HeartFlow, Inc.	$19.00	$30.51	60.58%
+Aug 8, 2025	SSEA	Starry Sea Acquisition Corp	$10.00	$10.01	0.10%
+Aug 7, 2025	FLY	Firefly Aerospace Inc.	$45.00	$24.65	-45.22%
+Aug 7, 2025	WYFI	WhiteFiber, Inc.	$17.00	$16.74	-1.53%
+Aug 6, 2025	CTW	CTW Cayman	$5.00	$1.80	-64.00%
+Aug 6, 2025	QUMS	Quantumsphere Acquisition Corporation	$10.00	$10.00	-
+Aug 1, 2025	HCMA	HCM III Acquisition Corp.	$10.00	$10.07	0.70%
+Jul 31, 2025	BCAR	D. Boral ARC Acquisition I Corp.	$10.00	$10.03	0.25%
+Jul 31, 2025	FIG	Figma, Inc.	$33.00	$39.48	19.64%
+Jul 31, 2025	SI	Shoulder Innovations, Inc.	$15.00	$15.32	2.13%
+Jul 30, 2025	AMBQ	Ambiq Micro, Inc.	$24.00	$30.37	26.54%
+Jul 30, 2025	APAD	A Paradise Acquisition Corp.	$10.00	$10.06	0.60%
+Jul 30, 2025	YMAT	J-Star Holding Co., Ltd.	$4.00	$0.65	-83.83%
+Jul 24, 2025	ARX	Accelerant Holdings	$21.00	$16.31	-22.33%
+Jul 24, 2025	LHAI	Linkhome Holdings Inc.	$4.00	$12.80	220.00%
+Jul 24, 2025	MH	McGraw Hill, Inc.	$17.00	$17.12	0.71%
+Jul 23, 2025	CARL	Carlsmed, Inc.	$15.00	$12.85	-14.33%
+Jul 23, 2025	CRE	Cre8 Enterprise Limited	$4.00	$0.32	-92.02%
+Jul 23, 2025	NIQ	NIQ Global Intelligence plc	$21.00	$16.60	-20.95%
+Jul 23, 2025	TDIC	Dreamland Limited	$4.00	$0.23	-94.20%
+Jul 18, 2025	MJID	Majestic Ideal Holdings Ltd	$6.00	$1.24	-79.33%
+Jul 17, 2025	LAWR	Robot Consulting Co., Ltd.	$4.00	$3.75	-6.25%
+Jul 17, 2025	PAII	Pyrophyte Acquisition Corp. II	$10.00	$10.10	1.00%
+Jul 16, 2025	KMRK	K-TECH Solutions Company Limited	$4.00	$1.02	-74.50%
+Jul 16, 2025	MGRT	Mega Fortune Company Limited	$4.00	$7.30	82.50%
+Jul 16, 2025	SOCA	Solarius Capital Acquisition Corp.	$10.00	$10.05	0.50%
+Jul 15, 2025	SPEG	Silver Pegasus Acquisition Corp.	$10.00	$10.05	0.50%
+Jul 11, 2025	BMHL	Bluemount Holdings Limited	$4.00	$3.66	-8.64%
+Jul 9, 2025	DLXY	Delixy Holdings Limited	$4.00	$0.87	-78.29%
+Jul 9, 2025	GTER	Globa Terra Acquisition Corporation	$10.00	$10.30	3.00%
+Jul 8, 2025	ANPA	Rich Sparkle Holdings Limited	$4.00	$21.35	433.75%
+Jul 8, 2025	MSGY	Masonglory Limited	$4.00	$2.74	-31.50%
+Jul 8, 2025	TLIH	Ten-League International Holdings Limited	$4.00	$0.40	-89.93%
+Jul 7, 2025	MAMK	MaxsMaking Inc.	$4.00	$13.00	225.00%
+Jul 2, 2025	CV	CapsoVision, Inc.	$5.00	$13.23	164.60%
+Jul 2, 2025	EMPG	Empro Group Inc.	$4.00	$17.36	334.00%
+Jul 2, 2025	EVAC	EQV Ventures Acquisition Corp. II	$10.00	$10.01	0.10%
+Jul 2, 2025	ONCH	1RT Acquisition Corp.	$10.00	$10.23	2.30%
+Jul 2, 2025	ORIQ	Origin Investment Corp I	$10.00	$10.12	1.20%
+Jul 2, 2025	VNME	Vendome Acquisition Corporation I	$10.00	$10.05	0.50%
+Jul 1, 2025	CCII	Cohen Circle Acquisition Corp. II	$10.00	$10.25	2.50%
+Jul 1, 2025	GRAN	Grande Group Limited	$5.00	$3.60	-28.00%
+Jul 1, 2025	INAC	Indigo Acquisition Corp.	$10.00	$10.04	0.40%
+Jul 1, 2025	NMP	NMP Acquisition Corp.	$10.00	$10.05	0.50%
+Jun 27, 2025	FIGX	FIGX Capital Acquisition Corp.	$10.00	$10.05	0.50%
+Jun 27, 2025	YORK	Yorkville Acquisition Corp.	$10.00	$11.28	12.80%
+Jun 26, 2025	CAEP	Cantor Equity Partners III, Inc.	$10.00	$10.20	2.00%
+Jun 26, 2025	JCAP	Jefferson Capital, Inc.	$15.00	$22.58	50.53%
+Jun 26, 2025	JLHL	Julong Holding Limited	$4.00	$3.60	-10.00%
+Jun 25, 2025	FMFC	Kandal M Venture Limited	$4.00	$0.32	-92.03%
+Jun 25, 2025	LWAC	LightWave Acquisition Corp.	$10.00	$10.02	0.20%
+Jun 25, 2025	OBA	Oxley Bridge Acquisition Limited	$10.00	$10.02	0.20%
+Jun 24, 2025	HCHL	Happy City Holdings Limited	$5.00	$3.75	-25.00%
+Jun 18, 2025	AXIN	Axiom Intelligence Acquisition Corp 1	$10.00	$10.08	0.75%
+Jun 18, 2025	CAI	Caris Life Sciences, Inc.	$21.00	$27.94	33.05%
+Jun 18, 2025	EGG	Enigmatig Limited	$5.00	$4.30	-14.00%
+Jun 18, 2025	PACH	Pioneer Acquisition I Corp	$10.00	$10.07	0.70%
+Jun 18, 2025	SLDE	Slide Insurance Holdings, Inc.	$17.00	$18.72	10.12%
+Jun 13, 2025	AIRO	AIRO Group Holdings, Inc.	$10.00	$8.03	-19.70%
+Jun 13, 2025	BACC	Blue Acquisition Corp.	$10.00	$10.26	2.60%
+Jun 13, 2025	BSAA	BEST SPAC I Acquisition Corp.	$10.00	$10.10	0.95%
+Jun 12, 2025	CHYM	Chime Financial, Inc.	$27.00	$25.77	-4.56%
+Jun 12, 2025	VNTG	Vantage Corp	$4.00	$0.91	-77.16%
+Jun 11, 2025	ASIC	Ategrity Specialty Insurance Company Holdings	$17.00	$20.68	21.65%
+Jun 11, 2025	VOYG	Voyager Technologies, Inc.	$31.00	$26.96	-13.03%
+Jun 10, 2025	BLUW	Blue Water Acquisition Corp. III	$10.00	$10.30	3.00%
+Jun 9, 2025	JEM	707 Cayman Holdings Limited	$4.00	$0.20	-94.93%
+Jun 6, 2025	OMDA	Omada Health, Inc.	$19.00	$14.50	-23.68%
+Jun 5, 2025	CRCL	Circle Internet Group, Inc.	$31.00	$86.13	177.84%
+May 30, 2025	PTNM	Pitanium Limited	$4.00	$10.39	159.75%
+May 29, 2025	JENA	Jena Acquisition Corporation II	$10.00	$10.17	1.70%
+May 29, 2025	WTG	Wintergreen Acquisition Corp.	$10.00	$10.17	1.70%
+May 28, 2025	KCHV	Kochav Defense Acquisition Corp.	$10.00	$10.13	1.25%
+May 23, 2025	CRA	Cal Redwood Acquisition Corp.	$10.00	$8.04	-19.60%
+May 23, 2025	FTRK	Fast Track Group	$4.00	$0.79	-80.37%
+May 23, 2025	PELI	Pelican Acquisition Corporation	$10.00	$10.14	1.40%
+May 22, 2025	HNGE	Hinge Health, Inc.	$32.00	$47.25	47.66%
+May 22, 2025	MNTN	MNTN, Inc.	$16.00	$11.78	-26.38%
+May 22, 2025	OYSE	Oyster Enterprises II Acquisition Corp	$10.00	$10.08	0.80%
+May 21, 2025	AACI	Armada Acquisition Corp. II	$10.00	$10.29	2.90%
+May 21, 2025	OFAL	OFA Group	$4.50	$0.65	-85.55%
+May 21, 2025	PCAP	ProCap Acquisition Corp	$10.00	$10.18	1.80%
+May 16, 2025	CCCM	Columbus Circle Capital Corp I	$10.00	$11.13	13.50%
+May 16, 2025	WENN	Wen Acquisition Corp	$10.00	$10.12	1.15%
+May 15, 2025	RTAC	Renatus Tactical Acquisition Corp I	$10.00	$10.68	6.80%
+May 15, 2025	TVAI	Thayer Ventures Acquisition Corporation II	$10.00	$10.12	1.15%
+May 14, 2025	ANTA	Antalpha Platform Holding Company	$12.80	$9.60	-25.00%
+May 14, 2025	CCCX	Churchill Capital Corp X	$10.00	$13.85	38.50%
+May 14, 2025	ETOR	eToro Group Ltd.	$52.00	$36.21	-30.37%
+May 13, 2025	OMSE	OMS Energy Technologies Inc.	$9.00	$4.28	-52.44%
+May 13, 2025	PMTR	Perimeter Acquisition Corp. I	$10.00	$10.25	2.50%
+May 9, 2025	APUS	Apimeds Pharmaceuticals US, Inc.	$4.00	$1.52	-62.00%
+May 9, 2025	EGHA	EGH Acquisition Corp.	$10.00	$10.13	1.30%
+May 8, 2025	AHL	Aspen Insurance Holdings Limited	$30.00	$37.10	23.67%
+May 8, 2025	AII	American Integrity Insurance Group, Inc.	$16.00	$20.54	28.38%
+May 7, 2025	IPOD	Dune Acquisition Corporation II	$10.00	$10.20	2.00%
+May 2, 2025	CEPT	Cantor Equity Partners II, Inc.	$10.00	$10.85	8.50%
+May 2, 2025	CGCT	Cartesian Growth Corporation III	$10.00	$10.30	3.00%
+May 2, 2025	GTEN	Gores Holdings X, Inc.	$10.00	$10.29	2.90%
+May 2, 2025	SDM	Smart Digital Group Limited	$4.00	$1.85	-53.75%
+May 1, 2025	COPL	Copley Acquisition Corp	$10.00	$10.19	1.90%
+May 1, 2025	RDAG	Republic Digital Acquisition Company	$10.00	$10.20	2.00%
+Apr 30, 2025	LCCC	Lakeshore Acquisition III Corp.	$10.00	$10.19	1.90%
+Apr 30, 2025	TACO	Berto Acquisition Corp.	$10.00	$10.12	1.20%
+Apr 30, 2025	YB	Yuanbao Inc.	$15.00	$20.23	34.87%
+Apr 29, 2025	DAAQ	Digital Asset Acquisition Corp.	$10.00	$10.19	1.90%
+Apr 29, 2025	RAAQ	Real Asset Acquisition Corp.	$10.00	$10.22	2.20%
+Apr 25, 2025	CHAC	Crane Harbor Acquisition Corp.	$10.00	$10.81	8.10%
+Apr 25, 2025	IPCX	Inflection Point Acquisition Corp. III	$10.00	$10.14	1.40%
+Apr 25, 2025	PHOE	Phoenix Asia Holdings Limited	$4.00	$16.38	309.39%
+Apr 24, 2025	NPAC	New Providence Acquisition Corp. III	$10.00	$10.27	2.65%
+Apr 23, 2025	TVA	Texas Ventures Acquisition III Corp	$10.00	$10.61	6.10%
+Apr 22, 2025	CIGL	Concorde International Group Ltd.	$4.00	$1.95	-51.25%
+Apr 22, 2025	PFAI	Pinnacle Food Group Limited	$4.00	$2.25	-43.80%
+Apr 21, 2025	TMDE	TMD Energy Limited	$3.25	$0.63	-80.48%
+Apr 17, 2025	CHA	Chagee Holdings Limited	$28.00	$12.45	-55.54%
+Apr 17, 2025	EDHL	Everbright Digital Holding Limited	$4.00	$0.47	-88.25%
+Apr 15, 2025	HXHX	Haoxin Holdings Limited	$4.00	$0.35	-91.38%
+Apr 10, 2025	ATHR	Aether Holdings, Inc.	$4.30	$6.12	42.33%
+Apr 10, 2025	CUPR	Cuprina Holdings (Cayman) Limited	$4.00	$0.45	-88.70%
+Apr 10, 2025	IOTR	iOThree Limited	$4.00	$2.76	-31.00%
+Apr 10, 2025	MB	MasterBeef Group	$4.00	$6.24	55.88%
+Apr 9, 2025	TACH	Titan Acquisition Corp	$10.00	$10.25	2.50%
+Apr 8, 2025	FATN	FatPipe, Inc.	$5.75	$2.80	-51.30%
+Apr 8, 2025	RYET	Ruanyun Edai Technology Inc.	$4.00	$1.25	-68.75%
+Apr 4, 2025	BLIV	BeLive Holdings	$4.00	$3.89	-2.75%
+Apr 3, 2025	LHSW	Lianhe Sowell International Group Ltd	$4.00	$0.61	-84.66%
+Apr 2, 2025	SMA	SmartStop Self Storage REIT, Inc.	$30.00	$31.38	4.60%
+Apr 2, 2025	SORA	AsiaStrategy	-	$3.37	-
+Apr 2, 2025	SZZL	Sizzle Acquisition Corp. II	$10.00	$10.16	1.60%
+Apr 1, 2025	ENGS	Energys Group Limited	$4.50	$0.80	-82.26%
+Apr 1, 2025	SDHI	Siddhi Acquisition Corp.	$10.00	$10.24	2.40%
+Apr 1, 2025	WTF	Waton Financial Limited	$4.00	$3.54	-11.50%
+Apr 1, 2025	WXM	WF International Limited	$4.00	$0.54	-86.55%
+Mar 31, 2025	NMAX	Newsmax Inc.	$10.00	$9.11	-8.90%
+Mar 31, 2025	UYSC	UY Scuti Acquisition Corp.	$10.00	$10.22	2.20%
+Mar 28, 2025	CRWV	CoreWeave, Inc.	$40.00	$83.00	107.50%
+Mar 28, 2025	NCT	Intercont (Cayman) Limited	$7.00	$0.27	-96.21%
+Mar 27, 2025	WFF	WF Holding Limited	$4.00	$0.41	-89.87%
+Mar 26, 2025	EPSM	Epsium Enterprise Limited	$4.00	$2.35	-41.25%
+Mar 25, 2025	LGPS	LogProstyle Inc.	$5.00	$1.03	-79.40%
+Mar 21, 2025	BIYA	Baiya International Group Inc.	$4.00	$0.20	-94.98%
+Mar 21, 2025	GSHR	Gesher Acquisition Corp. II	$10.00	$10.26	2.60%
+Mar 21, 2025	RCT	RedCloud Holdings plc	$4.50	$1.38	-69.33%
+Mar 18, 2025	QSEA	Quartzsea Acquisition Corporation	$10.00	$10.22	2.20%
+Mar 13, 2025	MWYN	Marwynn Holdings, Inc.	$4.00	$0.86	-78.58%
+Mar 7, 2025	MCRP	Micropolis AI Robotics	$4.00	$1.32	-67.00%
+Mar 7, 2025	SAGT	Sagtec Global Limited	$4.00	$2.08	-48.00%
+Mar 6, 2025	ADVB	Advanced Biomed Inc.	$4.00	$0.35	-91.24%
+Mar 6, 2025	JFB	JFB Construction Holdings	$4.13	$14.05	240.19%
+Mar 6, 2025	KMTS	Kestra Medical Technologies, Ltd.	$17.00	$27.32	60.71%
+Mar 6, 2025	TBH	Brag House Holdings, Inc.	$4.00	$0.58	-85.55%
+Mar 4, 2025	PN	Skycorp Solar Group Ltd	$4.00	$0.75	-81.24%
+Feb 28, 2025	FERA	Fifth Era Acquisition Corp I	$10.00	$10.29	2.90%
+Feb 28, 2025	LOKV	Live Oak Acquisition Corp. V	$10.00	$10.28	2.80%
+Feb 28, 2025	NHIC	NewHold Investment Corp III	$10.00	$10.37	3.70%
+Feb 27, 2025	LUD	Luda Technology Group Limited	$4.00	$7.25	81.25%
+Feb 27, 2025	LZMH	LZ Technology Holdings Limited	$4.00	$1.48	-63.00%
+Feb 27, 2025	RAC	Rithm Acquisition Corp.	$10.00	$10.35	3.45%
+Feb 27, 2025	WETO	Webus International Limited	$4.00	$0.90	-77.52%
+Feb 26, 2025	STAK	STAK Inc.	$4.00	$0.38	-90.48%
+Feb 25, 2025	BMGL	Basel Medical Group Ltd	$4.00	$0.72	-82.00%
+Feb 21, 2025	WGRX	Wellgistics Health, Inc.	$4.50	$0.49	-89.21%
+Feb 19, 2025	NNNN	Anbio Biotechnology	$5.00	$32.35	547.00%
+Feb 14, 2025	NPB	Northpointe Bancshares, Inc.	$14.50	$17.00	17.24%
+Feb 13, 2025	AACB	Artius II Acquisition Inc.	$10.00	$10.30	3.00%
+Feb 13, 2025	AARD	Aardvark Therapeutics, Inc.	$16.00	$13.77	-13.94%
+Feb 13, 2025	IPEX	Inflection Point Acquisition Corp. V	-	$10.26	-
+Feb 13, 2025	KRMN	Karman Holdings Inc.	$22.00	$71.65	225.68%
+Feb 13, 2025	SAIL	SailPoint, Inc.	$23.00	$21.02	-8.61%
+Feb 13, 2025	XHLD	TEN Holdings, Inc.	$6.00	$1.61	-73.17%
+Feb 12, 2025	AGH	Aureus Greenway Holdings Inc.	$4.00	$4.03	0.75%
+Feb 11, 2025	ATII	Archimedes Tech SPAC Partners II Co.	$10.00	$10.40	4.00%
+Feb 7, 2025	SION	Sionna Therapeutics, Inc.	$18.00	$42.37	135.39%
+Feb 7, 2025	TTAM	Titan America SA	$16.00	$17.03	6.44%
+Feb 6, 2025	EPWK	EPWK Holdings Ltd.	$4.10	$0.82	-79.99%
+Feb 6, 2025	FBGL	FBS Global Limited	$4.50	$0.87	-80.73%
+Feb 5, 2025	CJMB	Callan JMB Inc.	$4.00	$1.44	-64.00%
+Feb 5, 2025	HCAI	Huachen AI Parking Management Technology Holding Co., Ltd	$4.00	$0.35	-91.37%
+Feb 5, 2025	KFII	K&F Growth Acquisition Corp. II	$10.00	$10.34	3.40%
+Feb 5, 2025	PLUT	Plutus Financial Group Limited	$4.00	$3.28	-18.00%
+Jan 31, 2025	INR	Infinity Natural Resources, Inc.	$20.00	$14.51	-27.45%
+Jan 31, 2025	MAZE	Maze Therapeutics, Inc.	$16.00	$41.71	160.69%
+Jan 31, 2025	MTSR	Metsera, Inc.	$18.00	$70.50	291.67%
+Jan 30, 2025	BBNX	Beta Bionics, Inc.	$17.00	$29.25	72.06%
+Jan 30, 2025	SVCC	Stellar V Capital Corp.	$10.00	$10.37	3.70%
+Jan 29, 2025	FGMC	FG Merger II Corp.	$10.00	$10.02	0.20%
+Jan 28, 2025	DMAA	Drugs Made In America Acquisition Corp.	$10.00	$10.36	3.62%
+Jan 28, 2025	SFD	Smithfield Foods, Inc.	$20.00	$22.78	13.90%
+Jan 24, 2025	AAPG	Ascentage Pharma Group International	$17.25	$29.49	70.96%
+Jan 24, 2025	VG	Venture Global, Inc.	$25.00	$6.35	-74.60%
+Jan 23, 2025	COLA	Columbus Acquisition Corp	$10.00	$10.37	3.70%
+Jan 23, 2025	SKBL	Skyline Builders Group Holding Limited	$4.00	$2.47	-38.25%
+Jan 22, 2025	DGNX	Diginex Limited	$4.10	$6.98	70.24%
+Jan 22, 2025	DXST	Decent Holding Inc.	$4.00	$1.27	-68.25%
+Jan 22, 2025	MCTR	CTRL Group Limited	$4.00	$0.97	-75.59%
+Jan 22, 2025	TOPP	Toppoint Holdings Inc.	$4.00	$0.87	-78.33%
+Jan 17, 2025	HVII	Hennessy Capital Investment Corp. VII	$10.00	$10.36	3.60%
+Jan 16, 2025	FLOC	Flowco Holdings Inc.	$24.00	$18.05	-24.79%
+Jan 16, 2025	PCLA	PicoCELA Inc.	$4.00	$0.13	-96.75%
+Jan 15, 2025	HKPD	Hong Kong Pharma Digital Technology Holdings Limited	$4.00	$0.70	-82.50%
+Jan 15, 2025	PLMK	Plum Acquisition Corp. IV	$10.00	$10.46	4.60%
+Jan 15, 2025	RIBB	Ribbon Acquisition Corp.	$10.00	$10.37	3.65%
+Jan 14, 2025	UFG	Uni-Fuels Holdings Limited	$4.00	$0.86	-78.49%
+Jan 10, 2025	MIMI	Mint Incorporation Limited	$4.00	$0.48	-88.01%
+Jan 8, 2025	MASK	3 E Network Technology Group Limited	$4.00	$0.24	-94.00%
+Jan 7, 2025	CEPO	Cantor Equity Partners I, Inc.	$10.00	$10.44	4.40%
+Jan 7, 2025	ZYBT	Zhengye Biotechnology Holding Limited	$4.00	$1.85	-53.75%
+Jan 2, 2025	INLF	INLIF Limited	$4.00	$0.57	-85.78%

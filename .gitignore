@@ -4,6 +4,9 @@ package-lock.json
 yarn.lock
 pnpm-lock.yaml
 
+#null or problematic files
+nul
+
 # Build output
 dist/
 build/
