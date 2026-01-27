@@ -1,0 +1,22 @@
+<svg width="300" height="100" viewBox="0 0 300 100" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Geist:wght@600&display=swap');
+    </style>
+  </defs>
+  
+  <rect width="300" height="100" fill="#000000"/>
+  
+  <text
+    x="150"
+    y="60"
+    font-family="Geist, sans-serif"
+    font-size="48"
+    font-weight="600"
+    fill="#ffffff"
+    text-anchor="middle"
+    dominant-baseline="middle"
+  >
+    Volute
+  </text>
+</svg>

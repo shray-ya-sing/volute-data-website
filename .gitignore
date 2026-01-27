@@ -69,3 +69,17 @@ extracted-pages/
 blob-upload-results.*
 exported-metrics.json
 extracted-pages-upload-results.json
+
+# PDF filings
+*.pdf
+
+# Downloaded and processed article data
+raw-downloads/
+raw-downloads-singlefile/
+clean-articles/
+example_clean-articles/
+example_playwright_url_output/
+
+# URL extraction data
+urls/tickers_*.csv
+urls/urls.txt
