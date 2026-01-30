@@ -31,6 +31,7 @@ const sql = neon(process.env.DATABASE_URL);
 let extractProspectusHandler: any;
 let submitProspectusBatchHandler: any;
 let pollBatchesHandler: any;
+let searchHandler: any;
 
 async function loadHandlers() {
   const extractModule = await import('../api/cron/extract-prospectus.js');
@@ -41,6 +42,9 @@ async function loadHandlers() {
 
   const pollModule = await import('../api/cron/poll-batches.js');
   pollBatchesHandler = pollModule.default;
+
+  const searchModule = await import('../api/search.ts');
+  searchHandler = searchModule.default;
 }
 
 // Helper to send JSON response
@@ -281,7 +285,44 @@ const server = createServer((req, res) => {
       console.error('Error in poll-batches:', error);
       sendJSON(res, 500, { error: error.message });
     });
-  } else {
+  } else if (pathname === '/api/search') {
+    // Collect body data for POST requests
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    
+    req.on('end', async () => {
+      const mockReq: any = {
+        query: parsedUrl.query || {},
+        headers: req.headers,
+        method: req.method,
+        url: req.url,
+        body: body ? JSON.parse(body) : {}, // Parse JSON body for POST
+      };
+
+      const mockRes: any = {
+        status: (code: number) => {
+          mockRes.statusCode = code;
+          return mockRes;
+        },
+        setHeader: (name: string, value: string) => {
+          res.setHeader(name, value);
+        },
+        json: (data: any) => {
+          sendJSON(res, mockRes.statusCode || 200, data);
+        },
+        end: () => res.end(),
+        statusCode: 200,
+      };
+
+      try {
+        await searchHandler(mockReq, mockRes);
+      } catch (error: any) {
+        console.error('Error in search:', error);
+        sendJSON(res, 500, { error: error.message });
+      }
+    });
+  }
+  else {
     sendJSON(res, 404, { error: 'Not found' });
   }
 });
@@ -299,6 +340,7 @@ loadHandlers().then(() => {
     console.log(`  GET http://localhost:${PORT}/api/cron/extract-prospectus?limit=10`);
     console.log(`  GET http://localhost:${PORT}/api/cron/submit-prospectus-batch (processes ALL unprocessed)`);
     console.log(`  GET http://localhost:${PORT}/api/cron/poll-batches`);
+    console.log(`  GET http://localhost:${PORT}/api/search?q=query`);
     console.log();
     console.log('To test integration:');
     console.log('  1. Keep this server running');

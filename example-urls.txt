@@ -1,0 +1,6 @@
+# Example URLs file for download-with-singlefile.ts
+# Lines starting with # are ignored
+# Add one URL per line
+
+https://example.com
+https://www.wikipedia.org

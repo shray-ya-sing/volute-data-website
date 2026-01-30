@@ -6,6 +6,7 @@
       "dependencies": {
             "@ai-sdk/anthropic": "^1.0.11",
             "@anthropic-ai/sdk": "^0.71.2",
+            "@mozilla/readability": "^0.6.0",
             "@neondatabase/serverless": "^0.10.4",
             "@radix-ui/react-accordion": "^1.2.3",
             "@radix-ui/react-alert-dialog": "^1.1.6",
@@ -39,6 +40,7 @@
             "class-variance-authority": "^0.7.1",
             "clsx": "*",
             "cmdk": "^1.1.1",
+            "csv-parser": "^3.2.0",
             "dompurify": "^3.3.1",
             "dotenv": "^16.4.7",
             "embla-carousel-react": "^8.6.0",
@@ -51,6 +53,7 @@
             "pdf-lib": "^1.17.1",
             "pdf-to-img": "^5.0.0",
             "pdfjs-dist": "^5.4.449",
+            "playwright": "^1.57.0",
             "pptxgenjs": "^4.0.1",
             "react": "^18.3.1",
             "react-day-picker": "^8.10.1",
@@ -59,12 +62,14 @@
             "react-pdf": "^10.2.0",
             "react-resizable-panels": "^2.1.7",
             "recharts": "^2.15.2",
+            "singlefile": "^0.0.0",
             "sonner": "^2.0.3",
             "tailwind-merge": "*",
             "vaul": "^1.1.2",
             "ws": "^8.18.0",
-            "zod": "^3.24.1"
-      },
+      "zod": "^3.24.1",
+      "jsdom": "^24.0.0"
+   },
       "devDependencies": {
             "@testing-library/jest-dom": "^6.9.1",
             "@testing-library/react": "^16.3.0",
@@ -96,8 +101,10 @@
             "blob:upload-424b4": "tsx scripts/upload-424b4-to-blob.ts",
             "blob:upload-all": "tsx scripts/upload-all-424b4-to-blob.ts",
             "blob:upload-extracted": "tsx scripts/upload-extracted-pages.ts",
-            "extract:metrics": "tsx scripts/extract-424b4-metrics.ts",
-            "extract:metrics-blob": "tsx scripts/extract-metrics-from-blob.ts",
-            "export:metrics": "tsx scripts/export-metrics-json.ts"
-      }
+      "extract:metrics": "tsx scripts/extract-424b4-metrics.ts",
+      "extract:metrics-blob": "tsx scripts/extract-metrics-from-blob.ts",
+      "export:metrics": "tsx scripts/export-metrics-json.ts",
+      "articles:create-schema": "tsx scripts/create-articles-schema.ts",
+      "articles:ingest": "tsx scripts/ingest-articles.ts"
+   }
 }
