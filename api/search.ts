@@ -9,8 +9,8 @@ if (!PINECONE_API_KEY || PINECONE_API_KEY === '') {
   throw new Error('PINECONE_API_KEY is not set in environment variables');
 }
 
-const RAW_HOST = process.env.PINECONE_INDEX_HOST || 'https://article-search-qcaf0p8.svc.aped-4627-b74a.pinecone.io';
-const PINECONE_INDEX_HOST = RAW_HOST.replace(/^https?:\/\//, '');
+const rawHost = process.env.PINECONE_INDEX_HOST || 'article-search-qcaf0p8.svc.aped-4627-b74a.pinecone.io';
+const PINECONE_INDEX_HOST = rawHost.startsWith('http') ? rawHost : `https://${rawHost}`;
 
 // Log presence (not value!) to Vercel logs for debugging
 console.log('Environment Check:', {
