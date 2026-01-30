@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const VOYAGE_API_KEY = process.env.VOYAGE_API_KEY || 'pa-lkitG0Pwd7QpXkb7EUyATIlTGHY2aJ6oYHMvOydjfk7';
-const PINECONE_API_KEY = process.env.PINECONE_API_KEY || 'pcsk_QEA8e_RNPvdrhcXJLZQnNCq6U3BSeNbpTS7VMLaE4VEmh9ZSUUwgP5j23yu5psPbWBoo3';
+const VOYAGE_API_KEY = process.env.VOYAGE_API_KEY || '';
+const PINECONE_API_KEY = process.env.PINECONE_API_KEY || '';
 const PINECONE_INDEX_HOST = process.env.PINECONE_INDEX_HOST || 'https://article-search-qcaf0p8.svc.aped-4627-b74a.pinecone.io';
 
 interface ArticleResult {

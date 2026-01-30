@@ -83,3 +83,8 @@ example_playwright_url_output/
 # URL extraction data
 urls/tickers_*.csv
 urls/urls.txt
+
+# Build files
+
+*.pyc
+*.cpyc

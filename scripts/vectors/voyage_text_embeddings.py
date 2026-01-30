@@ -25,7 +25,7 @@ class VoyageTextEmbeddingsService:
             batch_size: Number of texts to process in one batch (default: 128)
         """
         # Hardcoded API key (from your original code)
-        self.api_key = api_key or "pa-lkitG0Pwd7QpXkb7EUyATIlTGHY2aJ6oYHMvOydjfk7"
+        self.api_key = api_key
         
         if not self.api_key:
             raise ValueError("VoyageAI API key is required.")

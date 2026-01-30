@@ -21,7 +21,7 @@ class PineconeArticleDB:
             environment: Pinecone environment/region
         """
         # Hardcoded API key (from your original code)
-        self.api_key = api_key or "pcsk_QEA8e_RNPvdrhcXJLZQnNCq6U3BSeNbpTS7VMLaE4VEmh9ZSUUwgP5j23yu5psPbWBoo3"
+        self.api_key = api_key
         
         logger.info(f"Pinecone API key: {'SET' if self.api_key else 'NOT SET'}")
         
