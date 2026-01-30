@@ -67,18 +67,25 @@ export function LandingPage() {
 
   // Function to trigger browser download of the PPTX file
   const downloadFile = (file: AgentFile) => {
-    // Note: sandbox.readFile returns content. If it's base64, 
-    // we convert to a blob. If your handler sends a Buffer string, 
-    // adjust accordingly.
-    const blob = new Blob([file.content], { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', file.filename);
-    document.body.appendChild(link);
-    link.click();
-    link.parentNode?.removeChild(link);
-  };
+  // Convert Base64 string back to a binary Blob
+  const byteCharacters = atob(file.content);
+  const byteNumbers = new Array(byteCharacters.length);
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  const byteArray = new Uint8Array(byteNumbers);
+  const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' });
+  
+  // Create download link
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = file.filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+};  
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">

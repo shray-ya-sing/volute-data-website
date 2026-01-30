@@ -139,83 +139,348 @@ async function vectorSearch(query) {
 }
 
 // Tool: Create PowerPoint using Python
-async function createCompanySlide(companyName, overview, keyPoints) {
+// Tool: Create PowerPoint using Python
+async function createCompanySlide(params) {
+  const {
+    companyName,
+    overview,
+    keyPoints,
+    financials = null,
+    dealHistory = null,
+    recentNews = null
+  } = params;
+  
   console.error(JSON.stringify({ type: 'tool_call', tool: 'createCompanySlide', companyName }));
   
   try {
-    // Beautiful Python script for PowerPoint generation
+    // FIXED: Changed placeholder text to use triple quotes
     const pythonScript = \`
 import json
 import sys
 from pptx import Presentation
 from pptx.util import Inches, Pt
-from pptx.enum.text import PP_ALIGN
+from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 from pptx.dml.color import RGBColor
+from pptx.enum.shapes import MSO_SHAPE
 
 # Parse input
 data = json.loads(sys.argv[1])
 company_name = data['companyName']
 overview = data['overview']
 key_points = data['keyPoints']
+financials = data.get('financials')
+deal_history = data.get('dealHistory', [])
+recent_news = data.get('recentNews', [])
 
 # Create presentation
 prs = Presentation()
 prs.slide_width = Inches(10)
 prs.slide_height = Inches(7.5)
 
-# === TITLE SLIDE ===
-title_slide_layout = prs.slide_layouts[0]
-slide = prs.slides.add_slide(title_slide_layout)
+# Add blank slide
+slide = prs.slides.add_slide(prs.slide_layouts[6])
 
-# Set background color
-background = slide.background
-fill = background.fill
-fill.solid()
-fill.fore_color.rgb = RGBColor(31, 78, 120)  # Dark blue
+# Define colors
+NAVY_BLUE = RGBColor(0, 32, 91)
+LIGHT_GRAY = RGBColor(242, 242, 242)
+BLACK = RGBColor(0, 0, 0)
+WHITE = RGBColor(255, 255, 255)
+DARK_GRAY = RGBColor(89, 89, 89)
+
+def add_textbox(slide, left, top, width, height, text, font_size, bold=False, 
+                color=BLACK, align=PP_ALIGN.LEFT, bg_color=None, italic=False):
+    """Helper function to add text box"""
+    textbox = slide.shapes.add_textbox(left, top, width, height)
+    text_frame = textbox.text_frame
+    text_frame.text = text
+    text_frame.word_wrap = True
+    text_frame.margin_left = Inches(0.1)
+    text_frame.margin_right = Inches(0.1)
+    
+    p = text_frame.paragraphs[0]
+    p.alignment = align
+    p.font.size = Pt(font_size)
+    p.font.bold = bold
+    p.font.italic = italic
+    p.font.color.rgb = color
+    
+    if bg_color:
+        fill = textbox.fill
+        fill.solid()
+        fill.fore_color.rgb = bg_color
+    
+    return textbox
+
+def add_rectangle(slide, left, top, width, height, fill_color):
+    """Helper function to add rectangle"""
+    shape = slide.shapes.add_shape(
+        MSO_SHAPE.RECTANGLE,
+        left, top, width, height
+    )
+    shape.fill.solid()
+    shape.fill.fore_color.rgb = fill_color
+    shape.line.color.rgb = fill_color
+    return shape
+
+def set_cell_background(cell, fill_color):
+    """Set cell background color"""
+    try:
+        cell.fill.solid()
+        cell.fill.fore_color.rgb = fill_color
+    except:
+        pass
 
 # Title
-title = slide.shapes.title
-title.text = company_name
-title.text_frame.paragraphs[0].font.size = Pt(54)
-title.text_frame.paragraphs[0].font.bold = True
-title.text_frame.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)
+title_box = add_textbox(slide, Inches(0.5), Inches(0.3), Inches(9), Inches(0.6),
+                         "Executive Summary", 48, bold=True, color=BLACK)
 
-# Subtitle
-if len(slide.placeholders) > 1:
-    subtitle = slide.placeholders[1]
-    subtitle.text = "Company Overview"
-    subtitle.text_frame.paragraphs[0].font.size = Pt(32)
-    subtitle.text_frame.paragraphs[0].font.color.rgb = RGBColor(255, 255, 255)
+# Business Overview Section
+box_width = Inches(4.5)
+box_height = Inches(0.4)
 
-# === CONTENT SLIDE ===
-bullet_slide_layout = prs.slide_layouts[1]
-slide = prs.slides.add_slide(bullet_slide_layout)
+# Business Overview Header
+overview_header = add_rectangle(slide, Inches(0.4), Inches(1.1), box_width, box_height, NAVY_BLUE)
+overview_title = add_textbox(slide, Inches(0.4), Inches(1.1), box_width, box_height,
+                              "Business Overview", 16, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
+overview_title.text_frame.vertical_anchor = MSO_ANCHOR.MIDDLE
 
-# Title
-title_shape = slide.shapes.title
-title_shape.text = f"{company_name} Overview"
-title_shape.text_frame.paragraphs[0].font.size = Pt(40)
-title_shape.text_frame.paragraphs[0].font.bold = True
-title_shape.text_frame.paragraphs[0].font.color.rgb = RGBColor(31, 78, 120)
+# Business Overview Content
+content_top = Inches(1.6)
 
-# Body
-body_shape = slide.placeholders[1]
-tf = body_shape.text_frame
-tf.text = overview
-tf.paragraphs[0].font.size = Pt(18)
-tf.paragraphs[0].space_after = Pt(20)
+# Add overview text
+textbox = slide.shapes.add_textbox(Inches(0.5), content_top, Inches(4.3), Inches(0.6))
+text_frame = textbox.text_frame
+text_frame.word_wrap = True
+p = text_frame.paragraphs[0]
+p.text = overview
+p.font.size = Pt(9)
+p.font.color.rgb = BLACK
+p.space_before = Pt(2)
+p.space_after = Pt(8)
 
-# Add key points with bullets
-for i, point in enumerate(key_points):
-    p = tf.add_paragraph()
-    p.text = point
+# Add key points as bullets
+for i, bullet in enumerate(key_points):
+    textbox = slide.shapes.add_textbox(Inches(0.5), content_top + Inches(0.7) + Inches(i * 0.45), 
+                                       Inches(4.3), Inches(0.4))
+    text_frame = textbox.text_frame
+    text_frame.word_wrap = True
+    p = text_frame.paragraphs[0]
+    p.text = bullet
+    p.font.size = Pt(9)
+    p.font.color.rgb = BLACK
     p.level = 0
-    p.font.size = Pt(16)
-    p.space_after = Pt(12)
+    p.space_before = Pt(2)
+    p.space_after = Pt(2)
+
+# Historical Financials Section
+fin_left = Inches(5.1)
+fin_header = add_rectangle(slide, fin_left, Inches(1.1), box_width, box_height, NAVY_BLUE)
+fin_title = add_textbox(slide, fin_left, Inches(1.1), box_width, box_height,
+                        "Historical Financials", 16, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
+fin_title.text_frame.vertical_anchor = MSO_ANCHOR.MIDDLE
+
+# Financials Content - Table if provided
+if financials and 'table_data' in financials:
+    table_left = fin_left + Inches(0.05)
+    table_top = Inches(1.6)
+    table_width = box_width - Inches(0.1)
+    table_height = Inches(2.0)
+    
+    table_data = financials['table_data']
+    rows = len(table_data)
+    cols = len(table_data[0]) if table_data else 0
+    
+    if rows > 0 and cols > 0:
+        table_shape = slide.shapes.add_table(rows, cols, table_left, table_top, table_width, table_height)
+        table = table_shape.table
+        
+        # Dynamic column width calculation
+        # Make first column wider for labels, distribute rest evenly
+        first_col_width = Inches(1.2) if cols > 3 else Inches(1.0)
+        remaining_width = table_width - first_col_width
+        other_col_width = remaining_width / (cols - 1) if cols > 1 else remaining_width
+        
+        table.columns[0].width = first_col_width
+        for col_idx in range(1, cols):
+            table.columns[col_idx].width = other_col_width
+        
+        # Populate table with dynamic formatting
+        for row_idx in range(rows):
+            for col_idx in range(cols):
+                cell = table.cell(row_idx, col_idx)
+                cell_value = str(table_data[row_idx][col_idx])
+                cell.text = cell_value
+                
+                # Format cell
+                text_frame = cell.text_frame
+                text_frame.margin_left = Pt(3)
+                text_frame.margin_right = Pt(3)
+                text_frame.margin_top = Pt(2)
+                text_frame.margin_bottom = Pt(2)
+                text_frame.vertical_anchor = MSO_ANCHOR.MIDDLE
+                
+                if text_frame.paragraphs:
+                    p = text_frame.paragraphs[0]
+                    
+                    # Alignment: center for headers, right for numbers, left for labels
+                    if row_idx == 0:
+                        p.alignment = PP_ALIGN.CENTER
+                    elif col_idx == 0:
+                        p.alignment = PP_ALIGN.LEFT
+                    else:
+                        p.alignment = PP_ALIGN.RIGHT
+                    
+                    # Font size based on content density
+                    if cols <= 4:
+                        font_size = 8 if row_idx > 0 else 9
+                    elif cols <= 6:
+                        font_size = 7 if row_idx > 0 else 8
+                    else:
+                        font_size = 6 if row_idx > 0 else 7
+                    
+                    p.font.size = Pt(font_size)
+                    p.font.bold = row_idx == 0 or col_idx == 0
+                    p.font.color.rgb = BLACK
+                
+                # Header row background
+                if row_idx == 0:
+                    set_cell_background(cell, LIGHT_GRAY)
+                    
+                # Alternate row shading for readability if many rows
+                elif rows > 6 and row_idx % 2 == 0:
+                    set_cell_background(cell, RGBColor(250, 250, 250))
+else:
+    # FIXED: Using proper string concatenation
+    fin_content = slide.shapes.add_textbox(
+        fin_left + Inches(0.1), 
+        Inches(1.6), 
+        box_width - Inches(0.2), 
+        Inches(2.0)
+    )
+    fin_text_frame = fin_content.text_frame
+    fin_text_frame.word_wrap = True
+    p = fin_text_frame.paragraphs[0]
+    p.text = "[FINANCIAL DATA PLACEHOLDER]"
+    p.font.size = Pt(10)
+    p.font.color.rgb = DARK_GRAY
+    p.font.italic = True
+    
+    # Add blank paragraph
+    fin_text_frame.add_paragraph()
+    
+    for i in range(3):
+        p = fin_text_frame.add_paragraph()
+        p.text = "• Financial metrics to be populated"
+        p.font.size = Pt(9)
+        p.font.color.rgb = DARK_GRAY
+        p.font.italic = True
+
+# Deal History Section
+deal_left = Inches(0.4)
+deal_top = Inches(3.8)
+deal_header = add_rectangle(slide, deal_left, deal_top, box_width, box_height, NAVY_BLUE)
+deal_title = add_textbox(slide, deal_left, deal_top, box_width, box_height,
+                          "Deal History", 16, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
+deal_title.text_frame.vertical_anchor = MSO_ANCHOR.MIDDLE
+
+# Deal History Content
+deal_content = slide.shapes.add_textbox(
+    deal_left + Inches(0.1), 
+    deal_top + Inches(0.5), 
+    box_width - Inches(0.2), 
+    Inches(2.4)
+)
+deal_text_frame = deal_content.text_frame
+deal_text_frame.word_wrap = True
+
+if deal_history and len(deal_history) > 0:
+    # Populate with actual deal history
+    for i, deal in enumerate(deal_history):
+        if i == 0:
+            p = deal_text_frame.paragraphs[0]
+        else:
+            p = deal_text_frame.add_paragraph()
+        
+        p.text = deal
+        p.font.size = Pt(9)
+        p.font.color.rgb = BLACK
+        p.level = 0
+        p.space_after = Pt(6)
+else:
+    # FIXED: Using proper string handling
+    p = deal_text_frame.paragraphs[0]
+    p.text = "[DEAL HISTORY PLACEHOLDER]"
+    p.font.size = Pt(10)
+    p.font.color.rgb = DARK_GRAY
+    p.font.italic = True
+    
+    # Add blank paragraph
+    deal_text_frame.add_paragraph()
+    
+    for i in range(3):
+        p = deal_text_frame.add_paragraph()
+        p.text = "• Deal details to be populated here"
+        p.font.size = Pt(9)
+        p.font.color.rgb = DARK_GRAY
+        p.font.italic = True
+        p.space_after = Pt(6)
+
+# Recent News Section
+news_left = fin_left
+news_header = add_rectangle(slide, news_left, deal_top, box_width, box_height, NAVY_BLUE)
+news_title = add_textbox(slide, news_left, deal_top, box_width, box_height,
+                           "Recent News", 16, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
+news_title.text_frame.vertical_anchor = MSO_ANCHOR.MIDDLE
+
+# Recent News Content
+news_content = slide.shapes.add_textbox(
+    news_left + Inches(0.1), 
+    deal_top + Inches(0.5), 
+    box_width - Inches(0.2), 
+    Inches(2.4)
+)
+news_text_frame = news_content.text_frame
+news_text_frame.word_wrap = True
+
+if recent_news and len(recent_news) > 0:
+    # Populate with actual news
+    for i, news_item in enumerate(recent_news):
+        if i == 0:
+            p = news_text_frame.paragraphs[0]
+        else:
+            p = news_text_frame.add_paragraph()
+        
+        p.text = news_item
+        p.font.size = Pt(9)
+        p.font.color.rgb = BLACK
+        p.level = 0
+        p.space_after = Pt(6)
+else:
+    # FIXED: Using proper string handling
+    p = news_text_frame.paragraphs[0]
+    p.text = "[RECENT NEWS PLACEHOLDER]"
+    p.font.size = Pt(10)
+    p.font.color.rgb = DARK_GRAY
+    p.font.italic = True
+    
+    # Add blank paragraph
+    news_text_frame.add_paragraph()
+    
+    for i in range(3):
+        p = news_text_frame.add_paragraph()
+        p.text = "• News item to be populated here"
+        p.font.size = Pt(9)
+        p.font.color.rgb = DARK_GRAY
+        p.font.italic = True
+        p.space_after = Pt(6)
+
+# Page number
+add_textbox(slide, Inches(9.2), Inches(7.0), Inches(0.3), Inches(0.3),
+            "1", 14, color=BLACK, align=PP_ALIGN.RIGHT)
 
 # Save
 filename = company_name.replace(" ", "_").replace("/", "-")
-output_path = f'/vercel/sandbox/output/{filename}_overview.pptx'
+output_path = f'/vercel/sandbox/output/{filename}_executive_summary.pptx'
 prs.save(output_path)
 print(output_path)
 \`;
@@ -224,8 +489,16 @@ print(output_path)
     const scriptPath = '/tmp/create_pptx_' + Date.now() + '.py';
     writeFileSync(scriptPath, pythonScript);
 
-    // Execute Python script
-    const input = JSON.stringify({ companyName, overview, keyPoints });
+    // Execute Python script with all parameters
+    const input = JSON.stringify({
+      companyName,
+      overview,
+      keyPoints,
+      financials,
+      dealHistory,
+      recentNews
+    });
+    
     const result = execSync(\`python3 "\${scriptPath}" '\${input.replace(/'/g, "'\\\\''")}\'\`, {
       encoding: 'utf-8',
       maxBuffer: 10 * 1024 * 1024
@@ -239,7 +512,7 @@ print(output_path)
       outputPath 
     }));
     
-    return \`PowerPoint presentation created successfully at: \${outputPath}\`;
+    return \`Executive Summary PowerPoint created successfully at: \${outputPath}\`;
   } catch (error) {
     console.error(JSON.stringify({ 
       type: 'tool_error', 
@@ -251,6 +524,7 @@ print(output_path)
   }
 }
 
+// Define tools
 // Define tools
 const tools = [
   {
@@ -269,7 +543,49 @@ const tools = [
   },
   {
     name: 'createCompanySlide',
-    description: 'Create a professional PowerPoint presentation with company overview. Generates slides with title, overview text, and key bullet points in a polished format.',
+    description: \`Create a comprehensive Executive Summary PowerPoint presentation with dynamic financial data tables.
+
+IMPORTANT - Financial Data Guidelines:
+- ALWAYS include financial data if available from your research
+- Structure financial data as a 2D array (rows x columns)
+- First row MUST be column headers (e.g., time periods: "Q1 2024", "Q2 2024", "2022", "2023", "LTM", etc.)
+- First column MUST be row labels (e.g., "Revenue", "EBITDA", "Net Income", "Gross Margin", etc.)
+- Use whatever time periods are available: quarters, years, funding rounds, or mixed
+- Include as many financial metrics as available: revenue, profit, margins, growth rates, valuations, etc.
+- Format numbers with appropriate units (e.g., "$1.2B", "$500M", "15.3%", "2.5x")
+- For early-stage companies, include funding data: "Seed Round", "Series A", "Series B", "Total Raised"
+- For public companies, prioritize: Revenue, Gross Profit, EBITDA, Net Income, margins, growth rates
+- You can have different numbers of rows and columns based on available data
+
+Example formats:
+
+Public Company (Multi-year):
+[
+  ["", "2021", "2022", "2023", "LTM", "CAGR"],
+  ["Revenue", "$1.2B", "$1.5B", "$2.1B", "$2.3B", "24%"],
+  ["Gross Profit", "$500M", "$650M", "$900M", "$1.0B", "26%"],
+  ["EBITDA", "$200M", "$280M", "$420M", "$480M", "34%"],
+  ["Net Income", "$120M", "$180M", "$300M", "$340M", "42%"]
+]
+
+Private Company (Quarterly):
+[
+  ["", "Q1 2024", "Q2 2024", "Q3 2024", "QoQ Growth"],
+  ["Revenue", "$45M", "$52M", "$61M", "17%"],
+  ["ARR", "$180M", "$208M", "$244M", "17%"],
+  ["Gross Margin", "72%", "74%", "75%", "+1pp"]
+]
+
+Startup (Funding):
+[
+  ["Round", "Date", "Amount", "Valuation", "Lead Investor"],
+  ["Seed", "Jan 2020", "$2M", "$10M", "Sequoia"],
+  ["Series A", "Jun 2021", "$15M", "$75M", "a16z"],
+  ["Series B", "Mar 2023", "$50M", "$300M", "Tiger Global"],
+  ["Total Raised", "", "$67M", "", ""]
+]
+
+If optional sections are not provided, they will show as placeholders.\`,
     input_schema: {
       type: 'object',
       properties: {
@@ -279,12 +595,43 @@ const tools = [
         },
         overview: {
           type: 'string',
-          description: 'A brief 2-3 sentence overview of the company'
+          description: 'A comprehensive overview paragraph about the company (2-4 sentences)'
         },
         keyPoints: {
           type: 'array',
           items: { type: 'string' },
           description: 'Array of 3-5 key highlights or bullet points about the company'
+        },
+        financials: {
+          type: 'object',
+          description: 'Financial data to populate a dynamic table. ALWAYS include this if you found any financial information.',
+          properties: {
+            table_data: {
+              type: 'array',
+              items: {
+                type: 'array',
+                items: { type: 'string' }
+              },
+              description: \`2D array for financial table. First row = column headers, first column = row labels.
+              
+Examples:
+- ["", "2022", "2023", "2024"] as header row
+- ["Revenue", "$1.2B", "$1.8B", "$2.4B"] as data row
+- ["YoY Growth", "", "50%", "33%"] as calculated metric row
+- Can include any number of rows and columns based on available data\`
+            }
+          },
+          required: ['table_data']
+        },
+        dealHistory: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of deal history bullet points (e.g., ["Acquired Company X for $500M in 2022", "Series C funding of $100M in 2021"])'
+        },
+        recentNews: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of recent news bullet points (e.g., ["Launched new product line in Q1 2024", "Partnership announced with Major Corp"])'
         }
       },
       required: ['companyName', 'overview', 'keyPoints']
@@ -292,7 +639,7 @@ const tools = [
   }
 ];
 
-// Main agent loop
+// Main agent loop with enhanced system prompt
 async function main() {
   const userQuery = process.argv[2];
   
@@ -315,7 +662,38 @@ async function main() {
 
       const response = await client.messages.create({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 4096,
+        max_tokens: 8192,  // Increased for more detailed responses
+        system: \`You are a financial research analyst creating executive summary presentations.
+
+CRITICAL INSTRUCTIONS FOR FINANCIAL DATA:
+1. When you find financial information through vectorSearch, YOU MUST structure it into a table
+2. Extract ALL available financial metrics: revenue, profit, margins, growth rates, valuations, funding
+3. Choose appropriate time periods based on what's available:
+   - Public companies: Use multiple years (2021, 2022, 2023, 2024) or quarters
+   - Private companies: Use quarters or funding rounds
+   - Include "LTM" (Last Twelve Months) if recent data exists
+   - Add calculated columns like "YoY Growth", "CAGR", "QoQ Growth" if you can calculate them
+4. Structure the data as a 2D array:
+   - First row: Column headers (time periods or categories)
+   - First column: Row labels (metric names)
+   - Fill in all data points you found
+5. Format numbers appropriately:
+   - Large numbers: "$1.2B", "$500M", "$45M"
+   - Percentages: "15.3%", "2.5x"
+   - Margins: "72%", "+5pp" (percentage points)
+6. If you find financial data, the 'financials' parameter is MANDATORY in createCompanySlide
+
+Example workflow:
+1. Search for company financial data
+2. Extract: Revenue $2.1B (2023), $1.8B (2022), $1.5B (2021)
+3. Structure as:
+   [
+     ["", "2021", "2022", "2023"],
+     ["Revenue", "$1.5B", "$1.8B", "$2.1B"]
+   ]
+4. Add more rows for other metrics you find
+
+Do NOT leave financials empty if you found any financial information in your search.\`,
         tools: tools,
         messages: messages
       });
@@ -342,11 +720,7 @@ async function main() {
             if (block.name === 'vectorSearch') {
               toolResult = await vectorSearch(block.input.query);
             } else if (block.name === 'createCompanySlide') {
-              toolResult = await createCompanySlide(
-                block.input.companyName,
-                block.input.overview,
-                block.input.keyPoints
-              );
+              toolResult = await createCompanySlide(block.input);
             } else {
               toolResult = \`Unknown tool: \${block.name}\`;
             }
@@ -453,23 +827,23 @@ main();
 
     console.log('Generated files:', outputFiles);
 
-    // Read generated files
+    // Replace your existing "Read generated files" block with this:
     const files = await Promise.all(outputFiles.map(async (filePath) => {
-      const fileContent = await sandbox.readFile({ path: filePath });
+      // 1. Use readFileToBuffer instead of readFile
+      const fileContent = await sandbox.readFileToBuffer({ path: filePath });
       const filename = path.basename(filePath);
+      
       if (!fileContent) {
         throw new Error(`Failed to read generated file: ${filePath}`);
       }
-      else {
-        return {
+
+      return {
         filename,
         path: filePath,
-        content: fileContent.toString(),
+        // 2. Explicitly cast to Buffer to satisfy TypeScript
+        content: Buffer.from(fileContent).toString('base64'), 
       };
-      }
-      
     }));
-
     console.timeEnd(`[${requestId}] Total Duration`);
     
     return res.status(200).json({
