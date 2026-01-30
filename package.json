@@ -67,8 +67,9 @@
             "tailwind-merge": "*",
             "vaul": "^1.1.2",
             "ws": "^8.18.0",
-            "zod": "^3.24.1"
-      },
+      "zod": "^3.24.1",
+      "jsdom": "^24.0.0"
+   },
       "devDependencies": {
             "@testing-library/jest-dom": "^6.9.1",
             "@testing-library/react": "^16.3.0",
@@ -100,8 +101,10 @@
             "blob:upload-424b4": "tsx scripts/upload-424b4-to-blob.ts",
             "blob:upload-all": "tsx scripts/upload-all-424b4-to-blob.ts",
             "blob:upload-extracted": "tsx scripts/upload-extracted-pages.ts",
-            "extract:metrics": "tsx scripts/extract-424b4-metrics.ts",
-            "extract:metrics-blob": "tsx scripts/extract-metrics-from-blob.ts",
-            "export:metrics": "tsx scripts/export-metrics-json.ts"
-      }
+      "extract:metrics": "tsx scripts/extract-424b4-metrics.ts",
+      "extract:metrics-blob": "tsx scripts/extract-metrics-from-blob.ts",
+      "export:metrics": "tsx scripts/export-metrics-json.ts",
+      "articles:create-schema": "tsx scripts/create-articles-schema.ts",
+      "articles:ingest": "tsx scripts/ingest-articles.ts"
+   }
 }

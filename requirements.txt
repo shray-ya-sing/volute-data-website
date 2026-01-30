@@ -1,1 +1,12 @@
 requests>=2.31.0
+
+# Text-based vector search using Voyage Finance-2 and Pinecone
+
+# Core dependencies
+voyageai>=0.2.0
+pinecone-client>=3.0.0
+
+# Optional but recommended
+python-dotenv>=1.0.0  # For environment variable management (if you want to use .env files)
+
+newspaper3k

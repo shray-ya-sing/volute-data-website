@@ -104,7 +104,6 @@ export function LandingPage() {
 
       <div className="relative max-w-6xl mx-auto p-8 min-h-screen flex flex-col justify-center">
         <div className="max-w-4xl mx-auto w-full">
-
           {/* Search Bar with Glassmorphism */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
