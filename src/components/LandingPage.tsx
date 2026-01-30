@@ -25,6 +25,8 @@ const popularSearches = [
   'neuroscience drug development'
 ];
 
+const [activeSandboxId, setActiveSandboxId] = useState<string | null>(null);
+
 export function LandingPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [agentText, setAgentText] = useState<string | null>(null);
@@ -44,12 +46,16 @@ export function LandingPage() {
       const response = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: query.trim() }),
+        body: JSON.stringify({ 
+          query: query.trim(),
+          sandboxId: activeSandboxId // Pass the ID here!
+        }),
       });
 
       if (!response.ok) throw new Error(`Analysis failed: ${response.statusText}`);
 
       const data: AgentResponse = await response.json();
+      setActiveSandboxId(data.sandboxId); // Save it for reuse
       
       // Find the final text response from the events array
       const finalEvent = data.events.find(e => e.type === 'final_response');
