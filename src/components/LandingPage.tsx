@@ -130,11 +130,11 @@ export function LandingPage() {
                         key={idx}
                         initial={{ scale: 0.95, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
-                        className="flex items-center justify-between p-4 bg-blue-600 text-white rounded-xl shadow-lg border border-blue-400/30"
+                        className="flex items-center justify-between p-4 bg-blue-600 text-blue-600 rounded-xl shadow-lg border border-blue-400/30"
                       >
                         <div className="flex items-center gap-3">
                           <div className="p-2 bg-white/20 rounded-lg">
-                            <Presentation className="size-6 text-white" />
+                            <Presentation className="size-6 text-blue-600" />
                           </div>
                           <div>
                             <p className="text-sm font-semibold truncate max-w-[200px]">{file.filename}</p>
@@ -143,7 +143,7 @@ export function LandingPage() {
                         </div>
                         <button
                           onClick={() => downloadFile(file)}
-                          className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                          className="p-2 hover:bg-blue/10 rounded-full transition-colors"
                           title="Download Presentation"
                         >
                           <Download className="size-5" />
