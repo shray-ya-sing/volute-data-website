@@ -47,7 +47,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.log(`[${requestId}] 🔨 Creating New Sandbox...`);
       sandbox = await Sandbox.create({
         resources: { vcpus: 4 },
-        timeout: ms('15m'),
+        timeout: ms('5m'),
         runtime: 'node22',
       });
       activeSandboxes.add(sandbox.sandboxId);
