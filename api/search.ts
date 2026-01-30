@@ -1,9 +1,23 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 const VOYAGE_API_KEY = process.env.VOYAGE_API_KEY || '';
+if (!VOYAGE_API_KEY || VOYAGE_API_KEY === '') {
+  throw new Error('VOYAGE_API_KEY is not set in environment variables');
+}
 const PINECONE_API_KEY = process.env.PINECONE_API_KEY || '';
-const PINECONE_INDEX_HOST = process.env.PINECONE_INDEX_HOST || 'https://article-search-qcaf0p8.svc.aped-4627-b74a.pinecone.io';
+if (!PINECONE_API_KEY || PINECONE_API_KEY === '') {
+  throw new Error('PINECONE_API_KEY is not set in environment variables');
+}
 
+const RAW_HOST = process.env.PINECONE_INDEX_HOST || 'https://article-search-qcaf0p8.svc.aped-4627-b74a.pinecone.io';
+const PINECONE_INDEX_HOST = RAW_HOST.replace(/^https?:\/\//, '');
+
+// Log presence (not value!) to Vercel logs for debugging
+console.log('Environment Check:', {
+  hasVoyage: !!process.env.VOYAGE_API_KEY,
+  hasPinecone: !!process.env.PINECONE_API_KEY,
+  host: PINECONE_INDEX_HOST
+});
 interface ArticleResult {
   articleId: string;
   score: number;
