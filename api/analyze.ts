@@ -113,7 +113,11 @@ const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-// Tool: Vector Search
+// Track all sources globally
+const sourcesMap = {};
+let citationCounter = 1;
+
+// Tool: Vector Search with source tracking
 async function vectorSearch(query) {
   console.error(JSON.stringify({ type: 'tool_call', tool: 'vectorSearch', query }));
   
@@ -121,24 +125,56 @@ async function vectorSearch(query) {
     const response = await fetch('https://getvolute.com/api/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query })
+      body: JSON.stringify({ query, topK: 10, rerank: true })
     });
 
     if (!response.ok) {
       throw new Error(\`Search API returned \${response.status}\`);
     }
 
-    const result = await response.text();
-    console.error(JSON.stringify({ type: 'tool_result', tool: 'vectorSearch', success: true }));
+    const result = await response.json();
     
-    return result;
+    // Track sources with citation IDs
+    const searchResults = result.results || [];
+    const startCitation = citationCounter;
+    
+    searchResults.forEach((item, idx) => {
+      const citationId = citationCounter++;
+      sourcesMap[citationId] = {
+        url: item.metadata?.url || item.url || '',
+        title: item.metadata?.title || item.title || 'Untitled',
+        score: item.score || 0,
+        textPreview: (item.metadata?.text_preview || '').substring(0, 300),
+        searchQuery: query
+      };
+    });
+    
+    // Format results with citation numbers for Claude
+    const formattedResults = searchResults.map((item, idx) => {
+      const citationId = startCitation + idx;
+      return \`[Source \${citationId}]
+Title: \${item.metadata?.title || 'Untitled'}
+URL: \${item.metadata?.url || ''}
+Content: \${item.metadata?.text_preview || ''}
+Relevance Score: \${(item.score * 100).toFixed(1)}%
+---\`;
+    }).join('\\n\\n');
+    
+    console.error(JSON.stringify({ 
+      type: 'tool_result', 
+      tool: 'vectorSearch', 
+      success: true,
+      resultCount: searchResults.length,
+      citationRange: [startCitation, citationCounter - 1]
+    }));
+    
+    return \`Found \${searchResults.length} relevant sources. Reference them using {{cite:N}} where N is the Source number:\\n\\n\${formattedResults}\`;
+    
   } catch (error) {
     console.error(JSON.stringify({ type: 'tool_error', tool: 'vectorSearch', error: error.message }));
     return \`Error searching database: \${error.message}\`;
   }
 }
-
-// Tool: Create PowerPoint using Python
 // Tool: Create PowerPoint using Python
 async function createCompanySlide(params) {
   const {
@@ -529,7 +565,7 @@ print(output_path)
 const tools = [
   {
     name: 'vectorSearch',
-    description: 'Search the Volute clinical trials and medical news database. Returns relevant articles, studies, clinical trials, and research findings. Use this to find information about companies, drugs, treatments, or medical topics.',
+    description: 'Search the Volute clinical trials and medical news database. Returns relevant articles, studies, clinical trials, and research findings with citation numbers. You MUST cite sources using {{cite:N}} format in your response.',
     input_schema: {
       type: 'object',
       properties: {
@@ -640,6 +676,7 @@ Examples:
 ];
 
 // Main agent loop with enhanced system prompt
+// Main agent loop with citation enforcement
 async function main() {
   const userQuery = process.argv[2];
   
@@ -661,39 +698,28 @@ async function main() {
       console.error(JSON.stringify({ type: 'iteration', count: iterationCount }));
 
       const response = await client.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 8192,  // Increased for more detailed responses
-        system: \`You are a financial research analyst creating executive summary presentations.
+        model: 'claude-sonnet-4-5-20250929',
+        max_tokens: 8192,
+        system: \`You are a research assistant with access to a database of company information.
 
-CRITICAL INSTRUCTIONS FOR FINANCIAL DATA:
-1. When you find financial information through vectorSearch, YOU MUST structure it into a table
-2. Extract ALL available financial metrics: revenue, profit, margins, growth rates, valuations, funding
-3. Choose appropriate time periods based on what's available:
-   - Public companies: Use multiple years (2021, 2022, 2023, 2024) or quarters
-   - Private companies: Use quarters or funding rounds
-   - Include "LTM" (Last Twelve Months) if recent data exists
-   - Add calculated columns like "YoY Growth", "CAGR", "QoQ Growth" if you can calculate them
-4. Structure the data as a 2D array:
-   - First row: Column headers (time periods or categories)
-   - First column: Row labels (metric names)
-   - Fill in all data points you found
-5. Format numbers appropriately:
-   - Large numbers: "$1.2B", "$500M", "$45M"
-   - Percentages: "15.3%", "2.5x"
-   - Margins: "72%", "+5pp" (percentage points)
-6. If you find financial data, the 'financials' parameter is MANDATORY in createCompanySlide
+CRITICAL CITATION RULES:
+1. When you use information from vectorSearch results, you MUST cite sources
+2. Use this EXACT format: {{cite:N}} where N is the Source number from the search results
+3. Place citations immediately after the relevant sentence or fact
+4. You can cite multiple sources together: {{cite:1,3,5}}
+5. Every fact or claim derived from search results MUST have a citation
 
-Example workflow:
-1. Search for company financial data
-2. Extract: Revenue $2.1B (2023), $1.8B (2022), $1.5B (2021)
-3. Structure as:
-   [
-     ["", "2021", "2022", "2023"],
-     ["Revenue", "$1.5B", "$1.8B", "$2.1B"]
-   ]
-4. Add more rows for other metrics you find
+EXAMPLES:
+ WRONG: "Alto Neuroscience reported positive Phase II results for ALTO-100."
+ CORRECT: "Alto Neuroscience reported positive Phase II results for ALTO-100 {{cite:1}}."
 
-Do NOT leave financials empty if you found any financial information in your search.\`,
+ WRONG: "The trial showed statistical superiority at weeks 26 and 52."
+ CORRECT: "The trial showed statistical superiority at weeks 26 and 52 {{cite:2}}."
+
+When vectorSearch returns results, they are numbered [Source 1], [Source 2], etc.
+Use those numbers in your {{cite:N}} tags.
+
+Be precise and cite the specific source for each distinct piece of information.\`,
         tools: tools,
         messages: messages
       });
@@ -748,6 +774,12 @@ Do NOT leave financials empty if you found any financial information in your sea
           text: textContent
         }));
         
+        // Output sources map for the API to parse
+        console.log(JSON.stringify({
+          type: 'sources_map',
+          sources: sourcesMap
+        }));
+        
         continueLoop = false;
       }
     }
@@ -764,6 +796,7 @@ Do NOT leave financials empty if you found any financial information in your sea
     process.exit(1);
   }
 }
+
 
 main();
 `;
@@ -796,7 +829,7 @@ main();
     console.log('=== DIAGNOSTICS ===');
     console.log(rawError);
 
-    // Parse events
+    // Parse events (your existing code)
     const events = rawOutput
       .split('\n')
       .filter(line => line.trim().startsWith('{'))
@@ -814,6 +847,31 @@ main();
         catch (e) { return null; }
       })
       .filter(Boolean);
+
+    // NEW SECTION to extract final response and sources:
+    let finalResponse = '';
+    let sourcesMap = {};
+
+    events.forEach(event => {
+      if (event.type === 'final_response') {
+        finalResponse = event.text;
+      }
+      if (event.type === 'sources_map') {
+        sourcesMap = event.sources || {};
+      }
+    });
+
+    // If no final_response event found, try to extract from last text block
+    if (!finalResponse) {
+      const lastEvent = events.filter(e => e.type === 'response').pop();
+      if (lastEvent) {
+        finalResponse = lastEvent.text || '';
+      }
+    }
+
+    console.log('\n=== PARSED RESPONSE ===');
+    console.log('Final Response:', finalResponse.substring(0, 200) + '...');
+    console.log('Sources Count:', Object.keys(sourcesMap).length);
 
     // Check for generated files
     const listFiles = await sandbox.runCommand({
@@ -844,14 +902,20 @@ main();
         content: Buffer.from(fileContent).toString('base64'), 
       };
     }));
+
+    // RETURN FINAL RESPONSE 
     console.timeEnd(`[${requestId}] Total Duration`);
-    
+
     return res.status(200).json({
       sandboxId: sandbox.sandboxId,
+      finalResponse,        // NEW: Direct access to final text
+      sourcesMap,           // NEW: Citation ID -> source details mapping
       events,
       diagnostics,
       files,
-      exitCode: result.exitCode
+      exitCode: result.exitCode,
+      // Helper field for frontend:
+      hasCitations: Object.keys(sourcesMap).length > 0
     });
 
   } catch (error: any) {
