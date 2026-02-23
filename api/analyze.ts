@@ -565,7 +565,7 @@ print(output_path)
 const tools = [
   {
     name: 'vectorSearch',
-    description: 'Search the Volute clinical trials and medical news database. Returns relevant articles, studies, clinical trials, and research findings with citation numbers. You MUST cite sources using {{cite:N}} format in your response.',
+    description: 'Search the Volute ipo and spac news database. Returns relevant articles, studies, clinical trials, and research findings with citation numbers. You MUST cite sources using {{cite:N}} format in your response.',
     input_schema: {
       type: 'object',
       properties: {
