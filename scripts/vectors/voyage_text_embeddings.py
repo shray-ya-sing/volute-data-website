@@ -12,9 +12,13 @@ logger = logging.getLogger(__name__)
 class VoyageTextEmbeddingsService:
     """Service for creating text embeddings using VoyageAI Finance-2 model"""
     
-    # Batch size for processing multiple texts at once
-    DEFAULT_BATCH_SIZE = 128  # Voyage API supports up to 128 texts per batch
+    # Conservative batch size to stay under 120k token limit
+    # Average article ~1000-2000 tokens, so 32 texts = ~32k-64k tokens (safe margin)
+    DEFAULT_BATCH_SIZE = 32  # Reduced from 128 to avoid token limits
     MAX_BATCH_SIZE = 128
+    
+    # Rate limiting
+    MIN_BATCH_DELAY = 0.5  # Minimum delay between batches (seconds)
     
     def __init__(self, api_key: str = None, batch_size: int = None):
         """
@@ -22,7 +26,7 @@ class VoyageTextEmbeddingsService:
         
         Args:
             api_key: VoyageAI API key (if None, uses hardcoded key)
-            batch_size: Number of texts to process in one batch (default: 128)
+            batch_size: Number of texts to process in one batch (default: 32)
         """
         # Hardcoded API key (from your original code)
         self.api_key = api_key
@@ -48,6 +52,18 @@ class VoyageTextEmbeddingsService:
         except Exception as e:
             logger.error(f"Failed to initialize VoyageAI client: {e}")
             raise
+    
+    def estimate_token_count(self, text: str) -> int:
+        """
+        Rough estimate of token count (1 token ≈ 4 characters for English)
+        
+        Args:
+            text: Input text
+            
+        Returns:
+            Estimated token count
+        """
+        return len(text) // 4
     
     def create_text_embedding(self, text: str, input_type: str = "document") -> List[float]:
         """
@@ -86,6 +102,45 @@ class VoyageTextEmbeddingsService:
             logger.error(f"Error creating text embedding: {e}")
             raise
     
+    def create_safe_batch(self, texts: List[str], max_tokens: int = 100000) -> List[List[str]]:
+        """
+        Split texts into safe batches that won't exceed token limits
+        
+        Args:
+            texts: List of texts to batch
+            max_tokens: Maximum tokens per batch (default: 100k, leaving margin from 120k limit)
+            
+        Returns:
+            List of text batches
+        """
+        batches = []
+        current_batch = []
+        current_tokens = 0
+        
+        for text in texts:
+            estimated_tokens = self.estimate_token_count(text)
+            
+            # If adding this text would exceed limit, start new batch
+            if current_tokens + estimated_tokens > max_tokens and current_batch:
+                batches.append(current_batch)
+                current_batch = [text]
+                current_tokens = estimated_tokens
+            else:
+                current_batch.append(text)
+                current_tokens += estimated_tokens
+            
+            # Also enforce maximum batch size
+            if len(current_batch) >= self.batch_size:
+                batches.append(current_batch)
+                current_batch = []
+                current_tokens = 0
+        
+        # Add remaining texts
+        if current_batch:
+            batches.append(current_batch)
+        
+        return batches
+    
     def create_batch_embeddings(self, texts: List[str], input_type: str = "document") -> List[Dict]:
         """
         Create embeddings for multiple texts in batches
@@ -102,18 +157,24 @@ class VoyageTextEmbeddingsService:
             return []
         
         logger.info(f"Creating embeddings for {len(texts)} texts using batch processing")
-        logger.info(f"Batch size: {self.batch_size}")
+        logger.info(f"Target batch size: {self.batch_size}")
+        
+        # Create safe batches respecting token limits
+        batches = self.create_safe_batch(texts)
+        
+        logger.info(f"Split into {len(batches)} batches to respect token limits")
         
         all_embeddings = []
         start_time = time.time()
+        text_offset = 0  # Track original text index
         
-        # Process in batches
-        for batch_num, i in enumerate(range(0, len(texts), self.batch_size), 1):
+        # Process each batch
+        for batch_num, current_batch in enumerate(batches, 1):
             batch_start = time.time()
-            current_batch = texts[i:i + self.batch_size]
             
-            logger.info(f"Processing batch {batch_num}/{(len(texts) + self.batch_size - 1) // self.batch_size} "
-                       f"({len(current_batch)} texts)")
+            logger.info(f"Processing batch {batch_num}/{len(batches)} "
+                       f"({len(current_batch)} texts, "
+                       f"~{sum(self.estimate_token_count(t) for t in current_batch):,} tokens)")
             
             try:
                 # Create embeddings for batch
@@ -131,18 +192,41 @@ class VoyageTextEmbeddingsService:
                     for j, embedding in enumerate(batch_embeddings):
                         all_embeddings.append({
                             'embedding': embedding,
-                            'text_index': i + j,
+                            'text_index': text_offset + j,
                             'text_preview': current_batch[j][:100] + "..." if len(current_batch[j]) > 100 else current_batch[j]
                         })
                     
                     batch_time = time.time() - batch_start
-                    logger.info(f"Batch {batch_num} completed in {batch_time:.2f}s "
+                    logger.info(f"✓ Batch {batch_num} completed in {batch_time:.2f}s "
                                f"({len(batch_embeddings)/batch_time:.2f} embeddings/sec)")
                 else:
                     logger.error(f"No embeddings returned for batch {batch_num}")
                     
             except Exception as e:
                 logger.error(f"Error processing batch {batch_num}: {e}")
+                
+                # Check if it's a token limit error
+                if "max allowed tokens" in str(e).lower():
+                    logger.warning(f"Token limit exceeded in batch {batch_num}, splitting into smaller batches")
+                    
+                    # Recursively process with smaller batches (half the size)
+                    mid = len(current_batch) // 2
+                    if mid > 0:
+                        sub_batch_1 = current_batch[:mid]
+                        sub_batch_2 = current_batch[mid:]
+                        
+                        logger.info(f"Splitting batch into {len(sub_batch_1)} and {len(sub_batch_2)} texts")
+                        
+                        # Process sub-batches
+                        for sub_batch in [sub_batch_1, sub_batch_2]:
+                            sub_results = self.create_batch_embeddings(sub_batch, input_type)
+                            for result in sub_results:
+                                result['text_index'] = text_offset + result['text_index']
+                                all_embeddings.append(result)
+                        
+                        text_offset += len(current_batch)
+                        continue
+                
                 # Fall back to individual processing for this batch
                 logger.info(f"Falling back to individual processing for batch {batch_num}")
                 for j, text in enumerate(current_batch):
@@ -151,21 +235,32 @@ class VoyageTextEmbeddingsService:
                         if embedding:
                             all_embeddings.append({
                                 'embedding': embedding,
-                                'text_index': i + j,
+                                'text_index': text_offset + j,
                                 'text_preview': text[:100] + "..." if len(text) > 100 else text
                             })
                     except Exception as e2:
-                        logger.error(f"Failed to create individual embedding: {e2}")
+                        logger.error(f"Failed to create individual embedding for text {text_offset + j}: {e2}")
                         continue
+            
+            # Update text offset for next batch
+            text_offset += len(current_batch)
+            
+            # Rate limiting: add delay between batches
+            if batch_num < len(batches):  # Don't delay after last batch
+                time.sleep(self.MIN_BATCH_DELAY)
         
         total_time = time.time() - start_time
         success_count = len(all_embeddings)
         
-        logger.info(f"Batch processing completed: {success_count}/{len(texts)} embeddings created")
-        logger.info(f"Total time: {total_time:.2f}s ({success_count/total_time:.2f} embeddings/sec)")
+        logger.info("=" * 60)
+        logger.info(f"✓ Batch processing completed!")
+        logger.info(f"  - Success: {success_count}/{len(texts)} embeddings created")
+        logger.info(f"  - Total time: {total_time:.2f}s")
+        logger.info(f"  - Average speed: {success_count/total_time:.2f} embeddings/sec")
+        logger.info("=" * 60)
         
         if success_count < len(texts):
-            logger.warning(f"Some embeddings failed: {len(texts) - success_count} texts could not be processed")
+            logger.warning(f"⚠ Some embeddings failed: {len(texts) - success_count} texts could not be processed")
         
         return all_embeddings
     

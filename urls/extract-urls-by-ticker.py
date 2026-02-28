@@ -2,8 +2,8 @@ import csv
 import os
 
 # Configuration
-INPUT_FILENAME = 'tickers_sophie - tickers_sophie.csv'
-OUTPUT_FILE_NAME = 'urls.txt'
+INPUT_FILENAME = 'tickers_ari - tickers_ari.csv'
+OUTPUT_FILE_NAME = 'ari_urls.txt'
 
 # Get the directory where the script is located
 base_dir = os.path.dirname(os.path.abspath(__file__))
