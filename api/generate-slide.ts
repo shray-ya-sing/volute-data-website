@@ -240,8 +240,8 @@ Now generate the slide component based on the user's request.`;
     });
 
     const message = await anthropic.messages.create({
-      model: 'claude-opus-4-20250514',
-      max_tokens: 4096,
+      model: 'claude-opus-4-6',
+      max_tokens: 16000,
       temperature: 1.0,
       system: systemPrompt,
       messages: [
@@ -265,6 +265,15 @@ Now generate the slide component based on the user's request.`;
     const codeBlockMatch = code.match(/```(?:typescript|tsx|ts|jsx|javascript)?\n?([\s\S]*?)```/);
     if (codeBlockMatch) {
       code = codeBlockMatch[1].trim();
+    }
+
+    // Detect truncation - a complete component always ends with closing brace
+    if (!code.trimEnd().endsWith('}')) {
+      console.error(`[generate-slide] WARNING: Output appears truncated! Last 100 chars: ${code.slice(-100)}`);
+      return res.status(500).json({
+        error: 'Generated code was truncated. Try simplifying the slide or increasing max_tokens.',
+        truncated: true,
+      });
     }
 
     // Log code in chunks to avoid truncation in Vercel logs
