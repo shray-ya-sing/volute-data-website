@@ -14,6 +14,11 @@ interface ImageInput {
   mediaType?: SupportedMediaType;
 }
 
+// Vercel timeout handling - allows up to 5 minutes for generation (requires Pro or higher)
+export const config = {
+  maxDuration: 300, 
+};
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // CORS headers
@@ -239,21 +244,20 @@ Now generate the slide component based on the user's request.`;
       text: userPromptText,
     });
 
-    const message = await anthropic.messages.create({
+    // Streaming response handling - allows us to start processing the generated code as it arrives, which is crucial for large outputs that may approach token limits. We can log the final message once the stream completes, and also handle any intermediate tokens if needed for debugging.
+    let responseText = '';
+
+    const stream = await anthropic.messages.stream({
       model: 'claude-opus-4-6',
       max_tokens: 25000,
       temperature: 1.0,
       system: systemPrompt,
-      messages: [
-        {
-          role: 'user',
-          content: userContent,
-        },
-      ],
+      messages: [{ role: 'user', content: userContent }],
     });
 
-    // Extract the code from the response
-    const responseText = message.content
+    const message = await stream.finalMessage();
+
+    responseText = message.content
       .filter(block => block.type === 'text')
       .map(block => 'text' in block ? block.text : '')
       .join('\n')
