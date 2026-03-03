@@ -35,6 +35,7 @@ let submitProspectusBatchHandler: any;
 let pollBatchesHandler: any;
 let searchHandler: any;
 let analyzeHandler: any;
+let generateSlideHandler: any;
 
 async function loadHandlers() {
   const extractModule = await import('../api/cron/extract-prospectus.js');
@@ -52,6 +53,10 @@ async function loadHandlers() {
   // Load the  Claude Sandbox handler
   const analyzeModule = await import('../api/analyze.ts'); 
   analyzeHandler = analyzeModule.default;
+
+  // Load the generate-slide handler
+  const generateSlideModule = await import('../api/generate-slide.ts');
+  generateSlideHandler = generateSlideModule.default;
 }
 
 // Helper to send JSON response
@@ -362,8 +367,40 @@ const server = createServer((req, res) => {
           sendJSON(res, 500, { error: error.message });
         }
       });
-  }
-  else {
+  } else if (pathname === '/api/generate-slide' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      const mockReq: any = {
+        query: parsedUrl.query || {},
+        headers: req.headers,
+        method: req.method,
+        url: req.url,
+        body: body ? JSON.parse(body) : {},
+      };
+
+      const mockRes: any = {
+        status: (code: number) => {
+          mockRes.statusCode = code;
+          return mockRes;
+        },
+        setHeader: (name: string, value: string) => {
+          res.setHeader(name, value);
+        },
+        json: (data: any) => {
+          sendJSON(res, mockRes.statusCode || 200, data);
+        },
+        statusCode: 200,
+      };
+
+      try {
+        await generateSlideHandler(mockReq, mockRes);
+      } catch (error: any) {
+        console.error('Error in generate-slide:', error);
+        sendJSON(res, 500, { error: error.message });
+      }
+    });
+  } else {
     sendJSON(res, 404, { error: 'Not found' });
   }
 });
@@ -383,6 +420,7 @@ loadHandlers().then(() => {
     console.log(`  GET http://localhost:${PORT}/api/cron/poll-batches`);
     console.log(`  GET http://localhost:${PORT}/api/search?q=query`);
     console.log(`  POST http://localhost:${PORT}/api/analyze`);
+    console.log(`  POST http://localhost:${PORT}/api/generate-slide`);
     console.log();
     console.log('To test integration:');
     console.log('  1. Keep this server running');
