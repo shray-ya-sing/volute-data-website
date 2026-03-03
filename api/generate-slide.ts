@@ -267,6 +267,14 @@ Now generate the slide component based on the user's request.`;
       code = codeBlockMatch[1].trim();
     }
 
+    // Log code in chunks to avoid truncation in Vercel logs
+    const CHUNK_SIZE = 500;
+    const chunks = Math.ceil(code.length / CHUNK_SIZE);
+    console.log(`[generate-slide] Code output (${code.length} chars, ${chunks} chunks):`);
+    for (let i = 0; i < chunks; i++) {
+      console.log(`[chunk ${i + 1}/${chunks}]\n${code.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE)}`);
+    }
+
     if (!code.startsWith('export default function') && !code.startsWith('import')) {
       console.warn('[generate-slide] Response does not start with expected export/import statement');
       console.warn('[generate-slide] Raw response:', responseText.substring(0, 200));
