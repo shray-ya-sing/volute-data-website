@@ -241,7 +241,7 @@ Now generate the slide component based on the user's request.`;
 
     const message = await anthropic.messages.create({
       model: 'claude-opus-4-6',
-      max_tokens: 16000,
+      max_tokens: 25000,
       temperature: 1.0,
       system: systemPrompt,
       messages: [
