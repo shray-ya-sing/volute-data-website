@@ -5,6 +5,15 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
+type SupportedMediaType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+
+interface ImageInput {
+  /** Base64-encoded image data (without the data URI prefix) */
+  data: string;
+  /** MIME type of the image */
+  mediaType?: SupportedMediaType;
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // CORS headers
@@ -17,7 +26,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).end();
   }
 
-  // Parse parameters from either POST body or GET query
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -26,14 +34,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     prompt, 
     slideNumber = 1, 
     context = '',
-    theme = {}
+    theme = {},
+    /**
+     * Optional array of images to include in the prompt.
+     * Each image should be a base64-encoded string (with or without the
+     * "data:<mediaType>;base64," prefix — both are handled).
+     *
+     * Example:
+     *   images: [
+     *     { data: "<base64string>", mediaType: "image/png" },
+     *     { data: "data:image/jpeg;base64,<base64string>" }   // prefix auto-stripped
+     *   ]
+     */
+    images = [] as ImageInput[],
   } = req.body;
 
   if (!prompt) {
     return res.status(400).json({ error: 'Prompt is required' });
   }
 
-  console.log(`[generate-slide] Generating slide ${slideNumber}...`);
+  // Validate images array
+  if (!Array.isArray(images)) {
+    return res.status(400).json({ error: '`images` must be an array' });
+  }
+
+  const SUPPORTED_MEDIA_TYPES: SupportedMediaType[] = [
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+  ];
+
+  console.log(`[generate-slide] Generating slide ${slideNumber} with ${images.length} image(s)...`);
 
   try {
     // Build theme props documentation for the prompt
@@ -160,9 +192,52 @@ export default function Slide${slideNumber}({
 
 Now generate the slide component based on the user's request.`;
 
-    const userPrompt = context 
+    const userPromptText = context 
       ? `${context}\n\nSlide ${slideNumber} requirements:\n${prompt}`
       : `Create slide ${slideNumber}:\n${prompt}`;
+
+    // Build the content array — start with any images, then the text prompt.
+    // Placing images before the text gives Claude visual context before reading instructions.
+    const userContent: Anthropic.MessageParam['content'] = [];
+
+    for (let i = 0; i < images.length; i++) {
+      const img = images[i];
+
+      // Strip data URI prefix if present, e.g. "data:image/png;base64,<data>"
+      let rawBase64 = img.data;
+      let detectedMediaType: SupportedMediaType | undefined;
+
+      const dataUriMatch = rawBase64.match(/^data:([^;]+);base64,(.+)$/);
+      if (dataUriMatch) {
+        detectedMediaType = dataUriMatch[1] as SupportedMediaType;
+        rawBase64 = dataUriMatch[2];
+      }
+
+      const mediaType: SupportedMediaType = img.mediaType ?? detectedMediaType ?? 'image/png';
+
+      if (!SUPPORTED_MEDIA_TYPES.includes(mediaType)) {
+        return res.status(400).json({
+          error: `Unsupported media type "${mediaType}" for image at index ${i}. Supported types: ${SUPPORTED_MEDIA_TYPES.join(', ')}`,
+        });
+      }
+
+      userContent.push({
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: mediaType,
+          data: rawBase64,
+        },
+      });
+
+      console.log(`[generate-slide] Added image ${i + 1}/${images.length} (${mediaType}, ${rawBase64.length} base64 chars)`);
+    }
+
+    // Append the text prompt after all images
+    userContent.push({
+      type: 'text',
+      text: userPromptText,
+    });
 
     const message = await anthropic.messages.create({
       model: 'claude-opus-4-20250514',
@@ -172,7 +247,7 @@ Now generate the slide component based on the user's request.`;
       messages: [
         {
           role: 'user',
-          content: userPrompt,
+          content: userContent,
         },
       ],
     });
@@ -187,15 +262,13 @@ Now generate the slide component based on the user's request.`;
     // Clean up response - remove markdown code fences if Claude added them anyway
     let code = responseText;
     
-    // Remove markdown code fences
     const codeBlockMatch = code.match(/```(?:typescript|tsx|ts|jsx|javascript)?\n?([\s\S]*?)```/);
     if (codeBlockMatch) {
       code = codeBlockMatch[1].trim();
     }
 
-    // Validate that the code starts with export
-    if (!code.startsWith('export default function')) {
-      console.warn('[generate-slide] Response does not start with expected export statement');
+    if (!code.startsWith('export default function') && !code.startsWith('import')) {
+      console.warn('[generate-slide] Response does not start with expected export/import statement');
       console.warn('[generate-slide] Raw response:', responseText.substring(0, 200));
     }
 
@@ -204,7 +277,8 @@ Now generate the slide component based on the user's request.`;
     return res.status(200).json({
       code,
       slideNumber,
-      theme: theme,
+      theme,
+      imageCount: images.length,
       usage: {
         input_tokens: message.usage.input_tokens,
         output_tokens: message.usage.output_tokens,
