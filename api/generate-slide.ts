@@ -16,7 +16,7 @@ interface ImageInput {
 
 // Vercel timeout handling - allows up to 5 minutes for generation (requires Pro or higher)
 export const config = {
-  maxDuration: 300, 
+  maxDuration: 300,
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -35,9 +35,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { 
-    prompt, 
-    slideNumber = 1, 
+  const {
+    prompt,
+    slideNumber = 1,
     context = '',
     theme = {},
     /**
@@ -75,133 +75,189 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     // Build theme props documentation for the prompt
     const themePropsDoc = `
-Theme Properties (use these as props):
+Theme Properties (use these as props — font sizes are NUMBERS, not strings):
 - headingFont: "${theme.headingFont || "'Inter', sans-serif"}" (for titles and headings)
 - bodyFont: "${theme.bodyFont || "'Inter', sans-serif"}" (for body text and paragraphs)
 - accentColors: ${JSON.stringify(theme.accentColors || ['#667eea', '#764ba2'])} (array of accent colors for highlights, buttons, etc.)
 - headingTextColor: "${theme.headingTextColor || '#000000'}" (color for heading text)
 - bodyTextColor: "${theme.bodyTextColor || '#333333'}" (color for body text)
-- headingFontSize: "${theme.headingFontSize || '72px'}" (base size for main headings)
-- bodyFontSize: "${theme.bodyFontSize || '24px'}" (base size for body text)`;
+- headingFontSize: ${theme.headingFontSize || 36} (number — base px size for main headings, render as \`\${headingFontSize}px\`)
+- bodyFontSize: ${theme.bodyFontSize || 14} (number — base px size for body text, render as \`\${bodyFontSize}px\`)`;
 
     const systemPrompt = `You are an expert at creating beautiful, professional presentation slides using React and TypeScript.
 
+## Canvas Specification
+
+**CRITICAL: Every slide MUST be exactly 960px × 540px (16:9 aspect ratio)**
+
+\`\`\`tsx
+<div style={{
+  width: '960px',
+  height: '540px',
+  position: 'relative',
+  overflow: 'hidden',
+  fontFamily: bodyFont
+}}>
+  {/* ALL children use position: 'absolute' */}
+</div>
+\`\`\`
+
 ## Component Requirements
 
-CRITICAL: Generate a React component that accepts theme props:
-{ headingFont, bodyFont, accentColors, headingTextColor, bodyTextColor, headingFontSize, bodyFontSize }
+Generate a React component with this exact TypeScript interface:
+
+\`\`\`tsx
+import React from 'react';
+
+interface SlideProps {
+  headingFont: string;
+  bodyFont: string;
+  accentColors: string[];
+  headingTextColor: string;
+  bodyTextColor: string;
+  headingFontSize: number;
+  bodyFontSize: number;
+}
+
+export default function Slide${slideNumber}({
+  headingFont,
+  bodyFont,
+  accentColors,
+  headingTextColor,
+  bodyTextColor,
+  headingFontSize,
+  bodyFontSize,
+}: SlideProps) { ... }
+\`\`\`
+
 ${themePropsDoc}
 
-## Styling Rules
+## Layout Rules — READ CAREFULLY
 
-1. **CRITICAL: Use theme props for ALL styling** - Never hardcode fonts, colors, or sizes
-   - Headings: Use headingFont, headingTextColor, headingFontSize
-   - Body text: Use bodyFont, bodyTextColor, bodyFontSize
-   - Accents: Use accentColors[0-5] for backgrounds, borders, icons
+### 1. Root Container (MANDATORY)
+- width: '960px', height: '540px'
+- position: 'relative'
+- overflow: 'hidden'
+- Sets default fontFamily: bodyFont
 
-2. **Font Size Scaling:**
-   - h1: headingFontSize (base)
-   - h2: calc(headingFontSize * 0.7) or use template literals
-   - h3: calc(headingFontSize * 0.5) or use template literals
-   - p: bodyFontSize (base)
-   - small: calc(bodyFontSize * 0.875) or use template literals
+### 2. ALL Child Elements (MANDATORY)
+- MUST use position: 'absolute'
+- MUST specify top, left, width, and height in pixels
+- MUST NOT exceed canvas bounds (960px wide, 540px tall)
+- DO NOT use flexbox, grid, or relative positioning on any element
 
-3. **Color Usage:**
-   - Primary headings → headingTextColor
-   - Body/paragraphs → bodyTextColor
-   - Highlights/accents → accentColors[0] (primary accent)
-   - Secondary accents → accentColors[1-5]
-   - For transparency: Use template literals like \${accentColors[0]}15 for 15% opacity
+### 3. Safe Zones
+- Title area: top: 40–80px, left: 60px, width: 840px
+- Content area: top: 140px, left: 60px, width: 840px, height: 340px
+- Footer: top: 500px, left: 60px, width: 840px
 
-4. **Layout:**
-   - Container: width: '100%', height: '100%' (not fixed 1920x1080)
-   - Use flexbox for layouts
-   - Standard padding: '48px'
+### 4. Typography Scaling (font sizes are numbers)
+\`\`\`tsx
+const h1Size = headingFontSize;           // e.g. 36
+const h2Size = headingFontSize * 0.7;     // e.g. ~25
+const h3Size = headingFontSize * 0.5;     // e.g. 18
+const bodySize = bodyFontSize;            // e.g. 14
+const smallSize = bodyFontSize * 0.875;   // e.g. ~12
+
+// Always render as:
+fontSize: \`\${h1Size}px\`
+\`\`\`
+
+### 5. Styling Rules
+- Use theme props for ALL fonts, colors, and sizes — never hardcode
+- Headings: headingFont, headingTextColor, headingFontSize
+- Body text: bodyFont, bodyTextColor, bodyFontSize
+- Accents: accentColors[0] (primary), accentColors[1–5] (secondary)
+- Transparency: template literal e.g. \`\${accentColors[0]}20\` for 20% opacity hex suffix
+
+## Multi-Column Layouts
+
+For 2-column layouts, calculate pixel widths explicitly:
+\`\`\`tsx
+// Two equal columns with gap, within 840px content width
+const colWidth = 400;  // (840 - 40px gap) / 2
+const col1Left = 60;
+const col2Left = 60 + colWidth + 40;  // = 500
+
+<div style={{ position: 'absolute', top: '140px', left: \`\${col1Left}px\`, width: \`\${colWidth}px\`, height: '340px' }}>
+  {/* column 1 content */}
+</div>
+<div style={{ position: 'absolute', top: '140px', left: \`\${col2Left}px\`, width: \`\${colWidth}px\`, height: '340px' }}>
+  {/* column 2 content */}
+</div>
+\`\`\`
+
+## Charts (recharts)
+
+Chart containers MUST have fixed pixel dimensions — never use percentages:
+\`\`\`tsx
+// CORRECT
+<div style={{ position: 'absolute', top: '120px', left: '60px', width: '840px', height: '370px' }}>
+  <ResponsiveContainer width="100%" height="100%">
+    <BarChart data={data}>...</BarChart>
+  </ResponsiveContainer>
+</div>
+
+// WRONG — do not do this
+<ResponsiveContainer width="100%" height={300}>
+\`\`\`
+
+## Tables
+
+Position tables absolutely. Use fixed column widths and compact padding for data-dense slides:
+\`\`\`tsx
+<div style={{ position: 'absolute', top: '140px', left: '60px', width: '840px', height: '340px', overflow: 'hidden' }}>
+  <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+    <thead>
+      <tr>
+        <th style={{ fontFamily: headingFont, fontSize: \`\${bodyFontSize * 0.85}px\`, textAlign: 'left', padding: '6px 8px', borderBottom: '2px solid #333' }}>Label</th>
+        <th style={{ fontFamily: headingFont, fontSize: \`\${bodyFontSize * 0.85}px\`, textAlign: 'right', padding: '6px 8px', borderBottom: '2px solid #333' }}>Value</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style={{ fontFamily: bodyFont, fontSize: \`\${bodyFontSize * 0.8}px\`, padding: '4px 8px' }}>Row</td>
+        <td style={{ fontFamily: bodyFont, fontSize: \`\${bodyFontSize * 0.8}px\`, textAlign: 'right', padding: '4px 8px' }}>$1,234</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+\`\`\`
+
+## Common Mistakes to AVOID
+
+❌ Using flexbox or grid on the root or major layout containers
+❌ Using height: '100%' or width: '100%' on absolutely positioned children
+❌ Omitting width or height on any absolutely positioned element
+❌ Exceeding 960px width or 540px height with any element
+❌ Hardcoding font sizes as strings like '16px' — use \`\${bodyFontSize}px\`
+❌ Importing any package other than lucide-react and recharts
+
+✅ Every element: position absolute, explicit top/left/width/height in px
+✅ Font sizes: always \`\${headingFontSize}px\` or \`\${bodyFontSize * 0.8}px\` etc.
+✅ Root div: exactly 960×540, position relative, overflow hidden
 
 ## Available Dependencies (USE ONLY THESE)
 
-- lucide-react - For icons (import { IconName } from 'lucide-react')
-- recharts - For charts (BarChart, LineChart, PieChart, AreaChart, etc.)
+- lucide-react — icons: \`import { TrendingUp } from 'lucide-react'\`
+- recharts — charts: \`import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'\`
 
 DO NOT import any other packages. DO NOT use external images or assets.
 
 ## Output Requirements
 
-- Return ONLY the TypeScript code
-- NO markdown code blocks, NO explanations, NO additional text
-- Start directly with import statements (if needed) or export default function
-- The code must be production-ready and immediately executable
-- Use inline styles only - no CSS files or styled-components
-
-## Example Output Format:
-
-import { TrendingUp, DollarSign } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
-
-export default function Slide${slideNumber}({ 
-  headingFont, 
-  bodyFont, 
-  accentColors, 
-  headingTextColor,
-  bodyTextColor,
-  headingFontSize,
-  bodyFontSize 
-}) {
-  const data = [
-    { name: 'Q1', value: 4000 },
-    { name: 'Q2', value: 5000 }
-  ];
-
-  return (
-    <div style={{
-      width: '100%',
-      height: '100%',
-      fontFamily: bodyFont,
-      padding: '48px',
-      backgroundColor: '#ffffff'
-    }}>
-      <h1 style={{
-        fontFamily: headingFont,
-        fontSize: headingFontSize,
-        color: headingTextColor,
-        marginBottom: '32px'
-      }}>
-        Revenue Growth
-      </h1>
-
-      <div style={{
-        padding: '24px',
-        backgroundColor: \`\${accentColors[0]}15\`,
-        borderLeft: \`4px solid \${accentColors[0]}\`,
-        borderRadius: '8px'
-      }}>
-        <TrendingUp size={32} color={accentColors[0]} />
-        <p style={{
-          fontFamily: bodyFont,
-          fontSize: bodyFontSize,
-          color: bodyTextColor
-        }}>
-          25% Growth
-        </p>
-      </div>
-
-      <BarChart width={800} height={300} data={data}>
-        <XAxis dataKey="name" />
-        <YAxis />
-        <Tooltip />
-        <Bar dataKey="value" fill={accentColors[0]} />
-      </BarChart>
-    </div>
-  );
-}
+- Return ONLY the TypeScript/TSX code — no markdown fences, no explanations
+- Start directly with import statements or the export default function
+- Code must be production-ready and immediately executable
+- Use inline styles only — no CSS files, no styled-components, no Tailwind
 
 Now generate the slide component based on the user's request.`;
 
-    const userPromptText = context 
+    const userPromptText = context
       ? `${context}\n\nSlide ${slideNumber} requirements:\n${prompt}`
       : `Create slide ${slideNumber}:\n${prompt}`;
 
-    // Build the content array — start with any images, then the text prompt.
+    // Build the content array — images first, then text prompt.
     // Placing images before the text gives Claude visual context before reading instructions.
     const userContent: Anthropic.MessageParam['content'] = [];
 
@@ -244,20 +300,24 @@ Now generate the slide component based on the user's request.`;
       text: userPromptText,
     });
 
-    // Streaming response handling - allows us to start processing the generated code as it arrives, which is crucial for large outputs that may approach token limits. We can log the final message once the stream completes, and also handle any intermediate tokens if needed for debugging.
-    let responseText = '';
-
+    // Use streaming to avoid SDK timeout on large outputs (>10 min threshold)
     const stream = await anthropic.messages.stream({
       model: 'claude-opus-4-6',
       max_tokens: 25000,
       temperature: 1.0,
-      system: systemPrompt,
+      system: [
+        {
+          type: 'text',
+          text: systemPrompt,
+          cache_control: { type: 'ephemeral' }, // Cache system prompt to reduce input token costs on repeat requests
+        },
+      ],
       messages: [{ role: 'user', content: userContent }],
     });
 
     const message = await stream.finalMessage();
 
-    responseText = message.content
+    const responseText = message.content
       .filter(block => block.type === 'text')
       .map(block => 'text' in block ? block.text : '')
       .join('\n')
@@ -265,13 +325,13 @@ Now generate the slide component based on the user's request.`;
 
     // Clean up response - remove markdown code fences if Claude added them anyway
     let code = responseText;
-    
+
     const codeBlockMatch = code.match(/```(?:typescript|tsx|ts|jsx|javascript)?\n?([\s\S]*?)```/);
     if (codeBlockMatch) {
       code = codeBlockMatch[1].trim();
     }
 
-    // Detect truncation - a complete component always ends with closing brace
+    // Detect truncation — a complete component always ends with a closing brace
     if (!code.trimEnd().endsWith('}')) {
       console.error(`[generate-slide] WARNING: Output appears truncated! Last 100 chars: ${code.slice(-100)}`);
       return res.status(500).json({
@@ -280,17 +340,17 @@ Now generate the slide component based on the user's request.`;
       });
     }
 
-    // Log code in chunks to avoid truncation in Vercel logs
-    const CHUNK_SIZE = 500;
-    const chunks = Math.ceil(code.length / CHUNK_SIZE);
-    console.log(`[generate-slide] Code output (${code.length} chars, ${chunks} chunks):`);
-    for (let i = 0; i < chunks; i++) {
-      console.log(`[chunk ${i + 1}/${chunks}]\n${code.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE)}`);
-    }
-
     if (!code.startsWith('export default function') && !code.startsWith('import')) {
       console.warn('[generate-slide] Response does not start with expected export/import statement');
       console.warn('[generate-slide] Raw response:', responseText.substring(0, 200));
+    }
+
+    // Log code in chunks to avoid Vercel log line truncation
+    const CHUNK_SIZE = 500;
+    const totalChunks = Math.ceil(code.length / CHUNK_SIZE);
+    console.log(`[generate-slide] Code output (${code.length} chars, ${totalChunks} chunks):`);
+    for (let i = 0; i < totalChunks; i++) {
+      console.log(`[chunk ${i + 1}/${totalChunks}]\n${code.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE)}`);
     }
 
     console.log(`[generate-slide] Successfully generated slide ${slideNumber} (${code.length} chars)`);
@@ -308,7 +368,7 @@ Now generate the slide component based on the user's request.`;
 
   } catch (error: any) {
     console.error('[generate-slide] Error:', error.message);
-    return res.status(500).json({ 
+    return res.status(500).json({
       error: error.message,
       details: error.stack,
     });
