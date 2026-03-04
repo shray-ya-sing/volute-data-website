@@ -463,24 +463,79 @@ const server = createServer((req, res) => {
 
     const mockRes: any = {
       statusCode: 200,
-      status: (code: number) => {
-        mockRes.statusCode = code;
-        return mockRes;
+
+      status(code: number) {
+        this.statusCode = code;
+        return this;
       },
-      setHeader: (name: string, value: string) => {
-        res.setHeader(name, value);
+
+      setHeader(name: string, value: string) {
+        // Only set headers while the socket is still open and headers
+        // haven't been sent yet — SSE keeps the connection alive so
+        // we guard against the "headers already sent" error.
+        try {
+          if (!res.headersSent) {
+            res.setHeader(name, value);
+          }
+        } catch (e: any) {
+          console.warn(`[dev-server] setHeader("${name}") skipped: ${e.message}`);
+        }
       },
-      json: (data: any) => {
-        sendJSON(res, mockRes.statusCode || 200, data);
+
+      // SSE needs this — flush headers so the client sees the stream open
+      flushHeaders() {
+        try {
+          if (!res.headersSent) {
+            res.flushHeaders();
+          }
+        } catch (e: any) {
+          console.warn(`[dev-server] flushHeaders() skipped: ${e.message}`);
+        }
       },
-      end: () => res.end(),
+
+      // Core SSE method — each "data: …\n\n" line is written here
+      write(chunk: string | Buffer) {
+        try {
+          const ok = res.write(chunk);
+          if (!ok) {
+            // Back-pressure: wait for drain before writing more
+            console.warn('[dev-server] write() back-pressure detected');
+          }
+          return ok;
+        } catch (e: any) {
+          console.error(`[dev-server] write() error: ${e.message}`);
+          return false;
+        }
+      },
+
+      json(data: any) {
+        sendJSON(res, this.statusCode || 200, data);
+      },
+
+      end() {
+        try {
+          res.end();
+        } catch (e: any) {
+          console.warn(`[dev-server] end() skipped: ${e.message}`);
+        }
+      },
     };
 
     try {
       await agentHandler(mockReq, mockRes);
     } catch (error: any) {
-      console.error('Error in agent:', error);
-      sendJSON(res, 500, { error: error.message });
+      console.error('[dev-server] Error in agent:', error);
+      // Only send JSON error if we haven't already started streaming
+      if (!res.headersSent) {
+        sendJSON(res, 500, { error: error.message });
+      } else {
+        // Stream already open — write an SSE error event then close
+        try {
+          res.write(`data: ${JSON.stringify({ type: 'error', message: error.message })}\n\n`);
+        } finally {
+          res.end();
+        }
+      }
     }
   });
 }

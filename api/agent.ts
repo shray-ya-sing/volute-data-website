@@ -1,6 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { randomUUID } from 'crypto';
+import * as http from 'http';
+import * as https from 'https';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -9,56 +11,50 @@ import { randomUUID } from 'crypto';
 type SupportedMediaType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
 
 interface ImageInput {
-  /** Base64-encoded image data (with or without the data URI prefix) */
   data: string;
-  /** MIME type of the image */
   mediaType?: SupportedMediaType;
 }
 
 interface RequestBody {
-  /** The user's message text */
   prompt: string;
-  /**
-   * Conversation session ID. If omitted a new session is created and the ID
-   * is returned in the response so the client can pass it on subsequent calls.
-   */
   sessionId?: string;
-  /** Optional images to attach to this turn */
   images?: ImageInput[];
 }
 
+interface SearchResultItem {
+  score: number;
+  metadata?: {
+    url?: string;
+    title?: string;
+    text_preview?: string;
+  };
+  url?: string;
+  title?: string;
+}
+
+interface SearchApiResponse {
+  results?: SearchResultItem[];
+}
+
 // ---------------------------------------------------------------------------
-// Vercel config — allow up to 5 minutes (requires Pro plan or higher)
+// Vercel config
 // ---------------------------------------------------------------------------
 
-export const config = {
-  maxDuration: 300,
-};
+export const config = { maxDuration: 300 };
 
 // ---------------------------------------------------------------------------
 // Anthropic client
 // ---------------------------------------------------------------------------
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 // ---------------------------------------------------------------------------
 // Conversation history store
-//
-// In-memory store is fine for development and low-traffic deployments.
-// Vercel Serverless Functions are stateless between cold starts, so for
-// production persistence swap this out for:
-//   - Upstash Redis  (https://upstash.com/)
-//   - Vercel KV      (https://vercel.com/docs/storage/vercel-kv)
-//   - Supabase / PlanetScale / any DB
 // ---------------------------------------------------------------------------
 
 type ConversationHistory = Anthropic.MessageParam[];
 
 const conversationStore = new Map<string, ConversationHistory>();
-
-/** Maximum number of message pairs (user + assistant) kept per session */
 const MAX_HISTORY_PAIRS = 20;
 
 function getHistory(sessionId: string): ConversationHistory {
@@ -66,142 +62,398 @@ function getHistory(sessionId: string): ConversationHistory {
 }
 
 function saveHistory(sessionId: string, history: ConversationHistory): void {
-  // Trim to prevent unbounded memory growth:
-  // Each pair = 2 entries (user + assistant), so max entries = pairs * 2
   const maxEntries = MAX_HISTORY_PAIRS * 2;
   const trimmed =
-    history.length > maxEntries ? history.slice(history.length - maxEntries) : history;
-
+    history.length > maxEntries
+      ? history.slice(history.length - maxEntries)
+      : history;
   conversationStore.set(sessionId, trimmed);
 }
 
 // ---------------------------------------------------------------------------
+// SSE helper
+// ---------------------------------------------------------------------------
+
+function sendSSE(res: VercelResponse, payload: Record<string, unknown>): void {
+  const line = `data: ${JSON.stringify(payload)}\n\n`;
+  try {
+    if (typeof (res as any).write === 'function') {
+      (res as any).write(line);
+    } else {
+      console.error(
+        '[agent] sendSSE: res.write is not a function.',
+        'Payload was:', JSON.stringify(payload),
+      );
+    }
+  } catch (err: any) {
+    console.error('[agent] sendSSE write error:', err.message);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Search URL — local in dev, relative internal in prod (Vercel)
+// ---------------------------------------------------------------------------
+
+function getSearchUrl(): { protocol: 'http' | 'https'; hostname: string; port: number | null; path: string } {
+  // Explicit env var always wins
+  if (process.env.SEARCH_API_URL) {
+    const u = new URL(process.env.SEARCH_API_URL);
+    return {
+      protocol: u.protocol === 'https:' ? 'https' : 'http',
+      hostname: u.hostname,
+      port: u.port ? parseInt(u.port) : null,
+      path: u.pathname,
+    };
+  }
+
+  // Vercel sets VERCEL=1 and VERCEL_URL in production/preview
+  if (process.env.VERCEL) {
+    const host = process.env.VERCEL_URL ?? 'www.getvolute.com';
+    return {
+      protocol: 'https',
+      hostname: host,
+      port: null,
+      path: '/api/search',
+    };
+  }
+
+  // Local development
+  return {
+    protocol: 'http',
+    hostname: 'localhost',
+    port: 3001,
+    path: '/api/search',
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Vector search tool — uses http/https module to avoid Node fetch bugs
+// ---------------------------------------------------------------------------
+
+async function vectorSearch(query: string): Promise<string> {
+  const target = getSearchUrl();
+  const fullUrl = `${target.protocol}://${target.hostname}${target.port ? ':' + target.port : ''}${target.path}`;
+  console.log(`[agent] 🔍 vectorSearch → "${query}" | endpoint: ${fullUrl}`);
+  const t0 = Date.now();
+
+  return new Promise((resolve) => {
+    const bodyStr = JSON.stringify({
+      query,
+      topK: 10,
+      useReranking: true,
+    });
+    const byteLen = Buffer.byteLength(bodyStr, 'utf8');
+
+    console.log(`[agent] 🔍 body: ${bodyStr.length} chars | ${byteLen} bytes`);
+
+    const requestOptions: http.RequestOptions = {
+      hostname: target.hostname,
+      port: target.port ?? (target.protocol === 'https' ? 443 : 80),
+      path: target.path,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': byteLen,
+      },
+    };
+
+    const transport = target.protocol === 'https' ? https : http;
+
+    const req = transport.request(requestOptions, (httpRes) => {
+      const status = httpRes.statusCode ?? 0;
+
+      // Handle redirects (301, 302, 307, 308)
+      if ([301, 302, 307, 308].includes(status)) {
+        const location = httpRes.headers['location'];
+        httpRes.resume(); // drain response body
+
+        console.log(`[agent] 🔍 ${status} redirect → ${location}`);
+
+        if (!location) {
+          resolve('Error searching database: redirect with no Location header');
+          return;
+        }
+
+        // Follow the redirect with a fresh request
+        followRedirect(location, bodyStr, byteLen, t0, query, 0)
+          .then(resolve);
+        return;
+      }
+
+      // Normal response
+      let data = '';
+      httpRes.setEncoding('utf8');
+      httpRes.on('data', (chunk) => { data += chunk; });
+      httpRes.on('end', () => {
+        resolve(parseSearchResponse(data, status, t0, query));
+      });
+    });
+
+    req.on('error', (err: any) => {
+      console.error(
+        `[agent] 🔍 request error: ${err.message}` +
+        `\n         code:     ${err.code ?? 'none'}` +
+        `\n         endpoint: ${fullUrl}` +
+        `\n         query:    "${query}"`,
+      );
+      resolve(`Error searching database: ${err.message}`);
+    });
+
+    req.write(bodyStr, 'utf8');
+    req.end();
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Redirect follower (max 5 hops)
+// ---------------------------------------------------------------------------
+
+function followRedirect(
+  location: string,
+  bodyStr: string,
+  byteLen: number,
+  t0: number,
+  query: string,
+  depth: number,
+): Promise<string> {
+  const MAX_REDIRECTS = 5;
+
+  if (depth >= MAX_REDIRECTS) {
+    return Promise.resolve(`Error searching database: too many redirects (${MAX_REDIRECTS})`);
+  }
+
+  return new Promise((resolve) => {
+    let targetUrl: URL;
+    try {
+      targetUrl = new URL(location);
+    } catch {
+      // Relative path redirect
+      targetUrl = new URL(location, `https://www.getvolute.com`);
+    }
+
+    const proto = targetUrl.protocol === 'https:' ? 'https' : 'http';
+    const transport = proto === 'https' ? https : http;
+
+    console.log(
+      `[agent] 🔍 following redirect ${depth + 1}/${MAX_REDIRECTS}: ${targetUrl.href}`,
+    );
+
+    const req = transport.request(
+      {
+        hostname: targetUrl.hostname,
+        port: targetUrl.port || (proto === 'https' ? 443 : 80),
+        path: targetUrl.pathname + targetUrl.search,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': byteLen,
+        },
+      },
+      (httpRes) => {
+        const status = httpRes.statusCode ?? 0;
+
+        if ([301, 302, 307, 308].includes(status)) {
+          const nextLocation = httpRes.headers['location'];
+          httpRes.resume();
+
+          console.log(`[agent] 🔍 ${status} redirect → ${nextLocation}`);
+
+          if (!nextLocation) {
+            resolve('Error searching database: redirect with no Location header');
+            return;
+          }
+
+          followRedirect(nextLocation, bodyStr, byteLen, t0, query, depth + 1)
+            .then(resolve);
+          return;
+        }
+
+        let data = '';
+        httpRes.setEncoding('utf8');
+        httpRes.on('data', (chunk) => { data += chunk; });
+        httpRes.on('end', () => {
+          resolve(parseSearchResponse(data, status, t0, query));
+        });
+      },
+    );
+
+    req.on('error', (err: any) => {
+      console.error(`[agent] 🔍 redirect request error: ${err.message}`);
+      resolve(`Error searching database: ${err.message}`);
+    });
+
+    req.write(bodyStr, 'utf8');
+    req.end();
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Parse the search API JSON response into a formatted string
+// ---------------------------------------------------------------------------
+
+function parseSearchResponse(
+  data: string,
+  status: number,
+  t0: number,
+  query: string,
+): string {
+  try {
+    console.log(`[agent] 🔍 HTTP ${status} | body: ${data.length} chars`);
+
+    if (status !== 200) {
+      console.error(`[agent] 🔍 Search API error ${status}: ${data.slice(0, 300)}`);
+      return `Error searching database: HTTP ${status}`;
+    }
+
+    const result = JSON.parse(data) as SearchApiResponse;
+    const results = result.results ?? [];
+
+    console.log(
+      `[agent] 🔍 vectorSearch ← ${results.length} results in ${Date.now() - t0}ms`,
+    );
+
+    if (results.length === 0) {
+      return 'No results found for that query.';
+    }
+
+    const formatted = results
+      .map((item, idx) => {
+        const title   = item.metadata?.title        ?? item.title ?? 'Untitled';
+        const url     = item.metadata?.url          ?? item.url   ?? '';
+        const preview = item.metadata?.text_preview ?? '';
+        const score   = ((item.score ?? 0) * 100).toFixed(1);
+
+        return [
+          `[Source ${idx + 1}]`,
+          `Title: ${title}`,
+          url ? `URL: ${url}` : null,
+          `Content: ${preview}`,
+          `Relevance: ${score}%`,
+          '---',
+        ]
+          .filter(Boolean)
+          .join('\n');
+      })
+      .join('\n\n');
+
+    console.log(
+      `[agent] 🔍 first result: "${results[0]?.metadata?.title ?? 'n/a'}"` +
+      ` | formatted: ${formatted.length} chars`,
+    );
+
+    return `Found ${results.length} relevant sources:\n\n${formatted}`;
+  } catch (parseErr: any) {
+    console.error(
+      `[agent] 🔍 JSON parse error: ${parseErr.message}` +
+      `\n         raw: ${data.slice(0, 300)}` +
+      `\n         query: "${query}"`,
+    );
+    return `Error parsing search response: ${parseErr.message}`;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Tool definitions
-// (Stubs — implement handlers in the tool-execution loop below)
 // ---------------------------------------------------------------------------
 
 const tools: Anthropic.Tool[] = [
-  // -------------------------------------------------------------------------
-  // Placeholder tools — replace / extend these as Volute features are built
-  // -------------------------------------------------------------------------
   {
-    name: 'analyze_financial_data',
+    name: 'vector_search',
     description:
-      'Analyzes structured financial data (e.g. income statements, balance sheets, cash flow) ' +
-      'and returns key metrics, trends, and anomalies.',
+      'Search the Volute IPO and SPAC news and financial data database. ' +
+      'Returns relevant articles, filings, and research findings. ' +
+      'Use this tool to gather data before performing any financial analysis ' +
+      'or building any deliverable. Call it multiple times with different ' +
+      'queries to build a complete picture.',
     input_schema: {
       type: 'object' as const,
       properties: {
-        data_description: {
+        query: {
           type: 'string',
-          description: 'A plain-English description of the financial data to analyze.',
-        },
-        analysis_type: {
-          type: 'string',
-          enum: ['overview', 'profitability', 'liquidity', 'growth', 'comparison'],
-          description: 'The type of analysis to perform.',
+          description:
+            'A precise search query to find relevant financial information, ' +
+            'company data, market trends, or news.',
         },
       },
-      required: ['data_description', 'analysis_type'],
-    },
-  },
-  {
-    name: 'create_deliverable',
-    description:
-      'Creates a financial deliverable (report, slide deck summary, memo, etc.) ' +
-      'based on prior analysis results.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {
-        deliverable_type: {
-          type: 'string',
-          enum: ['report', 'slide_summary', 'memo', 'dashboard_spec'],
-          description: 'The type of deliverable to create.',
-        },
-        content_brief: {
-          type: 'string',
-          description: 'A brief describing the content and key points to include.',
-        },
-      },
-      required: ['deliverable_type', 'content_brief'],
+      required: ['query'],
     },
   },
 ];
 
 // ---------------------------------------------------------------------------
-// Tool execution
+// Tool executor
 // ---------------------------------------------------------------------------
 
 interface ToolInput {
-  data_description?: string;
-  analysis_type?: string;
-  deliverable_type?: string;
-  content_brief?: string;
+  query?: string;
   [key: string]: unknown;
 }
 
-async function executeTool(
-  toolName: string,
-  toolInput: ToolInput,
-): Promise<string> {
-  console.log(`[agent] Executing tool: ${toolName}`, toolInput);
+async function executeTool(name: string, input: ToolInput): Promise<string> {
+  console.log(`[agent] ⚙️  executeTool: ${name}`, JSON.stringify(input));
 
-  switch (toolName) {
-    case 'analyze_financial_data': {
-      // TODO: wire up real financial analysis logic
-      return JSON.stringify({
-        status: 'stub',
-        tool: 'analyze_financial_data',
-        message: `Analysis stub for "${toolInput.data_description}" (type: ${toolInput.analysis_type}). Implement real logic here.`,
-      });
+  switch (name) {
+    case 'vector_search': {
+      if (!input.query || typeof input.query !== 'string') {
+        return 'Error: vector_search requires a "query" string parameter.';
+      }
+      return vectorSearch(input.query);
     }
-
-    case 'create_deliverable': {
-      // TODO: wire up real deliverable generation (e.g. call generate-slide endpoint)
-      return JSON.stringify({
-        status: 'stub',
-        tool: 'create_deliverable',
-        message: `Deliverable stub for type "${toolInput.deliverable_type}". Implement real logic here.`,
-      });
-    }
-
     default: {
-      console.warn(`[agent] Unknown tool requested: ${toolName}`);
-      return JSON.stringify({ error: `Unknown tool: ${toolName}` });
+      console.warn(`[agent] ⚠️  Unknown tool requested: ${name}`);
+      return `Unknown tool: ${name}`;
     }
   }
 }
 
 // ---------------------------------------------------------------------------
-// Agent loop — runs until Claude returns end_turn or text with no tool use
+// System prompt
 // ---------------------------------------------------------------------------
 
-async function runAgentLoop(
-  history: ConversationHistory,
-): Promise<{ reply: string; updatedHistory: ConversationHistory }> {
-  const SYSTEM_PROMPT = `You are Volute's master financial analyst agent. Volute is a professional application for analyzing financial data and creating polished deliverables (reports, presentations, memos, and dashboards).
+const SYSTEM_PROMPT = `You are Volute's master financial analyst agent. Volute is a professional application for analyzing financial data and creating polished deliverables — reports, presentations, memos, and dashboards — for investment banking and private equity professionals.
 
-Your responsibilities:
+## Your responsibilities
 - Understand and interpret financial data, metrics, and documents shared by the user
-- Perform or coordinate financial analysis using available tools
-- Help the user plan and create high-quality deliverables
+- Use the vector_search tool to retrieve relevant data from the Volute database before answering analytical questions
+- Help the user plan and create high-quality financial deliverables
 - Ask clarifying questions when the user's intent is ambiguous
 - Maintain context across a multi-turn conversation
 
-Tone: professional, concise, and analytical. Avoid filler. Prioritize accuracy.
+## How to use vector_search
+- Call it proactively whenever the user asks about a company, deal, market, or financial topic
+- Run multiple searches with varied queries to triangulate complete information
+- Synthesise results across multiple searches before responding
+- Reference source titles or URLs when citing data so the user can verify
 
-When the user shares images (charts, tables, screenshots of financial data), describe what you observe and incorporate those observations into your analysis.
+## Tone and style
+Professional, concise, and analytical. Lead with the most important insight. Avoid filler phrases. Prioritise accuracy — if data is unavailable, say so clearly rather than speculating.
 
-You have access to tools for financial analysis and deliverable creation. Use them when appropriate, but always explain to the user what you are doing and why.`;
+## Images
+When the user shares images (charts, tables, screenshots of financial statements), describe what you observe and incorporate those observations into your analysis.`;
 
+// ---------------------------------------------------------------------------
+// Streaming agent loop
+// ---------------------------------------------------------------------------
+
+async function runStreamingAgentLoop(
+  history: ConversationHistory,
+  res: VercelResponse,
+  sessionId: string,
+  isNewSession: boolean,
+): Promise<ConversationHistory> {
   let currentHistory = [...history];
 
-  // Agentic loop — continue until no more tool calls
   for (let iteration = 0; iteration < 10; iteration++) {
-    console.log(`[agent] Loop iteration ${iteration + 1}, history length: ${currentHistory.length}`);
+    console.log(
+      `[agent] ── loop iteration ${iteration + 1} | ` +
+      `history: ${currentHistory.length} msgs`,
+    );
 
-    const response = await anthropic.messages.create({
-      model: 'claude-opus-4-5',
+    console.log('[agent] 📡 Opening Claude stream...');
+    const t0 = Date.now();
+
+    const stream = anthropic.messages.stream({
+      model: 'claude-sonnet-4-6',
       max_tokens: 8096,
       system: [
         {
@@ -214,40 +466,81 @@ You have access to tools for financial analysis and deliverable creation. Use th
       messages: currentHistory,
     });
 
-    console.log(`[agent] Stop reason: ${response.stop_reason}, content blocks: ${response.content.length}`);
-
-    // Append Claude's response to history
-    currentHistory.push({
-      role: 'assistant',
-      content: response.content,
+    let textChunkCount = 0;
+    stream.on('text', (delta) => {
+      textChunkCount++;
+      sendSSE(res, { type: 'text_delta', delta });
     });
 
-    // If Claude is done (no tool calls), extract the final text reply
-    if (response.stop_reason === 'end_turn') {
-      const replyText = response.content
-        .filter((block): block is Anthropic.TextBlock => block.type === 'text')
-        .map((block) => block.text)
-        .join('\n')
-        .trim();
+    stream.on('error', (err) => {
+      console.error('[agent] Stream error event:', err.message);
+    });
 
-      return { reply: replyText, updatedHistory: currentHistory };
+    const message = await stream.finalMessage();
+
+    console.log(
+      `[agent] 📡 Stream complete in ${Date.now() - t0}ms | ` +
+      `stop_reason: ${message.stop_reason} | ` +
+      `text_chunks: ${textChunkCount} | ` +
+      `input_tokens: ${message.usage.input_tokens} | ` +
+      `output_tokens: ${message.usage.output_tokens}`,
+    );
+
+    currentHistory.push({ role: 'assistant', content: message.content });
+
+    // End turn
+    if (message.stop_reason === 'end_turn') {
+      console.log(`[agent] ✅ end_turn after ${iteration + 1} iteration(s)`);
+
+      sendSSE(res, {
+        type: 'done',
+        sessionId,
+        isNewSession,
+        historyLength: currentHistory.length,
+      });
+
+      return currentHistory;
     }
 
-    // If Claude wants to use tools, execute them and feed results back
-    if (response.stop_reason === 'tool_use') {
-      const toolUseBlocks = response.content.filter(
+    // Tool use
+    if (message.stop_reason === 'tool_use') {
+      const toolUseBlocks = message.content.filter(
         (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use',
       );
 
+      console.log(
+        `[agent] 🛠  tool_use: [${toolUseBlocks.map(b => b.name).join(', ')}]`,
+      );
+
       if (toolUseBlocks.length === 0) {
-        // Shouldn't happen, but guard anyway
+        console.warn('[agent] stop_reason=tool_use but no tool_use blocks — breaking');
         break;
       }
 
-      // Execute all requested tools (potentially in parallel for independent tools)
       const toolResults = await Promise.all(
         toolUseBlocks.map(async (toolUse) => {
+          console.log(`[agent] 🛠  executing: ${toolUse.name} | id: ${toolUse.id}`);
+
+          sendSSE(res, {
+            type: 'tool_start',
+            name: toolUse.name,
+            input: toolUse.input,
+          });
+
+          const t1 = Date.now();
           const result = await executeTool(toolUse.name, toolUse.input as ToolInput);
+
+          console.log(
+            `[agent] 🛠  ${toolUse.name} completed in ${Date.now() - t1}ms | ` +
+            `result length: ${result.length} chars`,
+          );
+
+          sendSSE(res, {
+            type: 'tool_result',
+            name: toolUse.name,
+            preview: result.slice(0, 150) + (result.length > 150 ? '…' : ''),
+          });
+
           return {
             type: 'tool_result' as const,
             tool_use_id: toolUse.id,
@@ -256,37 +549,23 @@ You have access to tools for financial analysis and deliverable creation. Use th
         }),
       );
 
-      // Append tool results as a user message so Claude can continue
-      currentHistory.push({
-        role: 'user',
-        content: toolResults,
-      });
-
-      // Continue the loop — Claude will process tool results and may call more tools
-      // or produce a final text response
+      currentHistory.push({ role: 'user', content: toolResults });
       continue;
     }
 
-    // Unexpected stop reason — break to avoid infinite loop
-    console.warn(`[agent] Unexpected stop reason: ${response.stop_reason}`);
+    console.warn(`[agent] ⚠️  Unexpected stop_reason: ${message.stop_reason} — breaking`);
     break;
   }
 
-  // Fallback if the loop somehow exits without a clean end_turn
-  const lastAssistantMessage = currentHistory
-    .filter((m) => m.role === 'assistant')
-    .at(-1);
+  console.warn('[agent] ⚠️  Agent loop exited without end_turn');
+  sendSSE(res, {
+    type: 'done',
+    sessionId,
+    isNewSession,
+    historyLength: currentHistory.length,
+  });
 
-  const fallbackText =
-    lastAssistantMessage && Array.isArray(lastAssistantMessage.content)
-      ? (lastAssistantMessage.content as Anthropic.ContentBlock[])
-          .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-          .map((b) => b.text)
-          .join('\n')
-          .trim()
-      : 'I encountered an issue completing that request. Please try again.';
-
-  return { reply: fallbackText, updatedHistory: currentHistory };
+  return currentHistory;
 }
 
 // ---------------------------------------------------------------------------
@@ -294,61 +573,62 @@ You have access to tools for financial analysis and deliverable creation. Use th
 // ---------------------------------------------------------------------------
 
 const SUPPORTED_MEDIA_TYPES: SupportedMediaType[] = [
-  'image/jpeg',
-  'image/png',
-  'image/gif',
-  'image/webp',
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
 ];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // CORS headers
+  console.log(`[agent] ${req.method} /api/agent`);
+
+  // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
+  if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Parse & validate request body
-  const { prompt, sessionId: incomingSessionId, images = [] } = req.body as RequestBody;
+  const { prompt, sessionId: incomingSessionId, images = [] } =
+    req.body as RequestBody;
 
   if (!prompt || typeof prompt !== 'string' || prompt.trim() === '') {
-    return res.status(400).json({ error: '`prompt` is required and must be a non-empty string.' });
+    return res.status(400).json({
+      error: '`prompt` is required and must be a non-empty string.',
+    });
   }
 
   if (!Array.isArray(images)) {
     return res.status(400).json({ error: '`images` must be an array.' });
   }
 
-  // Resolve or create session
-  const sessionId: string = incomingSessionId ?? randomUUID();
+  const sessionId = incomingSessionId ?? randomUUID();
   const isNewSession = !incomingSessionId || !conversationStore.has(incomingSessionId);
 
   console.log(
-    `[agent] Session: ${sessionId} (${isNewSession ? 'new' : 'existing'}), ` +
-      `images: ${images.length}`,
+    `[agent] Session: ${sessionId} (${isNewSession ? 'NEW' : 'existing'}) | ` +
+    `prompt length: ${prompt.length} | images: ${images.length}`,
   );
 
+  // SSE stream
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  if (typeof (res as any).flushHeaders === 'function') {
+    (res as any).flushHeaders();
+  }
+
   try {
-    // Load existing history
     const history = getHistory(sessionId);
 
-    // Build multimodal user content
     const userContent: Anthropic.MessageParam['content'] = [];
 
-    // Process images — place them before the text for better visual context
     for (let i = 0; i < images.length; i++) {
       const img = images[i];
-
       let rawBase64 = img.data;
       let detectedMediaType: SupportedMediaType | undefined;
 
-      // Strip data URI prefix if present
       const dataUriMatch = rawBase64.match(/^data:([^;]+);base64,(.+)$/s);
       if (dataUriMatch) {
         detectedMediaType = dataUriMatch[1] as SupportedMediaType;
@@ -359,63 +639,50 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         img.mediaType ?? detectedMediaType ?? 'image/png';
 
       if (!SUPPORTED_MEDIA_TYPES.includes(mediaType)) {
-        return res.status(400).json({
-          error:
-            `Unsupported media type "${mediaType}" for image at index ${i}. ` +
-            `Supported types: ${SUPPORTED_MEDIA_TYPES.join(', ')}`,
+        sendSSE(res, {
+          type: 'error',
+          message: `Unsupported media type "${mediaType}" for image at index ${i}.`,
         });
+        return res.end();
       }
+
+      console.log(
+        `[agent] Image ${i + 1}/${images.length}: ${mediaType} | ` +
+        `${rawBase64.length} base64 chars`,
+      );
 
       userContent.push({
         type: 'image',
-        source: {
-          type: 'base64',
-          media_type: mediaType,
-          data: rawBase64,
-        },
+        source: { type: 'base64', media_type: mediaType, data: rawBase64 },
       });
-
-      console.log(
-        `[agent] Image ${i + 1}/${images.length}: ${mediaType}, ` +
-          `${rawBase64.length} base64 chars`,
-      );
     }
 
-    // Append the text prompt
     userContent.push({ type: 'text', text: prompt.trim() });
-
-    // Append the new user turn to history
     history.push({ role: 'user', content: userContent });
 
-    // Run the agent loop
-    const { reply, updatedHistory } = await runAgentLoop(history);
-
-    // Persist updated history
-    saveHistory(sessionId, updatedHistory);
-
-    console.log(
-      `[agent] Reply length: ${reply.length} chars, ` +
-        `history depth: ${updatedHistory.length} messages`,
-    );
-
-    return res.status(200).json({
-      reply,
+    const updatedHistory = await runStreamingAgentLoop(
+      history,
+      res,
       sessionId,
       isNewSession,
-      historyLength: updatedHistory.length,
-    });
+    );
+
+    saveHistory(sessionId, updatedHistory);
+    console.log(
+      `[agent] ✅ Request complete | session: ${sessionId} | ` +
+      `history: ${updatedHistory.length} msgs`,
+    );
+
+    return res.end();
   } catch (error: unknown) {
     const err = error as Error & { status?: number };
-    console.error('[agent] Error:', err.message, err.stack);
+    console.error('[agent] ❌ Unhandled error:', err.message);
+    console.error('[agent] Stack:', err.stack);
 
-    // Surface Anthropic API errors with their status code when available
-    const statusCode = err.status && err.status >= 400 && err.status < 600
-      ? err.status
-      : 500;
-
-    return res.status(statusCode).json({
-      error: err.message ?? 'An unexpected error occurred.',
-      ...(process.env.NODE_ENV !== 'production' && { stack: err.stack }),
+    sendSSE(res, {
+      type: 'error',
+      message: err.message ?? 'An unexpected error occurred.',
     });
+    return res.end();
   }
 }
