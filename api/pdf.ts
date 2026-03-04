@@ -2,6 +2,13 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { chromium } from 'playwright-core';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+// ---------------------------------------------------------------------------
+// ESM-compatible __dirname
+// ---------------------------------------------------------------------------
+const __filename = fileURLToPath(import.meta.url);
+const __dirname  = path.dirname(__filename);
 
 // Vercel timeout — PDF generation can take a few seconds per slide
 export const config = {
@@ -10,12 +17,12 @@ export const config = {
 
 // ---------------------------------------------------------------------------
 // Vendor bundles — read once at module load time from api/vendor/
-// Place the following files in api/vendor/ (download instructions in README):
-//   react.umd.js        → https://unpkg.com/react@18/umd/react.production.min.js
-//   react-dom.umd.js    → https://unpkg.com/react-dom@18/umd/react-dom.production.min.js
-//   recharts.umd.js     → https://unpkg.com/recharts@2.12.7/umd/Recharts.js
-//   lucide-react.umd.js → https://unpkg.com/lucide-react@0.263.1/dist/umd/lucide-react.min.js
-//   babel.min.js        → https://unpkg.com/@babel/standalone@7.24.0/babel.min.js
+// Download with:
+//   curl -o api/vendor/react.umd.js        https://unpkg.com/react@18/umd/react.production.min.js
+//   curl -o api/vendor/react-dom.umd.js    https://unpkg.com/react-dom@18/umd/react-dom.production.min.js
+//   curl -o api/vendor/recharts.umd.js     https://unpkg.com/recharts@2.12.7/umd/Recharts.js
+//   curl -o api/vendor/lucide-react.umd.js https://unpkg.com/lucide-react@0.263.1/dist/umd/lucide-react.min.js
+//   curl -o api/vendor/babel.min.js        https://unpkg.com/@babel/standalone@7.24.0/babel.min.js
 // ---------------------------------------------------------------------------
 
 const VENDOR_DIR = path.join(__dirname, 'vendor');
@@ -25,14 +32,12 @@ function readVendor(filename: string): string {
   if (!fs.existsSync(filePath)) {
     throw new Error(
       `[pdf] Missing vendor file: ${filePath}\n` +
-      `Run the following to download it:\n` +
-      `  curl -o api/vendor/${filename} <url>`
+      `Run: curl -o api/vendor/${filename} <url>`
     );
   }
   return fs.readFileSync(filePath, 'utf8');
 }
 
-// Loaded once when the module is first imported — not on every request
 const REACT_JS     = readVendor('react.umd.js');
 const REACT_DOM_JS = readVendor('react-dom.umd.js');
 const RECHARTS_JS  = readVendor('recharts.umd.js');
@@ -40,11 +45,11 @@ const LUCIDE_JS    = readVendor('lucide-react.umd.js');
 const BABEL_JS     = readVendor('babel.min.js');
 
 console.log('[pdf] Vendor bundles loaded:', {
-  react:        `${(REACT_JS.length / 1024).toFixed(0)} KB`,
-  reactDom:     `${(REACT_DOM_JS.length / 1024).toFixed(0)} KB`,
-  recharts:     `${(RECHARTS_JS.length / 1024).toFixed(0)} KB`,
-  lucideReact:  `${(LUCIDE_JS.length / 1024).toFixed(0)} KB`,
-  babel:        `${(BABEL_JS.length / 1024).toFixed(0)} KB`,
+  react:       `${(REACT_JS.length     / 1024).toFixed(0)} KB`,
+  reactDom:    `${(REACT_DOM_JS.length / 1024).toFixed(0)} KB`,
+  recharts:    `${(RECHARTS_JS.length  / 1024).toFixed(0)} KB`,
+  lucideReact: `${(LUCIDE_JS.length    / 1024).toFixed(0)} KB`,
+  babel:       `${(BABEL_JS.length     / 1024).toFixed(0)} KB`,
 });
 
 // ---------------------------------------------------------------------------
@@ -52,9 +57,7 @@ console.log('[pdf] Vendor bundles loaded:', {
 // ---------------------------------------------------------------------------
 
 interface SlideInput {
-  /** The compiled JSX/TSX source for the slide component (as returned by generate-slide) */
   code: string;
-  /** Slide number — used for ordering in multi-slide PDFs */
   slideNumber?: number;
 }
 
@@ -64,9 +67,7 @@ interface ThemeInput {
   accentColors?: string[];
   headingTextColor?: string;
   bodyTextColor?: string;
-  /** Number — base px size for headings */
   headingFontSize?: number;
-  /** Number — base px size for body text */
   bodyFontSize?: number;
 }
 
@@ -85,7 +86,6 @@ function buildHtml(code: string, theme: ThemeInput): string {
     bodyFontSize     = 14,
   } = theme;
 
-  // Escape slide code for safe embedding inside a JS template literal
   const escapedCode = code
     .replace(/\\/g, '\\\\')
     .replace(/`/g, '\\`')
@@ -105,7 +105,7 @@ function buildHtml(code: string, theme: ThemeInput): string {
 <body>
   <div id="root"></div>
 
-  <!-- Inlined vendor bundles — no CDN/network calls needed -->
+  <!-- Inlined vendor bundles — no CDN/network calls -->
   <script>${REACT_JS}</script>
   <script>${REACT_DOM_JS}</script>
   <script>${RECHARTS_JS}</script>
@@ -198,6 +198,7 @@ function buildHtml(code: string, theme: ThemeInput): string {
 // ---------------------------------------------------------------------------
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // CORS — set before ANY early returns or throws so 500s also include headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -206,7 +207,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   // ---------------------------------------------------------------------------
-  // Parse + validate request body
+  // Parse + validate request body — all variables declared once here
   // ---------------------------------------------------------------------------
   const {
     slides,
@@ -221,7 +222,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const slideArray: SlideInput[] = (Array.isArray(slides) ? slides : [slides])
     .sort((a, b) => (a.slideNumber ?? 0) - (b.slideNumber ?? 0));
 
-  // Log received payload
   console.log(`[pdf] Received request:`, JSON.stringify({
     slideCount: slideArray.length,
     format,
@@ -303,10 +303,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const html = buildHtml(slide.code, theme);
       const page = await context.newPage();
 
-      // No external network calls → domcontentloaded is sufficient and faster
+      // domcontentloaded is sufficient — no external network calls with inlined vendor
       await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
-      // Wait for slide component to signal it's ready (or fail)
       await page.waitForFunction(
         '() => window.__SLIDE_READY__ === true || window.__SLIDE_ERROR__',
         { timeout: 15000 }
