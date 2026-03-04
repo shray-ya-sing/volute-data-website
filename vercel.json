@@ -8,6 +8,9 @@
       "destination": "/index.html"
     }
   ],
+  "functions": {
+    "api/pdf.ts": { "memory": 1024, "maxDuration": 120 }
+  },
   "crons": [
     {
       "path": "/api/cron/check-new-filings",
