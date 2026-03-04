@@ -17,12 +17,6 @@ export const config = {
 
 // ---------------------------------------------------------------------------
 // Vendor bundles — read once at module load time from api/vendor/
-// Download with:
-//   curl -o api/vendor/react.umd.js        https://unpkg.com/react@18/umd/react.production.min.js
-//   curl -o api/vendor/react-dom.umd.js    https://unpkg.com/react-dom@18/umd/react-dom.production.min.js
-//   curl -o api/vendor/recharts.umd.js     https://unpkg.com/recharts@2.12.7/umd/Recharts.js
-//   curl -o api/vendor/lucide-react.umd.js https://unpkg.com/lucide-react@0.263.1/dist/umd/lucide-react.min.js
-//   curl -o api/vendor/babel.min.js        https://unpkg.com/@babel/standalone@7.24.0/babel.min.js
 // ---------------------------------------------------------------------------
 
 const VENDOR_DIR = path.join(__dirname, 'vendor');
@@ -38,11 +32,60 @@ function readVendor(filename: string): string {
   return fs.readFileSync(filePath, 'utf8');
 }
 
-const REACT_JS     = readVendor('react.umd.js');
-const REACT_DOM_JS = readVendor('react-dom.umd.js');
-const RECHARTS_JS  = readVendor('recharts.umd.js');
-const LUCIDE_JS    = readVendor('lucide-react.umd.js');
-const BABEL_JS     = readVendor('babel.min.js');
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Prevent premature </script> close when inlining JS into HTML <script> tags.
+ *
+ * The HTML parser sees </script (case-insensitive, with or without >) as the
+ * end of the current <script> block. We split the problematic sequence by
+ * replacing every occurrence of the literal characters "</" appearing before
+ * "script" with "<" + "\/" so the HTML parser never sees the closing tag.
+ *
+ * This is the nuclear option: replace ALL occurrences of </script in any case
+ * with a JS string concatenation that evaluates to the same value at runtime.
+ */
+function safeInlineScript(js: string): string {
+  // Match </script with optional whitespace and closing >, case-insensitive.
+  // Replace the forward slash to break the HTML parser's tag detection.
+  //
+  // Strategy: replace "</" with "<\\/" globally ONLY when followed by "script"
+  // This is precise and won't break other code.
+  return js.replace(/<\/(script)/gi, '<\\/$1');
+}
+
+/**
+ * Safely escape arbitrary code for embedding inside a JS template literal.
+ * Uses JSON.stringify to handle all backslash / special-char combos correctly,
+ * then converts to template-literal-safe form.
+ */
+function escapeForTemplateLiteral(code: string): string {
+  const jsonStr = JSON.stringify(code);
+  // Remove surrounding quotes that JSON.stringify adds
+  return jsonStr
+    .slice(1, -1)
+    .replace(/`/g, '\\`')
+    .replace(/\$\{/g, '\\${');
+}
+
+// ---------------------------------------------------------------------------
+// Load vendor bundles and pre-escape them once at module load time
+// ---------------------------------------------------------------------------
+
+const REACT_JS_RAW     = readVendor('react.umd.js');
+const REACT_DOM_JS_RAW = readVendor('react-dom.umd.js');
+const RECHARTS_JS_RAW  = readVendor('recharts.umd.js');
+const LUCIDE_JS_RAW    = readVendor('lucide-react.umd.js');
+const BABEL_JS_RAW     = readVendor('babel.min.js');
+
+// Pre-escape once — used in every buildHtml call
+const REACT_JS     = safeInlineScript(REACT_JS_RAW);
+const REACT_DOM_JS = safeInlineScript(REACT_DOM_JS_RAW);
+const RECHARTS_JS  = safeInlineScript(RECHARTS_JS_RAW);
+const LUCIDE_JS    = safeInlineScript(LUCIDE_JS_RAW);
+const BABEL_JS     = safeInlineScript(BABEL_JS_RAW);
 
 console.log('[pdf] Vendor bundles loaded:', {
   react:       `${(REACT_JS.length     / 1024).toFixed(0)} KB`,
@@ -51,6 +94,24 @@ console.log('[pdf] Vendor bundles loaded:', {
   lucideReact: `${(LUCIDE_JS.length    / 1024).toFixed(0)} KB`,
   babel:       `${(BABEL_JS.length     / 1024).toFixed(0)} KB`,
 });
+
+// Verify escaping worked
+const checkEscape = (name: string, raw: string, escaped: string) => {
+  const beforeCount = (raw.match(/<\/script/gi) || []).length;
+  const afterCount  = (escaped.match(/<\/script/gi) || []).length;
+  console.log(`[pdf] ${name}: </script occurrences: ${beforeCount} before → ${afterCount} after escape`);
+  if (afterCount > 0) {
+    // Find what's left for debugging
+    const remaining = escaped.match(/.{0,20}<\/script.{0,20}/gi);
+    console.error(`[pdf] ⚠️  ${name} STILL has </script after escape:`, remaining);
+  }
+};
+
+checkEscape('react',    REACT_JS_RAW, REACT_JS);
+checkEscape('reactDom', REACT_DOM_JS_RAW, REACT_DOM_JS);
+checkEscape('recharts', RECHARTS_JS_RAW, RECHARTS_JS);
+checkEscape('lucide',   LUCIDE_JS_RAW, LUCIDE_JS);
+checkEscape('babel',    BABEL_JS_RAW, BABEL_JS);
 
 // ---------------------------------------------------------------------------
 // Types
@@ -86,13 +147,9 @@ function buildHtml(code: string, theme: ThemeInput): string {
     bodyFontSize     = 14,
   } = theme;
 
-  // Escape slide code for safe embedding inside a JS template literal.
-  // Order matters: backslashes must be escaped first.
-  const escapedCode = code
-    .replace(/\\/g, '\\\\')
-    .replace(/`/g, '\\`')
-    .replace(/\$\{/g, '\\${');
+  const escapedCode = escapeForTemplateLiteral(code);
 
+  // Vendor JS is already escaped at module load time — embed directly
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -107,11 +164,6 @@ function buildHtml(code: string, theme: ThemeInput): string {
 <body>
   <div id="root"></div>
 
-  <!--
-    Vendor scripts execute synchronously in order.
-    All window globals (React, ReactDOM, Recharts, LucideReact, Babel)
-    are guaranteed to be set before the shim script below runs.
-  -->
   <script>${REACT_JS}</script>
   <script>${REACT_DOM_JS}</script>
   <script>${RECHARTS_JS}</script>
@@ -119,37 +171,77 @@ function buildHtml(code: string, theme: ThemeInput): string {
   <script>${BABEL_JS}</script>
 
   <script>
-    // -------------------------------------------------------------------------
-    // Module shim
-    // Maps require() calls → window globals populated by the UMD bundles above.
-    // All four globals are also passed explicitly into new Function() below
-    // so bare variable references inside transpiled code resolve correctly.
-    // -------------------------------------------------------------------------
-    window.__modules = {
-      'react':        window.React,
-      'react-dom':    window.ReactDOM,
-      'recharts':     window.Recharts        || {},
-      'lucide-react': window.LucideReact     || window.lucideReact || {},
-    };
+    // -----------------------------------------------------------------------
+    // Debug: log what globals are available
+    // -----------------------------------------------------------------------
+    console.log('[slide] Globals check:', {
+      React:      typeof React,
+      ReactDOM:   typeof ReactDOM,
+      Recharts:   typeof Recharts,
+      LucideReact: typeof LucideReact,
+      Babel:      typeof Babel,
+    });
 
+    // -----------------------------------------------------------------------
+    // Verify UMD globals actually loaded
+    // -----------------------------------------------------------------------
+    (function verifyGlobals() {
+      var missing = [];
+      if (typeof React    === 'undefined') missing.push('React');
+      if (typeof ReactDOM === 'undefined') missing.push('ReactDOM');
+      if (typeof Babel    === 'undefined') missing.push('Babel');
+      if (missing.length) {
+        var msg = 'Missing UMD globals: ' + missing.join(', ') + ' — vendor scripts may contain unescaped closing tags or failed to parse';
+        document.getElementById('root').innerHTML =
+          '<pre style="color:red;padding:16px;font-size:11px;">' + msg + '</pre>';
+        window.__SLIDE_ERROR__ = msg;
+      }
+    })();
+
+    // -----------------------------------------------------------------------
+    // Lazy require shim — resolves globals at call time, not at setup time
+    // -----------------------------------------------------------------------
     window.require = function(mod) {
-      if (window.__modules[mod]) return window.__modules[mod];
+      switch (mod) {
+        case 'react':            return window.React;
+        case 'react-dom':        return window.ReactDOM;
+        case 'react-dom/client': return window.ReactDOM;
+        case 'recharts':         return window.Recharts || {};
+        case 'lucide-react':     return window.LucideReact || window.lucideReact || {};
+        default: break;
+      }
+      console.error('[require] Unknown module: ' + mod,
+        'React?', typeof window.React,
+        'ReactDOM?', typeof window.ReactDOM,
+        'Recharts?', typeof window.Recharts,
+        'Babel?', typeof window.Babel);
       throw new Error('[pdf.ts] Unknown module: ' + mod);
     };
 
-    // -------------------------------------------------------------------------
-    // Transpile + execute the slide code via Babel
-    // -------------------------------------------------------------------------
+    // -----------------------------------------------------------------------
+    // Transpile + execute the slide code
+    // -----------------------------------------------------------------------
     (function() {
-      const rawCode = \`${escapedCode}\`;
+      // Bail early if globals failed to load
+      if (window.__SLIDE_ERROR__) return;
+
+      var rawCode = \`${escapedCode}\`;
 
       // --- Transpile ---
-      let transpiledCode;
+      var transpiledCode;
       try {
         transpiledCode = Babel.transform(rawCode, {
-          presets: ['react', 'typescript'],
+          presets: [
+            ['react', {
+              runtime: 'classic',
+              pragma: 'React.createElement',
+              pragmaFrag: 'React.Fragment',
+            }],
+            ['typescript', { allExtensions: true, isTSX: true }],
+          ],
           plugins: [['transform-modules-commonjs', { strict: false }]],
           filename: 'slide.tsx',
+          sourceType: 'module',
         }).code;
       } catch (err) {
         document.getElementById('root').innerHTML =
@@ -158,13 +250,12 @@ function buildHtml(code: string, theme: ThemeInput): string {
         return;
       }
 
+      console.log('[slide] Transpiled code preview:', transpiledCode.slice(0, 600));
+
       // --- Execute ---
-      // All four library globals are injected explicitly as named parameters
-      // so that bare references like React.createElement, Recharts.BarChart,
-      // LucideReact.TrendingUp etc. resolve correctly inside new Function scope.
-      const moduleObj = { exports: {} };
+      var moduleObj = { exports: {} };
       try {
-        const fn = new Function(
+        var fn = new Function(
           'require', 'module', 'exports',
           'React', 'ReactDOM', 'Recharts', 'LucideReact',
           transpiledCode
@@ -176,22 +267,22 @@ function buildHtml(code: string, theme: ThemeInput): string {
           window.React,
           window.ReactDOM,
           window.Recharts        || {},
-          window.LucideReact     || window.lucideReact || {},
+          window.LucideReact     || window.lucideReact || {}
         );
       } catch (err) {
         document.getElementById('root').innerHTML =
-          '<pre style="color:red;padding:16px;font-size:11px;">Runtime error:\\n' + err.message + '</pre>';
+          '<pre style="color:red;padding:16px;font-size:11px;">Runtime error:\\n' + err.message + '\\n\\nTranspiled:\\n' + (transpiledCode || '').slice(0, 800) + '</pre>';
         window.__SLIDE_ERROR__ = 'Runtime error: ' + err.message;
         return;
       }
 
       // --- Retrieve default export ---
-      const SlideComponent =
+      var SlideComponent =
         moduleObj.exports['default'] ||
         moduleObj.exports[Object.keys(moduleObj.exports)[0]];
 
       if (!SlideComponent) {
-        const msg = 'No default export found in slide code';
+        var msg = 'No default export found. exports keys: ' + JSON.stringify(Object.keys(moduleObj.exports));
         document.getElementById('root').innerHTML =
           '<pre style="color:red;padding:16px;font-size:11px;">' + msg + '</pre>';
         window.__SLIDE_ERROR__ = msg;
@@ -199,7 +290,7 @@ function buildHtml(code: string, theme: ThemeInput): string {
       }
 
       // --- Render ---
-      const themeProps = {
+      var themeProps = {
         headingFont:      ${JSON.stringify(headingFont)},
         bodyFont:         ${JSON.stringify(bodyFont)},
         accentColors:     ${JSON.stringify(accentColors)},
@@ -210,7 +301,8 @@ function buildHtml(code: string, theme: ThemeInput): string {
       };
 
       try {
-        const root = window.ReactDOM.createRoot(document.getElementById('root'));
+        var rootEl = document.getElementById('root');
+        var root = window.ReactDOM.createRoot(rootEl);
         root.render(window.React.createElement(SlideComponent, themeProps));
       } catch (err) {
         document.getElementById('root').innerHTML =
@@ -219,9 +311,9 @@ function buildHtml(code: string, theme: ThemeInput): string {
         return;
       }
 
-      // Signal readiness after first paint + buffer for charts/fonts to settle
-      requestAnimationFrame(() => {
-        setTimeout(() => { window.__SLIDE_READY__ = true; }, 400);
+      // Signal readiness after first paint + buffer for charts/fonts to settle.
+      requestAnimationFrame(function() {
+        setTimeout(function() { window.__SLIDE_READY__ = true; }, 1500);
       });
     })();
   </script>
@@ -234,8 +326,7 @@ function buildHtml(code: string, theme: ThemeInput): string {
 // ---------------------------------------------------------------------------
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // CORS — must be set before ANY early returns or throws
-  // so that even 500 error responses include the header
+  // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -244,7 +335,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   // ---------------------------------------------------------------------------
-  // Parse + validate request — all variables declared exactly once
+  // Parse + validate request
   // ---------------------------------------------------------------------------
   const {
     slides,
@@ -257,7 +348,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const slideArray: SlideInput[] = (Array.isArray(slides) ? slides : [slides])
-    .sort((a, b) => (a.slideNumber ?? 0) - (b.slideNumber ?? 0));
+    .sort((a: SlideInput, b: SlideInput) => (a.slideNumber ?? 0) - (b.slideNumber ?? 0));
 
   console.log(`[pdf] Received request:`, JSON.stringify({
     slideCount: slideArray.length,
@@ -312,7 +403,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ];
         console.log(`[pdf] Using @sparticuz/chromium at: ${executablePath}`);
       } catch (err) {
-        console.warn('[pdf] @sparticuz/chromium not available:', err);
+        throw new Error(
+          `@sparticuz/chromium is required on Vercel but failed to load: ${err}`
+        );
       }
     } else {
       console.log('[pdf] Local dev mode, using playwright installed browser');
@@ -327,7 +420,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const context = await browser.newContext({
       viewport: { width: 960, height: 540 },
-      deviceScaleFactor: 2, // → effective 1920×1080 screenshots
+      deviceScaleFactor: 2,
     });
 
     // -------------------------------------------------------------------------
@@ -341,15 +434,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.log(`[pdf] Rendering slide ${slideLabel}...`);
 
       const html = buildHtml(slide.code, theme);
+
+      // DEBUG: Write the generated HTML to disk so you can open it in a browser
+      const debugPath = path.join(__dirname, `debug-slide-${slideLabel}.html`);
+      fs.writeFileSync(debugPath, html, 'utf8');
+      console.log(`[pdf] Debug HTML written to: ${debugPath}`);
+
       const page = await context.newPage();
+
+      // Listen for console messages from the page for debugging
+      page.on('console', msg => {
+        console.log(`[slide ${slideLabel} console] ${msg.type()}: ${msg.text()}`);
+      });
+
+      page.on('pageerror', err => {
+        console.error(`[slide ${slideLabel} pageerror]`, err.message);
+      });
 
       // domcontentloaded is sufficient — no external network calls with inlined vendor
       await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
       // Wait for slide to signal ready or error
       await page.waitForFunction(
-        '() => window.__SLIDE_READY__ === true || typeof window.__SLIDE_ERROR__ === "string"',
-        { timeout: 15000 }
+        'window.__SLIDE_READY__ === true || typeof window.__SLIDE_ERROR__ === "string"',
+        { timeout: 30000 }
       );
 
       const renderError = await page.evaluate(() => (window as any).__SLIDE_ERROR__);
@@ -361,10 +469,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const screenshotBuffer = await page.screenshot({
         type:  'png',
         clip:  { x: 0, y: 0, width: 960, height: 540 },
-        scale: 'device', // respects deviceScaleFactor → 1920×1080 PNG
+        scale: 'device',
       });
 
-      slideBuffers.push(screenshotBuffer);
+      slideBuffers.push(Buffer.from(screenshotBuffer));
       await page.close();
 
       console.log(`[pdf] Slide ${slideLabel} rendered (${(screenshotBuffer.length / 1024).toFixed(1)} KB)`);
@@ -374,7 +482,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     browser = null;
 
     // -------------------------------------------------------------------------
-    // PNG mode — return screenshot directly
+    // PNG mode
     // -------------------------------------------------------------------------
     if (format === 'png') {
       res.setHeader('Content-Type', 'image/png');
@@ -384,8 +492,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // -------------------------------------------------------------------------
-    // PDF mode — embed PNGs into a pdf-lib document
-    // Page: 960×540 pt = perfect 16:9 (13.33" × 7.5")
+    // PDF mode
     // -------------------------------------------------------------------------
     const PAGE_WIDTH_PT  = 960;
     const PAGE_HEIGHT_PT = 540;
@@ -398,8 +505,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     for (let i = 0; i < slideBuffers.length; i++) {
       const pngImage = await pdfDoc.embedPng(slideBuffers[i]);
-      const page     = pdfDoc.addPage([PAGE_WIDTH_PT, PAGE_HEIGHT_PT]);
-      page.drawImage(pngImage, { x: 0, y: 0, width: PAGE_WIDTH_PT, height: PAGE_HEIGHT_PT });
+      const pdfPage  = pdfDoc.addPage([PAGE_WIDTH_PT, PAGE_HEIGHT_PT]);
+      pdfPage.drawImage(pngImage, { x: 0, y: 0, width: PAGE_WIDTH_PT, height: PAGE_HEIGHT_PT });
       console.log(`[pdf] Embedded slide ${i + 1} into PDF`);
     }
 
@@ -423,6 +530,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   } catch (error: any) {
     console.error('[pdf] Error:', error.message);
+    console.error('[pdf] Stack:', error.stack);
     if (browser) {
       try { await browser.close(); } catch { /* ignore */ }
     }
