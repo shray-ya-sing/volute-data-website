@@ -37,6 +37,7 @@ let searchHandler: any;
 let analyzeHandler: any;
 let generateSlideHandler: any;
 let pdfHandler: any;
+let agentHandler: any;
 
 async function loadHandlers() {
   const extractModule = await import('../api/cron/extract-prospectus.js');
@@ -61,6 +62,9 @@ async function loadHandlers() {
 
   const pdfModule = await import('../api/pdf.ts');
   pdfHandler = pdfModule.default;
+
+  const agentModule = await import('../api/agent.ts');
+  agentHandler = agentModule.default;
 }
 
 // Helper to send JSON response
@@ -445,7 +449,41 @@ const server = createServer((req, res) => {
       sendJSON(res, 500, { error: error.message });
     }
   });   
+    } else if (pathname === '/api/agent' && req.method === 'POST') {
+  let body = '';
+  req.on('data', chunk => { body += chunk; });
+  req.on('end', async () => {
+    const mockReq: any = {
+      query: parsedUrl.query || {},
+      headers: req.headers,
+      method: req.method,
+      url: req.url,
+      body: body ? JSON.parse(body) : {},
+    };
+
+    const mockRes: any = {
+      statusCode: 200,
+      status: (code: number) => {
+        mockRes.statusCode = code;
+        return mockRes;
+      },
+      setHeader: (name: string, value: string) => {
+        res.setHeader(name, value);
+      },
+      json: (data: any) => {
+        sendJSON(res, mockRes.statusCode || 200, data);
+      },
+      end: () => res.end(),
+    };
+
+    try {
+      await agentHandler(mockReq, mockRes);
+    } catch (error: any) {
+      console.error('Error in agent:', error);
+      sendJSON(res, 500, { error: error.message });
     }
+  });
+}
   else {
     sendJSON(res, 404, { error: 'Not found' });
   }
@@ -468,6 +506,7 @@ loadHandlers().then(() => {
     console.log(`  POST http://localhost:${PORT}/api/analyze`);
     console.log(`  POST http://localhost:${PORT}/api/generate-slide`);
     console.log(`  POST http://localhost:${PORT}/api/pdf`);
+    console.log(`  POST http://localhost:${PORT}/api/agent`);
     console.log();
     console.log('To test integration:');
     console.log('  1. Keep this server running');
