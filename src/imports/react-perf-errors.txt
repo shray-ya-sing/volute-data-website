@@ -1,0 +1,40 @@
+Logged performance for react too many times in one animation frame vendor-core-ade2edecaf4781c7.min.js.br:54:12591
+TypeError: "message" is read-only
+    et https://2-19-8-sandpack.codesandbox.io/babel-transpiler.dc3397b1.worker.js:1
+    n https://2-19-8-sandpack.codesandbox.io/babel-transpiler.dc3397b1.worker.js:1
+    a https://2-19-8-sandpack.codesandbox.io/babel-transpiler.dc3397b1.worker.js:1
+    node_modules babel/runtime/helpers/asyncToGenerator.js/e.exports/</<@https://2-19-8-sandpack.codesandbox.io/babel-transpiler.dc3397b1.worker.js:1
+    node_modules babel/runtime/helpers/asyncToGenerator.js/e.exports/<@https://2-19-8-sandpack.codesandbox.io/babel-transpiler.dc3397b1.worker.js:1
+    Qe https://2-19-8-sandpack.codesandbox.io/babel-transpiler.dc3397b1.worker.js:1
+    it https://2-19-8-sandpack.codesandbox.io/babel-transpiler.dc3397b1.worker.js:1
+    n https://2-19-8-sandpack.codesandbox.io/babel-transpiler.dc3397b1.worker.js:1
+    a https://2-19-8-sandpack.codesandbox.io/babel-transpiler.dc3397b1.worker.js:1
+babel-transpiler.dc3397b1.worker.js:1:1083251
+Error in sandbox: vendors~sandbox-startup.ca8a95b40.chunk.js:1:1233
+TypeError: "message" is read-only
+    We https://2-19-8-sandpack.codesandbox.io/static/js/sandbox.8a7d01a44.js:1
+    handleCallResponse https://2-19-8-sandpack.codesandbox.io/static/js/sandbox.8a7d01a44.js:1
+    handleCallResponse https://2-19-8-sandpack.codesandbox.io/static/js/sandbox.8a7d01a44.js:1
+    handleMessage https://2-19-8-sandpack.codesandbox.io/static/js/sandbox.8a7d01a44.js:1
+    loadWorker https://2-19-8-sandpack.codesandbox.io/static/js/sandbox.8a7d01a44.js:1
+vendors~sandbox-startup.ca8a95b40.chunk.js:1:1233
+Cross-Origin Request Blocked: The Same Origin Policy disallows reading the remote resource at https://browser-intake-datadoghq.com/api/v2/rum?ddsource=browser&dd-api-key=pub3f6fa9c94d5ff85890f30fdc10b09c61&dd-evp-origin-version=6.25.2&dd-evp-origin=browser&dd-request-id=8fdd8474-e296-448a-abd1-d4d4312c4f58&dd-evp-encoding=deflate&batch_time=1772575467000&_dd.api=fetch. (Reason: CORS request did not succeed). Status code: (null).
+
+TypeError: "message" is read-only
+    et https://2-19-8-sandpack.codesandbox.io/babel-transpiler.dc3397b1.worker.js:1
+    n https://2-19-8-sandpack.codesandbox.io/babel-transpiler.dc3397b1.worker.js:1
+    a https://2-19-8-sandpack.codesandbox.io/babel-transpiler.dc3397b1.worker.js:1
+    node_modules babel/runtime/helpers/asyncToGenerator.js/e.exports/</<@https://2-19-8-sandpack.codesandbox.io/babel-transpiler.dc3397b1.worker.js:1
+    node_modules babel/runtime/helpers/asyncToGenerator.js/e.exports/<@https://2-19-8-sandpack.codesandbox.io/babel-transpiler.dc3397b1.worker.js:1
+    Qe https://2-19-8-sandpack.codesandbox.io/babel-transpiler.dc3397b1.worker.js:1
+    it https://2-19-8-sandpack.codesandbox.io/babel-transpiler.dc3397b1.worker.js:1
+    n https://2-19-8-sandpack.codesandbox.io/babel-transpiler.dc3397b1.worker.js:1
+    a https://2-19-8-sandpack.codesandbox.io/babel-transpiler.dc3397b1.worker.js:1
+babel-transpiler.dc3397b1.worker.js:1:1083251
+Error in sandbox: vendors~sandbox-startup.ca8a95b40.chunk.js:1:1233
+TypeError: "message" is read-only
+    We https://2-19-8-sandpack.codesandbox.io/static/js/sandbox.8a7d01a44.js:1
+    handleCallResponse https://2-19-8-sandpack.codesandbox.io/static/js/sandbox.8a7d01a44.js:1
+    handleCallResponse https://2-19-8-sandpack.codesandbox.io/static/js/sandbox.8a7d01a44.js:1
+    handleMessage https://2-19-8-sandpack.codesandbox.io/static/js/sandbox.8a7d01a44.js:1
+    loadWorker https://2-19-8-sandpack.codesandbox.io/static/js/sandbox.8a7d01a44.js:1
