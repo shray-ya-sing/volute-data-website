@@ -106,12 +106,13 @@ function getSearchUrl(): { protocol: 'http' | 'https'; hostname: string; port: n
     };
   }
 
-  // Vercel sets VERCEL=1 and VERCEL_URL in production/preview
+  // In Vercel, call the search endpoint on the same deployment internally.
+  // VERCEL_URL points to preview deployments which may have auth enabled,
+  // so we use the production domain instead.
   if (process.env.VERCEL) {
-    const host = process.env.VERCEL_URL ?? 'www.getvolute.com';
     return {
       protocol: 'https',
-      hostname: host,
+      hostname: 'www.getvolute.com',
       port: null,
       path: '/api/search',
     };
@@ -125,6 +126,7 @@ function getSearchUrl(): { protocol: 'http' | 'https'; hostname: string; port: n
     path: '/api/search',
   };
 }
+
 
 // ---------------------------------------------------------------------------
 // Vector search tool — uses http/https module to avoid Node fetch bugs
