@@ -38,32 +38,16 @@ function readVendor(filename: string): string {
 
 /**
  * Prevent premature </script> close when inlining JS into HTML <script> tags.
- *
- * The HTML parser sees </script (case-insensitive, with or without >) as the
- * end of the current <script> block. We split the problematic sequence by
- * replacing every occurrence of the literal characters "</" appearing before
- * "script" with "<" + "\/" so the HTML parser never sees the closing tag.
- *
- * This is the nuclear option: replace ALL occurrences of </script in any case
- * with a JS string concatenation that evaluates to the same value at runtime.
  */
 function safeInlineScript(js: string): string {
-  // Match </script with optional whitespace and closing >, case-insensitive.
-  // Replace the forward slash to break the HTML parser's tag detection.
-  //
-  // Strategy: replace "</" with "<\\/" globally ONLY when followed by "script"
-  // This is precise and won't break other code.
   return js.replace(/<\/(script)/gi, '<\\/$1');
 }
 
 /**
  * Safely escape arbitrary code for embedding inside a JS template literal.
- * Uses JSON.stringify to handle all backslash / special-char combos correctly,
- * then converts to template-literal-safe form.
  */
 function escapeForTemplateLiteral(code: string): string {
   const jsonStr = JSON.stringify(code);
-  // Remove surrounding quotes that JSON.stringify adds
   return jsonStr
     .slice(1, -1)
     .replace(/`/g, '\\`')
@@ -74,44 +58,32 @@ function escapeForTemplateLiteral(code: string): string {
 // Load vendor bundles and pre-escape them once at module load time
 // ---------------------------------------------------------------------------
 
-const REACT_JS_RAW     = readVendor('react.umd.js');
-const REACT_DOM_JS_RAW = readVendor('react-dom.umd.js');
-const RECHARTS_JS_RAW  = readVendor('recharts.umd.js');
-const LUCIDE_JS_RAW    = readVendor('lucide-react.umd.js');
-const BABEL_JS_RAW     = readVendor('babel.min.js');
-
-// Pre-escape once — used in every buildHtml call
-const REACT_JS     = safeInlineScript(REACT_JS_RAW);
-const REACT_DOM_JS = safeInlineScript(REACT_DOM_JS_RAW);
-const RECHARTS_JS  = safeInlineScript(RECHARTS_JS_RAW);
-const LUCIDE_JS    = safeInlineScript(LUCIDE_JS_RAW);
-const BABEL_JS     = safeInlineScript(BABEL_JS_RAW);
+const REACT_JS     = safeInlineScript(readVendor('react.umd.js'));
+const REACT_DOM_JS = safeInlineScript(readVendor('react-dom.umd.js'));
+const PROP_TYPES_JS = safeInlineScript(readVendor('prop-types.umd.js'));
+const RECHARTS_JS  = safeInlineScript(readVendor('recharts.umd.js'));
+const BABEL_JS     = safeInlineScript(readVendor('babel.min.js'));
 
 console.log('[pdf] Vendor bundles loaded:', {
   react:       `${(REACT_JS.length     / 1024).toFixed(0)} KB`,
   reactDom:    `${(REACT_DOM_JS.length / 1024).toFixed(0)} KB`,
+  propTypes:   `${(PROP_TYPES_JS.length / 1024).toFixed(0)} KB`,
   recharts:    `${(RECHARTS_JS.length  / 1024).toFixed(0)} KB`,
-  lucideReact: `${(LUCIDE_JS.length    / 1024).toFixed(0)} KB`,
   babel:       `${(BABEL_JS.length     / 1024).toFixed(0)} KB`,
 });
 
-// Verify escaping worked
-const checkEscape = (name: string, raw: string, escaped: string) => {
-  const beforeCount = (raw.match(/<\/script/gi) || []).length;
-  const afterCount  = (escaped.match(/<\/script/gi) || []).length;
-  console.log(`[pdf] ${name}: </script occurrences: ${beforeCount} before → ${afterCount} after escape`);
-  if (afterCount > 0) {
-    // Find what's left for debugging
-    const remaining = escaped.match(/.{0,20}<\/script.{0,20}/gi);
-    console.error(`[pdf] ⚠️  ${name} STILL has </script after escape:`, remaining);
+// Verify escaping
+const checkEscape = (name: string, escaped: string) => {
+  const count = (escaped.match(/<\/script/gi) || []).length;
+  if (count > 0) {
+    console.error(`[pdf] ⚠️  ${name} STILL has ${count} </script occurrences after escape`);
   }
 };
-
-checkEscape('react',    REACT_JS_RAW, REACT_JS);
-checkEscape('reactDom', REACT_DOM_JS_RAW, REACT_DOM_JS);
-checkEscape('recharts', RECHARTS_JS_RAW, RECHARTS_JS);
-checkEscape('lucide',   LUCIDE_JS_RAW, LUCIDE_JS);
-checkEscape('babel',    BABEL_JS_RAW, BABEL_JS);
+checkEscape('react', REACT_JS);
+checkEscape('reactDom', REACT_DOM_JS);
+checkEscape('propTypes', PROP_TYPES_JS);
+checkEscape('recharts', RECHARTS_JS);
+checkEscape('babel', BABEL_JS);
 
 // ---------------------------------------------------------------------------
 // Types
@@ -149,7 +121,13 @@ function buildHtml(code: string, theme: ThemeInput): string {
 
   const escapedCode = escapeForTemplateLiteral(code);
 
-  // Vendor JS is already escaped at module load time — embed directly
+  // IMPORTANT: Load order matters!
+  // 1. React (required by everything)
+  // 2. ReactDOM (required by Recharts)
+  // 3. PropTypes (required by Recharts)
+  // 4. Recharts (depends on React + PropTypes)
+  // 5. LucideReact (depends on React)
+  // 6. Babel (standalone, no deps)
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -164,10 +142,15 @@ function buildHtml(code: string, theme: ThemeInput): string {
 <body>
   <div id="root"></div>
 
+  <!-- 1. React -->
   <script>${REACT_JS}</script>
+  <!-- 2. ReactDOM -->
   <script>${REACT_DOM_JS}</script>
+  <!-- 3. PropTypes (needed by Recharts) -->
+  <script>${PROP_TYPES_JS}</script>
+  <!-- 4. Recharts -->
   <script>${RECHARTS_JS}</script>
-  <script>${LUCIDE_JS}</script>
+  <!-- 6. Babel Standalone -->
   <script>${BABEL_JS}</script>
 
   <script>
@@ -175,12 +158,27 @@ function buildHtml(code: string, theme: ThemeInput): string {
     // Debug: log what globals are available
     // -----------------------------------------------------------------------
     console.log('[slide] Globals check:', {
-      React:      typeof React,
-      ReactDOM:   typeof ReactDOM,
-      Recharts:   typeof Recharts,
-      LucideReact: typeof LucideReact,
-      Babel:      typeof Babel,
+      React:      typeof React !== 'undefined' ? 'object' : 'undefined',
+      ReactDOM:   typeof ReactDOM !== 'undefined' ? 'object' : 'undefined',
+      PropTypes:  typeof PropTypes !== 'undefined' ? 'object' : 'undefined',
+      Recharts:   typeof Recharts !== 'undefined' ? 'object' : 'undefined',
+      recharts:   typeof recharts !== 'undefined' ? 'object' : 'undefined',
+      LucideReact: typeof LucideReact !== 'undefined' ? 'object' : 'undefined',
+      Babel:      typeof Babel !== 'undefined' ? 'object' : 'undefined',
     });
+
+    // Also check what keys Recharts exposes (if it loaded)
+    if (typeof Recharts !== 'undefined') {
+      console.log('[slide] Recharts keys sample:', Object.keys(Recharts).slice(0, 15));
+    } else if (typeof recharts !== 'undefined') {
+      console.log('[slide] recharts (lowercase) keys sample:', Object.keys(recharts).slice(0, 15));
+    } else {
+      // Try to find it on window
+      var rechartsKeys = Object.keys(window).filter(function(k) {
+        return k.toLowerCase().indexOf('rechart') !== -1;
+      });
+      console.log('[slide] Recharts-like window keys:', rechartsKeys);
+    }
 
     // -----------------------------------------------------------------------
     // Verify UMD globals actually loaded
@@ -190,24 +188,66 @@ function buildHtml(code: string, theme: ThemeInput): string {
       if (typeof React    === 'undefined') missing.push('React');
       if (typeof ReactDOM === 'undefined') missing.push('ReactDOM');
       if (typeof Babel    === 'undefined') missing.push('Babel');
+
+      // Recharts may register as window.Recharts or window.recharts
+      if (typeof Recharts === 'undefined' && typeof recharts === 'undefined') {
+        missing.push('Recharts');
+      }
+
+      // Normalize: ensure window.Recharts exists regardless of casing
+      if (typeof Recharts === 'undefined' && typeof recharts !== 'undefined') {
+        window.Recharts = recharts;
+        console.log('[slide] Normalized window.recharts → window.Recharts');
+      }
+
       if (missing.length) {
-        var msg = 'Missing UMD globals: ' + missing.join(', ') + ' — vendor scripts may contain unescaped closing tags or failed to parse';
+        var msg = 'Missing UMD globals: ' + missing.join(', ') + ' — vendor scripts may have failed to parse';
         document.getElementById('root').innerHTML =
           '<pre style="color:red;padding:16px;font-size:11px;">' + msg + '</pre>';
         window.__SLIDE_ERROR__ = msg;
       }
     })();
+    
+    // -----------------------------------------------------------------------
+    // Lucide-react shim: returns a cached no-op component for any icon
+    // -----------------------------------------------------------------------
+    (function() {
+      var cache = {};
+      window.LucideReact = new Proxy({}, {
+        get: function(_target, prop) {
+          if (prop === '__esModule') return true;
+          if (typeof prop === 'symbol') return undefined;
+          if (cache[prop]) return cache[prop];
+          if (typeof React !== 'undefined') {
+            var Icon = React.forwardRef(function(props, ref) {
+              var s = props.size || 24;
+              return React.createElement('svg', {
+                ref: ref, width: s, height: s, viewBox: '0 0 24 24',
+                fill: 'none', stroke: props.color || 'currentColor',
+                strokeWidth: props.strokeWidth || 2,
+                style: props.style || {}, className: props.className || ''
+              });
+            });
+            Icon.displayName = 'Lucide_' + String(prop);
+            cache[prop] = Icon;
+            return Icon;
+          }
+          return function() { return null; };
+        }
+      });
+    })();
 
     // -----------------------------------------------------------------------
-    // Lazy require shim — resolves globals at call time, not at setup time
+    // Lazy require shim
     // -----------------------------------------------------------------------
     window.require = function(mod) {
       switch (mod) {
         case 'react':            return window.React;
         case 'react-dom':        return window.ReactDOM;
         case 'react-dom/client': return window.ReactDOM;
-        case 'recharts':         return window.Recharts || {};
+        case 'recharts':         return window.Recharts || window.recharts || {};
         case 'lucide-react':     return window.LucideReact || window.lucideReact || {};
+        case 'prop-types':       return window.PropTypes || {};
         default: break;
       }
       console.error('[require] Unknown module: ' + mod,
@@ -222,12 +262,10 @@ function buildHtml(code: string, theme: ThemeInput): string {
     // Transpile + execute the slide code
     // -----------------------------------------------------------------------
     (function() {
-      // Bail early if globals failed to load
       if (window.__SLIDE_ERROR__) return;
 
       var rawCode = \`${escapedCode}\`;
 
-      // --- Transpile ---
       var transpiledCode;
       try {
         transpiledCode = Babel.transform(rawCode, {
@@ -252,12 +290,11 @@ function buildHtml(code: string, theme: ThemeInput): string {
 
       console.log('[slide] Transpiled code preview:', transpiledCode.slice(0, 600));
 
-      // --- Execute ---
       var moduleObj = { exports: {} };
       try {
         var fn = new Function(
           'require', 'module', 'exports',
-          'React', 'ReactDOM', 'Recharts', 'LucideReact',
+          'React', 'ReactDOM', 'Recharts', 'LucideReact', 'PropTypes',
           transpiledCode
         );
         fn(
@@ -266,8 +303,9 @@ function buildHtml(code: string, theme: ThemeInput): string {
           moduleObj.exports,
           window.React,
           window.ReactDOM,
-          window.Recharts        || {},
-          window.LucideReact     || window.lucideReact || {}
+          window.Recharts  || window.recharts || {},
+          window.LucideReact || window.lucideReact || {},
+          window.PropTypes || {}
         );
       } catch (err) {
         document.getElementById('root').innerHTML =
@@ -276,7 +314,6 @@ function buildHtml(code: string, theme: ThemeInput): string {
         return;
       }
 
-      // --- Retrieve default export ---
       var SlideComponent =
         moduleObj.exports['default'] ||
         moduleObj.exports[Object.keys(moduleObj.exports)[0]];
@@ -289,7 +326,6 @@ function buildHtml(code: string, theme: ThemeInput): string {
         return;
       }
 
-      // --- Render ---
       var themeProps = {
         headingFont:      ${JSON.stringify(headingFont)},
         bodyFont:         ${JSON.stringify(bodyFont)},
@@ -311,7 +347,6 @@ function buildHtml(code: string, theme: ThemeInput): string {
         return;
       }
 
-      // Signal readiness after first paint + buffer for charts/fonts to settle.
       requestAnimationFrame(function() {
         setTimeout(function() { window.__SLIDE_READY__ = true; }, 1500);
       });
@@ -326,7 +361,6 @@ function buildHtml(code: string, theme: ThemeInput): string {
 // ---------------------------------------------------------------------------
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -334,9 +368,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  // ---------------------------------------------------------------------------
-  // Parse + validate request
-  // ---------------------------------------------------------------------------
   const {
     slides,
     theme = {} as ThemeInput,
@@ -376,9 +407,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let browser = null;
 
   try {
-    // -------------------------------------------------------------------------
-    // Launch Playwright Chromium
-    // -------------------------------------------------------------------------
     let executablePath: string | undefined;
     let launchArgs: string[] = [
       '--no-sandbox',
@@ -423,9 +451,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       deviceScaleFactor: 2,
     });
 
-    // -------------------------------------------------------------------------
-    // Render each slide → PNG buffer
-    // -------------------------------------------------------------------------
     const slideBuffers: Buffer[] = [];
 
     for (let i = 0; i < slideArray.length; i++) {
@@ -434,10 +459,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       console.log(`[pdf] Rendering slide ${slideLabel}...`);
 
       const html = buildHtml(slide.code, theme);
-
       const page = await context.newPage();
 
-      // Listen for console messages from the page for debugging
       page.on('console', msg => {
         console.log(`[slide ${slideLabel} console] ${msg.type()}: ${msg.text()}`);
       });
@@ -446,10 +469,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         console.error(`[slide ${slideLabel} pageerror]`, err.message);
       });
 
-      // domcontentloaded is sufficient — no external network calls with inlined vendor
       await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
-      // Wait for slide to signal ready or error
       await page.waitForFunction(
         'window.__SLIDE_READY__ === true || typeof window.__SLIDE_ERROR__ === "string"',
         { timeout: 30000 }
@@ -476,9 +497,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await browser.close();
     browser = null;
 
-    // -------------------------------------------------------------------------
-    // PNG mode
-    // -------------------------------------------------------------------------
     if (format === 'png') {
       res.setHeader('Content-Type', 'image/png');
       res.setHeader('Content-Disposition', 'attachment; filename="slide.png"');
@@ -486,9 +504,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).send(slideBuffers[0]);
     }
 
-    // -------------------------------------------------------------------------
-    // PDF mode
-    // -------------------------------------------------------------------------
     const PAGE_WIDTH_PT  = 960;
     const PAGE_HEIGHT_PT = 540;
 
