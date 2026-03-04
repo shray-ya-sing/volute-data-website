@@ -258,36 +258,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // On Vercel, use @sparticuz/chromium for a Lambda-compatible binary.
     // Locally, playwright-core will find your installed browser.
     // ------------------------------------------------------------------
+
     let executablePath: string | undefined;
+    let launchArgs: string[] = [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--font-render-hinting=none',
+    ];
 
-  const isVercel = process.env.VERCEL === '1' || process.env.AWS_LAMBDA_FUNCTION_NAME !== undefined;
+    const isVercel = process.env.VERCEL === '1' || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
 
-  if (isVercel) {
-    try {
-      const chromiumPkg = await import('@sparticuz/chromium');
-      executablePath = await chromiumPkg.default.executablePath();
-      console.log(`[pdf] Using @sparticuz/chromium at: ${executablePath}`);
-    } catch (err) {
-      console.warn('[pdf] @sparticuz/chromium not available:', err);
+    if (isVercel) {
+      try {
+        const chromiumPkg = await import('@sparticuz/chromium');
+        executablePath = await chromiumPkg.default.executablePath();
+        // @sparticuz/chromium provides its own optimised args for Lambda — use them
+        launchArgs = [
+          ...chromiumPkg.default.args,
+          '--disable-gpu',
+          '--font-render-hinting=none',
+          '--no-sandbox',
+          '--disable-dev-shm-usage',
+        ];
+        console.log(`[pdf] Using @sparticuz/chromium at: ${executablePath}`);
+      } catch (err) {
+        console.warn('[pdf] @sparticuz/chromium not available:', err);
+      }
+    } else {
+      console.log('[pdf] Local dev mode, using playwright installed browser');
+      executablePath = undefined;
     }
-  } else {
-    // Local dev — use playwright's own installed browser
-    console.log('[pdf] Local dev mode, using playwright installed browser');
-    executablePath = undefined;
-  }
 
     browser = await chromium.launch({
       executablePath,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-        '--font-render-hinting=none', // sharper text in headless
-      ],
+      args: launchArgs,
       headless: true,
     });
-
     const context = await browser.newContext({
       viewport: { width: 960, height: 540 },
       deviceScaleFactor: 2, // 2× for crisp output (1920×1080 effective pixels)
