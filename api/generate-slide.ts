@@ -251,6 +251,44 @@ DO NOT import any other packages. DO NOT use external images or assets.
 - Code must be production-ready and immediately executable
 - Use inline styles only — no CSS files, no styled-components, no Tailwind
 
+## Citation Markers
+
+If the user's prompt contains citation markers in the format [cite:N] or [cite:N,M]:
+- Render them as small interactive badges positioned near the cited data
+- Use this pattern for each citation:
+
+\`\`\`tsx
+<span
+  data-citation="1"
+  style={{
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '16px',
+    height: '16px',
+    borderRadius: '50%',
+    backgroundColor: accentColors[0] + '20',
+    color: accentColors[0],
+    fontSize: '9px',
+    fontWeight: 700,
+    fontFamily: bodyFont,
+    cursor: 'pointer',
+    marginLeft: '2px',
+    verticalAlign: 'super',
+    lineHeight: 1,
+  }}
+>
+  1
+</span>
+\`\`\`
+
+- For multiple citations [cite:1,3], render adjacent badges
+- Place citation badges inline right after the specific number or fact they cite
+- The data-citation attribute MUST contain the citation number as a string
+- Keep badges small (16x16px) so they don't disrupt the layout
+- Use accentColors[0] with 20% opacity for the badge background
+
+
 Now generate the slide component based on the user's request.`;
 
     const userPromptText = context

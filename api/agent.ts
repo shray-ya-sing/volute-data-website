@@ -112,6 +112,58 @@ function sendSSE(res: VercelResponse, payload: Record<string, unknown>): void {
 }
 
 // ---------------------------------------------------------------------------
+// Source tracking — maps citation IDs to source metadata across tool calls
+// ---------------------------------------------------------------------------
+
+interface TrackedSource {
+  id: number;
+  title: string;
+  url: string;
+  relevance: string;
+  textPreview: string;
+}
+
+// Per-session source tracking so citation IDs are stable across a conversation
+const sessionSourcesStore = new Map<string, TrackedSource[]>();
+
+function getSessionSources(sessionId: string): TrackedSource[] {
+  return sessionSourcesStore.get(sessionId) ?? [];
+}
+
+function trackSourcesFromSearchResult(
+  sessionId: string,
+  searchResultText: string,
+): TrackedSource[] {
+  const existing = getSessionSources(sessionId);
+  const seen = new Set(existing.map(s => s.url));
+  let nextId = existing.length > 0 ? Math.max(...existing.map(s => s.id)) + 1 : 1;
+
+  // Updated regex: URL line is optional (non-capturing group with ?)
+  const sourceRegex =
+    /\[Source \d+\]\nTitle: (.+)\n(?:URL: (.+)\n)?Content: ([\s\S]*?)\nRelevance: (.+)%/g;
+  let match;
+
+  while ((match = sourceRegex.exec(searchResultText)) !== null) {
+    const url = match[2]?.trim() ?? '';
+    const title = match[1]?.trim() ?? 'Untitled';
+
+    // Skip entries with no URL — can't link to them
+    if (!url || seen.has(url)) continue;
+
+    seen.add(url);
+    existing.push({
+      id: nextId++,
+      title,
+      url,
+      relevance: match[4].trim(),
+      textPreview: match[3].trim().slice(0, 300),
+    });
+  }
+
+  sessionSourcesStore.set(sessionId, existing);
+  return existing;
+}
+// ---------------------------------------------------------------------------
 // Search URL — local in dev, production domain in Vercel
 // ---------------------------------------------------------------------------
 
@@ -608,6 +660,14 @@ const SYSTEM_PROMPT = `You are Volute's master financial analyst agent. Volute i
 - Specify layout preferences: chart types (bar, line, area, pie), table structures, column layouts
 - You can generate multiple slides by calling the tool multiple times with different slideNumber values
 
+### Citation embedding in slides
+- When creating slides from vector_search data, include citation numbers with data points
+- In your prompt to create_or_edit_slide, annotate data points like this:
+  "Revenue: $3.1B (29% YoY growth) [cite:1]" or "IPO raised $880M at $15-$18 range [cite:3,5]"
+- Use the source numbers from vector_search results: [Source 1] → [cite:1], [Source 2] → [cite:2], etc.
+- The slide generator will embed these as interactive citation markers in the rendered component
+- Place citations immediately after the specific data point they support, not at the end of sentences
+
 ### Editing existing slides
 - When the user wants to modify a slide that was already generated, use the existingCode parameter
 - Pass the COMPLETE existing component code in existingCode
@@ -733,30 +793,74 @@ async function runStreamingAgentLoop(
             `result length: ${result.length} chars`,
           );
 
-          // Slide tool: emit dedicated SSE event so frontend can render immediately
-          // Emit full code to frontend, but give agent a summary
+          // ── Track sources from vector search ────────────────────────
+          if (toolUse.name === 'vector_search' && result.startsWith('Found ')) {
+            const sourcesBefore = getSessionSources(sessionId);
+            const startId = sourcesBefore.length > 0
+              ? Math.max(...sourcesBefore.map(s => s.id)) + 1
+              : 1;
+
+            const allSources = trackSourcesFromSearchResult(sessionId, result);
+
+            // Emit updated source list to frontend
+            sendSSE(res, {
+              type: 'sources_updated',
+              sources: allSources,
+            });
+
+            // Remap [Source N] → [Source globalId] in the result text
+            // so the agent uses globally consistent citation numbers
+            let remappedResult = result;
+            const newSources = allSources.filter(s => s.id >= startId);
+            
+            // Replace in reverse order to avoid index shifting issues
+            // e.g. [Source 10] before [Source 1]
+            for (let i = newSources.length - 1; i >= 0; i--) {
+              const localNum = i + 1; // [Source 1], [Source 2], etc.
+              const globalId = newSources[i].id;
+              if (localNum !== globalId) {
+                remappedResult = remappedResult.replace(
+                  new RegExp(`\\[Source ${localNum}\\]`, 'g'),
+                  `[Source ${globalId}]`,
+                );
+              }
+            }
+
+            sendSSE(res, {
+              type: 'tool_result',
+              name: toolUse.name,
+              preview: remappedResult.slice(0, 150) + (remappedResult.length > 150 ? '…' : ''),
+            });
+
+            return {
+              type: 'tool_result' as const,
+              tool_use_id: toolUse.id,
+              content: remappedResult,  // agent sees globally consistent IDs
+            };
+          }
+
+          // ── Slide tool: emit code + sources to frontend ─────────────
           if (toolUse.name === 'create_or_edit_slide') {
             try {
               const parsed = JSON.parse(result);
               if (parsed.success && parsed.code) {
-                // Send full code to frontend via SSE
+                const allSources = getSessionSources(sessionId);
+
                 sendSSE(res, {
                   type: 'slide_generated',
                   action: parsed.action ?? 'created',
                   code: parsed.code,
                   slideNumber: parsed.slideNumber ?? 1,
+                  sources: allSources,
                 });
 
-                // Return a compact summary to the agent instead of the full
-                // code so we don't bloat the conversation context window.
-                // The agent doesn't need the code — it only needs to know
-                // the slide was created/edited successfully.
                 const summary = JSON.stringify({
                   success: true,
                   action: parsed.action,
                   slideNumber: parsed.slideNumber,
                   codeLength: parsed.codeLength,
-                  message: `Slide ${parsed.slideNumber} ${parsed.action} successfully (${parsed.codeLength} chars). The code has been sent to the user's browser for rendering.`,
+                  sourceCount: allSources.length,
+                  message: `Slide ${parsed.slideNumber} ${parsed.action} successfully (${parsed.codeLength} chars) with ${allSources.length} tracked sources.`,
                 });
 
                 sendSSE(res, {
@@ -768,11 +872,11 @@ async function runStreamingAgentLoop(
                 return {
                   type: 'tool_result' as const,
                   tool_use_id: toolUse.id,
-                  content: summary,  // ~200 tokens instead of ~20,000
+                  content: summary,
                 };
               }
             } catch {
-              // Not JSON — tool returned an error string, fall through
+              // fall through
             }
           }
 
