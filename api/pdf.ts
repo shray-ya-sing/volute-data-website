@@ -10,7 +10,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
 
-// Vercel timeout — PDF generation can take a few seconds per slide
+// Vercel timeout
 export const config = {
   maxDuration: 120,
 };
@@ -72,7 +72,7 @@ interface ThemeInput {
 }
 
 // ---------------------------------------------------------------------------
-// buildHtml — fully self-contained, no external network calls
+// buildHtml
 // ---------------------------------------------------------------------------
 
 function buildHtml(code: string, theme: ThemeInput): string {
@@ -86,6 +86,8 @@ function buildHtml(code: string, theme: ThemeInput): string {
     bodyFontSize     = 14,
   } = theme;
 
+  // Escape slide code for safe embedding inside a JS template literal.
+  // Order matters: backslashes must be escaped first.
   const escapedCode = code
     .replace(/\\/g, '\\\\')
     .replace(/`/g, '\\`')
@@ -105,7 +107,11 @@ function buildHtml(code: string, theme: ThemeInput): string {
 <body>
   <div id="root"></div>
 
-  <!-- Inlined vendor bundles — no CDN/network calls -->
+  <!--
+    Vendor scripts execute synchronously in order.
+    All window globals (React, ReactDOM, Recharts, LucideReact, Babel)
+    are guaranteed to be set before the shim script below runs.
+  -->
   <script>${REACT_JS}</script>
   <script>${REACT_DOM_JS}</script>
   <script>${RECHARTS_JS}</script>
@@ -114,13 +120,17 @@ function buildHtml(code: string, theme: ThemeInput): string {
 
   <script>
     // -------------------------------------------------------------------------
-    // Module shim — maps require() calls to window globals set by UMD bundles
+    // Module shim
+    // Maps require() calls → window globals populated by the UMD bundles above.
+    // All four globals are also passed explicitly into new Function() below
+    // so bare variable references inside transpiled code resolve correctly.
     // -------------------------------------------------------------------------
-    window.__modules = {};
-    window.__modules['react']        = window.React;
-    window.__modules['react-dom']    = window.ReactDOM;
-    window.__modules['recharts']     = window.Recharts;
-    window.__modules['lucide-react'] = window.LucideReact || window.lucideReact || {};
+    window.__modules = {
+      'react':        window.React,
+      'react-dom':    window.ReactDOM,
+      'recharts':     window.Recharts        || {},
+      'lucide-react': window.LucideReact     || window.lucideReact || {},
+    };
 
     window.require = function(mod) {
       if (window.__modules[mod]) return window.__modules[mod];
@@ -133,6 +143,7 @@ function buildHtml(code: string, theme: ThemeInput): string {
     (function() {
       const rawCode = \`${escapedCode}\`;
 
+      // --- Transpile ---
       let transpiledCode;
       try {
         transpiledCode = Babel.transform(rawCode, {
@@ -142,22 +153,39 @@ function buildHtml(code: string, theme: ThemeInput): string {
         }).code;
       } catch (err) {
         document.getElementById('root').innerHTML =
-          '<pre style="color:red;padding:16px;font-size:11px;">Babel error: ' + err.message + '</pre>';
-        window.__SLIDE_ERROR__ = err.message;
+          '<pre style="color:red;padding:16px;font-size:11px;">Babel transpile error:\\n' + err.message + '</pre>';
+        window.__SLIDE_ERROR__ = 'Babel error: ' + err.message;
         return;
       }
 
+      // --- Execute ---
+      // All four library globals are injected explicitly as named parameters
+      // so that bare references like React.createElement, Recharts.BarChart,
+      // LucideReact.TrendingUp etc. resolve correctly inside new Function scope.
       const moduleObj = { exports: {} };
       try {
-        const fn = new Function('require', 'module', 'exports', 'React', transpiledCode);
-        fn(window.require, moduleObj, moduleObj.exports, React);
+        const fn = new Function(
+          'require', 'module', 'exports',
+          'React', 'ReactDOM', 'Recharts', 'LucideReact',
+          transpiledCode
+        );
+        fn(
+          window.require,
+          moduleObj,
+          moduleObj.exports,
+          window.React,
+          window.ReactDOM,
+          window.Recharts        || {},
+          window.LucideReact     || window.lucideReact || {},
+        );
       } catch (err) {
         document.getElementById('root').innerHTML =
-          '<pre style="color:red;padding:16px;font-size:11px;">Runtime error: ' + err.message + '</pre>';
-        window.__SLIDE_ERROR__ = err.message;
+          '<pre style="color:red;padding:16px;font-size:11px;">Runtime error:\\n' + err.message + '</pre>';
+        window.__SLIDE_ERROR__ = 'Runtime error: ' + err.message;
         return;
       }
 
+      // --- Retrieve default export ---
       const SlideComponent =
         moduleObj.exports['default'] ||
         moduleObj.exports[Object.keys(moduleObj.exports)[0]];
@@ -170,6 +198,7 @@ function buildHtml(code: string, theme: ThemeInput): string {
         return;
       }
 
+      // --- Render ---
       const themeProps = {
         headingFont:      ${JSON.stringify(headingFont)},
         bodyFont:         ${JSON.stringify(bodyFont)},
@@ -180,10 +209,17 @@ function buildHtml(code: string, theme: ThemeInput): string {
         bodyFontSize:     ${bodyFontSize},
       };
 
-      const root = ReactDOM.createRoot(document.getElementById('root'));
-      root.render(React.createElement(SlideComponent, themeProps));
+      try {
+        const root = window.ReactDOM.createRoot(document.getElementById('root'));
+        root.render(window.React.createElement(SlideComponent, themeProps));
+      } catch (err) {
+        document.getElementById('root').innerHTML =
+          '<pre style="color:red;padding:16px;font-size:11px;">Render error:\\n' + err.message + '</pre>';
+        window.__SLIDE_ERROR__ = 'Render error: ' + err.message;
+        return;
+      }
 
-      // Signal readiness after paint + buffer for charts to settle
+      // Signal readiness after first paint + buffer for charts/fonts to settle
       requestAnimationFrame(() => {
         setTimeout(() => { window.__SLIDE_READY__ = true; }, 400);
       });
@@ -198,7 +234,8 @@ function buildHtml(code: string, theme: ThemeInput): string {
 // ---------------------------------------------------------------------------
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // CORS — set before ANY early returns or throws so 500s also include headers
+  // CORS — must be set before ANY early returns or throws
+  // so that even 500 error responses include the header
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -207,7 +244,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   // ---------------------------------------------------------------------------
-  // Parse + validate request body — all variables declared once here
+  // Parse + validate request — all variables declared exactly once
   // ---------------------------------------------------------------------------
   const {
     slides,
@@ -228,8 +265,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     theme,
     slides: slideArray.map(s => ({
       slideNumber: s.slideNumber,
-      codeLength: s.code?.length,
-      codePreview: s.code?.slice(0, 100),
+      codeLength:  s.code?.length,
+      codePreview: s.code?.slice(0, 120),
     })),
   }, null, 2));
 
@@ -238,7 +275,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   if (format === 'png' && slideArray.length > 1) {
-    return res.status(400).json({ error: 'PNG format only supports a single slide. Use format: "pdf" for multiple slides.' });
+    return res.status(400).json({
+      error: 'PNG format only supports a single slide. Use format: "pdf" for multiple slides.',
+    });
   }
 
   console.log(`[pdf] Rendering ${slideArray.length} slide(s) as ${format.toUpperCase()}...`);
@@ -246,9 +285,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let browser = null;
 
   try {
-    // ---------------------------------------------------------------------------
+    // -------------------------------------------------------------------------
     // Launch Playwright Chromium
-    // ---------------------------------------------------------------------------
+    // -------------------------------------------------------------------------
     let executablePath: string | undefined;
     let launchArgs: string[] = [
       '--no-sandbox',
@@ -291,14 +330,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       deviceScaleFactor: 2, // → effective 1920×1080 screenshots
     });
 
-    // ---------------------------------------------------------------------------
-    // Render each slide to a PNG screenshot buffer
-    // ---------------------------------------------------------------------------
+    // -------------------------------------------------------------------------
+    // Render each slide → PNG buffer
+    // -------------------------------------------------------------------------
     const slideBuffers: Buffer[] = [];
 
     for (let i = 0; i < slideArray.length; i++) {
       const slide = slideArray[i];
-      console.log(`[pdf] Rendering slide ${slide.slideNumber ?? i + 1}...`);
+      const slideLabel = slide.slideNumber ?? i + 1;
+      console.log(`[pdf] Rendering slide ${slideLabel}...`);
 
       const html = buildHtml(slide.code, theme);
       const page = await context.newPage();
@@ -306,35 +346,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // domcontentloaded is sufficient — no external network calls with inlined vendor
       await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
+      // Wait for slide to signal ready or error
       await page.waitForFunction(
-        '() => window.__SLIDE_READY__ === true || window.__SLIDE_ERROR__',
+        '() => window.__SLIDE_READY__ === true || typeof window.__SLIDE_ERROR__ === "string"',
         { timeout: 15000 }
       );
 
       const renderError = await page.evaluate(() => (window as any).__SLIDE_ERROR__);
       if (renderError) {
         await page.close();
-        throw new Error(`Slide ${slide.slideNumber ?? i + 1} render error: ${renderError}`);
+        throw new Error(`Slide ${slideLabel} render error: ${renderError}`);
       }
 
       const screenshotBuffer = await page.screenshot({
-        type: 'png',
-        clip: { x: 0, y: 0, width: 960, height: 540 },
+        type:  'png',
+        clip:  { x: 0, y: 0, width: 960, height: 540 },
         scale: 'device', // respects deviceScaleFactor → 1920×1080 PNG
       });
 
       slideBuffers.push(screenshotBuffer);
       await page.close();
 
-      console.log(`[pdf] Slide ${slide.slideNumber ?? i + 1} rendered (${(screenshotBuffer.length / 1024).toFixed(1)} KB)`);
+      console.log(`[pdf] Slide ${slideLabel} rendered (${(screenshotBuffer.length / 1024).toFixed(1)} KB)`);
     }
 
     await browser.close();
     browser = null;
 
-    // ---------------------------------------------------------------------------
+    // -------------------------------------------------------------------------
     // PNG mode — return screenshot directly
-    // ---------------------------------------------------------------------------
+    // -------------------------------------------------------------------------
     if (format === 'png') {
       res.setHeader('Content-Type', 'image/png');
       res.setHeader('Content-Disposition', 'attachment; filename="slide.png"');
@@ -342,10 +383,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).send(slideBuffers[0]);
     }
 
-    // ---------------------------------------------------------------------------
+    // -------------------------------------------------------------------------
     // PDF mode — embed PNGs into a pdf-lib document
-    // Page size: 960×540 pt (perfect 16:9 — 13.33" × 7.5")
-    // ---------------------------------------------------------------------------
+    // Page: 960×540 pt = perfect 16:9 (13.33" × 7.5")
+    // -------------------------------------------------------------------------
     const PAGE_WIDTH_PT  = 960;
     const PAGE_HEIGHT_PT = 540;
 
@@ -357,7 +398,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     for (let i = 0; i < slideBuffers.length; i++) {
       const pngImage = await pdfDoc.embedPng(slideBuffers[i]);
-      const page = pdfDoc.addPage([PAGE_WIDTH_PT, PAGE_HEIGHT_PT]);
+      const page     = pdfDoc.addPage([PAGE_WIDTH_PT, PAGE_HEIGHT_PT]);
       page.drawImage(pngImage, { x: 0, y: 0, width: PAGE_WIDTH_PT, height: PAGE_HEIGHT_PT });
       console.log(`[pdf] Embedded slide ${i + 1} into PDF`);
     }
@@ -366,16 +407,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const pdfBuffer = Buffer.from(pdfBytes);
 
     console.log(`[pdf] Output PDF:`, JSON.stringify({
-      pages: slideArray.length,
-      pdfSizeKb: (pdfBuffer.length / 1024).toFixed(1),
+      pages:          slideArray.length,
+      pdfSizeKb:      (pdfBuffer.length / 1024).toFixed(1),
       pageDimensions: `${PAGE_WIDTH_PT}x${PAGE_HEIGHT_PT}pt`,
       screenshotSizes: slideBuffers.map((b, idx) => ({
-        slide: idx + 1,
+        slide:  idx + 1,
         sizeKb: (b.length / 1024).toFixed(1),
       })),
     }));
-
-    console.log(`[pdf] Complete: ${pdfBuffer.length} bytes, ${slideArray.length} page(s)`);
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'attachment; filename="presentation.pdf"');
@@ -388,7 +427,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       try { await browser.close(); } catch { /* ignore */ }
     }
     return res.status(500).json({
-      error: error.message,
+      error:   error.message,
       details: error.stack,
     });
   }
