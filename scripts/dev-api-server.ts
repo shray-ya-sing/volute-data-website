@@ -36,6 +36,7 @@ let pollBatchesHandler: any;
 let searchHandler: any;
 let analyzeHandler: any;
 let generateSlideHandler: any;
+let pdfHandler: any;
 
 async function loadHandlers() {
   const extractModule = await import('../api/cron/extract-prospectus.js');
@@ -57,6 +58,9 @@ async function loadHandlers() {
   // Load the generate-slide handler
   const generateSlideModule = await import('../api/generate-slide.ts');
   generateSlideHandler = generateSlideModule.default;
+
+  const pdfModule = await import('../api/pdf.ts');
+  pdfHandler = pdfModule.default;
 }
 
 // Helper to send JSON response
@@ -400,7 +404,49 @@ const server = createServer((req, res) => {
         sendJSON(res, 500, { error: error.message });
       }
     });
-  } else {
+  } else if (pathname === '/api/pdf' && req.method === 'POST') {
+  let body = Buffer.alloc(0);
+  req.on('data', (chunk: Buffer) => { body = Buffer.concat([body, chunk]); });
+  req.on('end', async () => {
+    const mockReq: any = {
+      query: parsedUrl.query || {},
+      headers: req.headers,
+      method: req.method,
+      url: req.url,
+      body: body.length ? JSON.parse(body.toString()) : {},
+    };
+    const mockRes: any = {
+      statusCode: 200,
+      _headers: {} as Record<string, string>,
+      status: (code: number) => {
+        mockRes.statusCode = code;
+        return mockRes;
+      },
+      setHeader: (name: string, value: string) => {
+        mockRes._headers[name] = value;
+        res.setHeader(name, value);
+      },
+      json: (data: any) => {
+        sendJSON(res, mockRes.statusCode || 200, data);
+      },
+      // PDF/PNG responses come back as raw Buffers via res.send()
+      send: (data: Buffer) => {
+        res.writeHead(mockRes.statusCode || 200, mockRes._headers);
+        res.end(data);
+      },
+      end: () => {
+        res.end();
+      },
+    };
+    try {
+      await pdfHandler(mockReq, mockRes);
+    } catch (error: any) {
+      console.error('Error in pdf:', error);
+      sendJSON(res, 500, { error: error.message });
+    }
+  });   
+    }
+  else {
     sendJSON(res, 404, { error: 'Not found' });
   }
 });
@@ -421,6 +467,7 @@ loadHandlers().then(() => {
     console.log(`  GET http://localhost:${PORT}/api/search?q=query`);
     console.log(`  POST http://localhost:${PORT}/api/analyze`);
     console.log(`  POST http://localhost:${PORT}/api/generate-slide`);
+    console.log(`  POST http://localhost:${PORT}/api/pdf`);
     console.log();
     console.log('To test integration:');
     console.log('  1. Keep this server running');
