@@ -1,10 +1,51 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { chromium } from 'playwright-core';
+import fs from 'fs';
+import path from 'path';
 
 // Vercel timeout — PDF generation can take a few seconds per slide
 export const config = {
   maxDuration: 120,
 };
+
+// ---------------------------------------------------------------------------
+// Vendor bundles — read once at module load time from api/vendor/
+// Place the following files in api/vendor/ (download instructions in README):
+//   react.umd.js        → https://unpkg.com/react@18/umd/react.production.min.js
+//   react-dom.umd.js    → https://unpkg.com/react-dom@18/umd/react-dom.production.min.js
+//   recharts.umd.js     → https://unpkg.com/recharts@2.12.7/umd/Recharts.js
+//   lucide-react.umd.js → https://unpkg.com/lucide-react@0.263.1/dist/umd/lucide-react.min.js
+//   babel.min.js        → https://unpkg.com/@babel/standalone@7.24.0/babel.min.js
+// ---------------------------------------------------------------------------
+
+const VENDOR_DIR = path.join(__dirname, 'vendor');
+
+function readVendor(filename: string): string {
+  const filePath = path.join(VENDOR_DIR, filename);
+  if (!fs.existsSync(filePath)) {
+    throw new Error(
+      `[pdf] Missing vendor file: ${filePath}\n` +
+      `Run the following to download it:\n` +
+      `  curl -o api/vendor/${filename} <url>`
+    );
+  }
+  return fs.readFileSync(filePath, 'utf8');
+}
+
+// Loaded once when the module is first imported — not on every request
+const REACT_JS     = readVendor('react.umd.js');
+const REACT_DOM_JS = readVendor('react-dom.umd.js');
+const RECHARTS_JS  = readVendor('recharts.umd.js');
+const LUCIDE_JS    = readVendor('lucide-react.umd.js');
+const BABEL_JS     = readVendor('babel.min.js');
+
+console.log('[pdf] Vendor bundles loaded:', {
+  react:        `${(REACT_JS.length / 1024).toFixed(0)} KB`,
+  reactDom:     `${(REACT_DOM_JS.length / 1024).toFixed(0)} KB`,
+  recharts:     `${(RECHARTS_JS.length / 1024).toFixed(0)} KB`,
+  lucideReact:  `${(LUCIDE_JS.length / 1024).toFixed(0)} KB`,
+  babel:        `${(BABEL_JS.length / 1024).toFixed(0)} KB`,
+});
 
 // ---------------------------------------------------------------------------
 // Types
@@ -30,46 +71,18 @@ interface ThemeInput {
 }
 
 // ---------------------------------------------------------------------------
-// CDN registry — maps package names to CDN URL + window global
+// buildHtml — fully self-contained, no external network calls
 // ---------------------------------------------------------------------------
 
-const CDN_REGISTRY: Record<string, { url: (version: string) => string; global: string }> = {
-  'recharts':     { url: (v) => `https://unpkg.com/recharts@${v}/umd/Recharts.js`,                  global: 'Recharts' },
-  'lucide-react': { url: (v) => `https://unpkg.com/lucide-react@${v}/dist/umd/lucide-react.min.js`, global: 'LucideReact' },
-};
-
-// Fallback versions used when none are supplied by the caller
-const FALLBACK_VERSIONS: Record<string, string> = {
-  'recharts':     '2.12.7',
-  'lucide-react': '0.263.1',
-};
-
-function buildDependencyScripts(dependencies: Record<string, string>): string {
-  const merged = { ...FALLBACK_VERSIONS, ...dependencies };
-
-  return Object.entries(merged)
-    .filter(([pkg]) => CDN_REGISTRY[pkg])
-    .map(([pkg, version]) => {
-      const cleanVersion = version.replace(/^[\^~>=]+/, '');
-      const { url } = CDN_REGISTRY[pkg];
-      return `  <!-- ${pkg}@${cleanVersion} -->\n  <script crossorigin src="${url(cleanVersion)}"></script>`;
-    })
-    .join('\n');
-}
-
-// ---------------------------------------------------------------------------
-// buildHtml — self-contained HTML page that renders a slide component
-// ---------------------------------------------------------------------------
-
-function buildHtml(code: string, theme: ThemeInput, dependencies: Record<string, string> = {}): string {
+function buildHtml(code: string, theme: ThemeInput): string {
   const {
-    headingFont = 'Inter, sans-serif',
-    bodyFont = 'Inter, sans-serif',
-    accentColors = ['#667eea', '#764ba2'],
+    headingFont      = 'Inter, sans-serif',
+    bodyFont         = 'Inter, sans-serif',
+    accentColors     = ['#667eea', '#764ba2'],
     headingTextColor = '#000000',
-    bodyTextColor = '#333333',
-    headingFontSize = 36,
-    bodyFontSize = 14,
+    bodyTextColor    = '#333333',
+    headingFontSize  = 36,
+    bodyFontSize     = 14,
   } = theme;
 
   // Escape slide code for safe embedding inside a JS template literal
@@ -78,24 +91,11 @@ function buildHtml(code: string, theme: ThemeInput, dependencies: Record<string,
     .replace(/`/g, '\\`')
     .replace(/\$\{/g, '\\${');
 
-  // Build the dynamic require() registry from CDN_REGISTRY
-  const shimRegistry = JSON.stringify(
-    Object.fromEntries(
-      Object.entries(CDN_REGISTRY).map(([pkg, { global: g }]) => [pkg, g])
-    )
-  );
-
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Slide</title>
-
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet" />
-
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { width: 960px; height: 540px; overflow: hidden; background: #ffffff; }
@@ -105,43 +105,31 @@ function buildHtml(code: string, theme: ThemeInput, dependencies: Record<string,
 <body>
   <div id="root"></div>
 
-  <!-- React -->
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-
-  <!-- Dynamic dependencies -->
-  ${buildDependencyScripts(dependencies)}
-
-  <!-- Babel standalone for in-browser TSX transpilation -->
-  <script src="https://unpkg.com/@babel/standalone@7.24.0/babel.min.js"></script>
+  <!-- Inlined vendor bundles — no CDN/network calls needed -->
+  <script>${REACT_JS}</script>
+  <script>${REACT_DOM_JS}</script>
+  <script>${RECHARTS_JS}</script>
+  <script>${LUCIDE_JS}</script>
+  <script>${BABEL_JS}</script>
 
   <script>
-    // ---------------------------------------------------------------------------
-    // Module shim — maps import/require calls to CDN globals on window
-    // ---------------------------------------------------------------------------
+    // -------------------------------------------------------------------------
+    // Module shim — maps require() calls to window globals set by UMD bundles
+    // -------------------------------------------------------------------------
     window.__modules = {};
+    window.__modules['react']        = window.React;
+    window.__modules['react-dom']    = window.ReactDOM;
+    window.__modules['recharts']     = window.Recharts;
+    window.__modules['lucide-react'] = window.LucideReact || window.lucideReact || {};
 
-    // Register react and react-dom
-    window.__modules['react']     = window.React;
-    window.__modules['react-dom'] = window.ReactDOM;
-
-    // Register all CDN packages dynamically
-    const registry = ${shimRegistry};
-    for (const [pkg, globalName] of Object.entries(registry)) {
-      if (window[globalName]) {
-        window.__modules[pkg] = window[globalName];
-      }
-    }
-
-    // Minimal require() shim
     window.require = function(mod) {
       if (window.__modules[mod]) return window.__modules[mod];
       throw new Error('[pdf.ts] Unknown module: ' + mod);
     };
 
-    // ---------------------------------------------------------------------------
-    // Transpile + execute the slide code
-    // ---------------------------------------------------------------------------
+    // -------------------------------------------------------------------------
+    // Transpile + execute the slide code via Babel
+    // -------------------------------------------------------------------------
     (function() {
       const rawCode = \`${escapedCode}\`;
 
@@ -195,7 +183,7 @@ function buildHtml(code: string, theme: ThemeInput, dependencies: Record<string,
       const root = ReactDOM.createRoot(document.getElementById('root'));
       root.render(React.createElement(SlideComponent, themeProps));
 
-      // Signal readiness after paint + buffer for charts/fonts to settle
+      // Signal readiness after paint + buffer for charts to settle
       requestAnimationFrame(() => {
         setTimeout(() => { window.__SLIDE_READY__ = true; }, 400);
       });
@@ -218,13 +206,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   // ---------------------------------------------------------------------------
-  // Parse + validate request body — all variables declared once here
+  // Parse + validate request body
   // ---------------------------------------------------------------------------
   const {
     slides,
     theme = {} as ThemeInput,
     format = 'pdf',
-    dependencies = {} as Record<string, string>,
   } = req.body;
 
   if (!slides) {
@@ -238,7 +225,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   console.log(`[pdf] Received request:`, JSON.stringify({
     slideCount: slideArray.length,
     format,
-    dependencies,
     theme,
     slides: slideArray.map(s => ({
       slideNumber: s.slideNumber,
@@ -302,7 +288,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     const context = await browser.newContext({
       viewport: { width: 960, height: 540 },
-      deviceScaleFactor: 2, // 2× → effective 1920×1080 screenshots
+      deviceScaleFactor: 2, // → effective 1920×1080 screenshots
     });
 
     // ---------------------------------------------------------------------------
@@ -314,11 +300,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const slide = slideArray[i];
       console.log(`[pdf] Rendering slide ${slide.slideNumber ?? i + 1}...`);
 
-      const html = buildHtml(slide.code, theme, dependencies);
+      const html = buildHtml(slide.code, theme);
       const page = await context.newPage();
 
-      await page.setContent(html, { waitUntil: 'networkidle', timeout: 30000 });
+      // No external network calls → domcontentloaded is sufficient and faster
+      await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
+      // Wait for slide component to signal it's ready (or fail)
       await page.waitForFunction(
         '() => window.__SLIDE_READY__ === true || window.__SLIDE_ERROR__',
         { timeout: 15000 }
@@ -357,7 +345,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // ---------------------------------------------------------------------------
     // PDF mode — embed PNGs into a pdf-lib document
-    // Page size: 960×540 pt (perfect 16:9 at 13.33" × 7.5")
+    // Page size: 960×540 pt (perfect 16:9 — 13.33" × 7.5")
     // ---------------------------------------------------------------------------
     const PAGE_WIDTH_PT  = 960;
     const PAGE_HEIGHT_PT = 540;
