@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import http from 'http';
+import https from 'https';
 
 // ---------------------------------------------------------------------------
 // Full slide code from logs
@@ -515,9 +516,9 @@ const payload = JSON.stringify({
   format: 'pdf',
 });
 
-const options: http.RequestOptions = {
-  hostname: 'localhost',
-  port: 3001,
+const options: https.RequestOptions = {
+  hostname: 'www.getvolute.com',
+  port: 443,
   path: '/api/pdf',
   method: 'POST',
   headers: {
@@ -526,10 +527,10 @@ const options: http.RequestOptions = {
   },
 };
 
-console.log('[test] Sending slide to http://localhost:3001/api/pdf ...');
+console.log('[test] Sending slide to https://www.getvolute.com/api/pdf ...');
 console.log('[test] Payload size:', (Buffer.byteLength(payload) / 1024).toFixed(1), 'KB');
 
-const req = http.request(options, (res) => {
+const req = https.request(options, (res) => {
   console.log('[test] HTTP status:', res.statusCode);
   console.log('[test] Content-Type:', res.headers['content-type']);
 
@@ -542,7 +543,7 @@ const req = http.request(options, (res) => {
     const contentType = res.headers['content-type'] || '';
 
     if (res.statusCode === 200 && contentType.includes('application/pdf')) {
-      const outputPath = path.resolve('./slide-output.pdf');
+      const outputPath = path.resolve('./slide-output2.pdf');
       fs.writeFileSync(outputPath, body);
       console.log(`[test] ✅ PDF saved to: ${outputPath}`);
       console.log(`[test] PDF size: ${(body.length / 1024).toFixed(1)} KB`);
@@ -562,7 +563,7 @@ const req = http.request(options, (res) => {
 req.on('error', (err) => {
   console.error('[test] ❌ Request failed:', err.message);
   if ((err as any).code === 'ECONNREFUSED') {
-    console.error('[test] Is your server running on localhost:3001?');
+    console.error('[test] Is your server running on getvolute.com?');
   }
   process.exit(1);
 });
