@@ -33,6 +33,34 @@ interface ThemeInput {
 // Helpers
 // ---------------------------------------------------------------------------
 
+
+// Maps package names to their CDN URL pattern and window global name
+const CDN_REGISTRY: Record<string, { url: (version: string) => string; global: string }> = {
+  'recharts':     { url: (v) => `https://unpkg.com/recharts@${v}/umd/Recharts.js`,                    global: 'Recharts' },
+  'lucide-react': { url: (v) => `https://unpkg.com/lucide-react@${v}/dist/umd/lucide-react.min.js`,   global: 'LucideReact' },
+};
+
+// Fallback versions if none supplied
+const FALLBACK_VERSIONS: Record<string, string> = {
+  'recharts':     '2.12.7',
+  'lucide-react': '0.263.1',
+};
+
+function buildDependencyScripts(dependencies: Record<string, string>): string {
+  // Always merge with fallbacks so base libs are always present
+  const merged = { ...FALLBACK_VERSIONS, ...dependencies };
+
+  return Object.entries(merged)
+    .filter(([pkg]) => CDN_REGISTRY[pkg]) // skip unknown packages
+    .map(([pkg, version]) => {
+      // Strip semver prefix chars e.g. "^2.15.2" → "2.15.2"
+      const cleanVersion = version.replace(/^[\^~>=]+/, '');
+      const { url } = CDN_REGISTRY[pkg];
+      return `  <!-- ${pkg}@${cleanVersion} -->\n  <script crossorigin src="${url(cleanVersion)}"></script>`;
+    })
+    .join('\n');
+}
+
 /**
  * Build a self-contained HTML page that:
  * 1. Loads React, ReactDOM, Recharts, and Lucide via CDN (no bundler needed)
@@ -40,7 +68,7 @@ interface ThemeInput {
  * 3. Renders the slide component into a fixed 960×540 container
  * 4. Signals readiness via window.__SLIDE_READY__ so Playwright knows when to screenshot
  */
-function buildHtml(code: string, theme: ThemeInput): string {
+function buildHtml(code: string, theme: ThemeInput, dependencies: Record<string, string> = {}): string {
   const {
     headingFont = 'Inter, sans-serif',
     bodyFont = 'Inter, sans-serif',
@@ -94,11 +122,7 @@ function buildHtml(code: string, theme: ThemeInput): string {
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 
-  <!-- Recharts (depends on React) -->
-  <script crossorigin src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
-
-  <!-- Lucide React UMD build -->
-  <script crossorigin src="https://unpkg.com/lucide-react@0.263.1/dist/umd/lucide-react.min.js"></script>
+  ${buildDependencyScripts(dependencies)}
 
   <!-- Babel standalone for in-browser TSX transpilation -->
   <script src="https://unpkg.com/@babel/standalone@7.24.0/babel.min.js"></script>
@@ -108,10 +132,19 @@ function buildHtml(code: string, theme: ThemeInput): string {
     // Shim module system so the generated slide code's import/export statements
     // work inside the browser without a bundler.
     // ---------------------------------------------------------------------------
-    window.__modules = {};
 
-    // Expose react and react-dom
-    window.__modules['react'] = window.React;
+    // Dynamically register all known CDN globals into require() shim
+    const registry = ${JSON.stringify(
+      Object.fromEntries(
+        Object.entries(CDN_REGISTRY).map(([pkg, { global: g }]) => [pkg, g])
+      )
+    )};
+    for (const [pkg, globalName] of Object.entries(registry)) {
+      if (window[globalName]) {
+        window.__modules[pkg] = window[globalName];
+      }
+    }
+    window.__modules['react']     = window.React;
     window.__modules['react-dom'] = window.ReactDOM;
 
     // Expose recharts under its expected import path
@@ -310,7 +343,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const slide = slideArray[i];
       console.log(`[pdf] Rendering slide ${slide.slideNumber ?? i + 1}...`);
 
-      const html = buildHtml(slide.code, theme);
+      // Read dependencies from request body
+      const { slides, theme = {}, format = 'pdf', dependencies = {} } = req.body;
+
+      // ...and pass to buildHtml:
+      const html = buildHtml(slide.code, theme, dependencies);
+
       const page = await context.newPage();
 
       // Set content and wait for network idle (fonts, CDN scripts)
