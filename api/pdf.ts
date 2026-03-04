@@ -346,6 +346,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Read dependencies from request body
       const { slides, theme = {}, format = 'pdf', dependencies = {} } = req.body;
 
+      // Log received payload
+      const slideArray: SlideInput[] = (Array.isArray(slides) ? slides : [slides])
+        .sort((a, b) => (a.slideNumber ?? 0) - (b.slideNumber ?? 0));
+
+      console.log(`[pdf] Received request:`, JSON.stringify({
+        slideCount: slideArray.length,
+        format,
+        dependencies,
+        theme,
+        slides: slideArray.map(s => ({
+          slideNumber: s.slideNumber,
+          codeLength: s.code?.length,
+          codePreview: s.code?.slice(0, 100),
+        })),
+      }, null, 2));
+
       // ...and pass to buildHtml:
       const html = buildHtml(slide.code, theme, dependencies);
 
@@ -435,7 +451,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const pdfBytes = await pdfDoc.save();
     const pdfBuffer = Buffer.from(pdfBytes);
 
+    // ------------------------------------------------------------------
+    // Debugging
+    // ------------------------------------------------------------------
+
+    console.log(`[pdf] Output PDF:`, JSON.stringify({
+      pages: slideArray.length,
+      pdfSizeKb: (pdfBuffer.length / 1024).toFixed(1),
+      pageDimensions: `${PAGE_WIDTH_PT}x${PAGE_HEIGHT_PT}pt`,
+      screenshotSizes: slideBuffers.map((b, i) => ({
+        slide: i + 1,
+        sizeKb: (b.length / 1024).toFixed(1),
+      })),
+    }));
+
     console.log(`[pdf] PDF complete: ${pdfBuffer.length} bytes, ${slideArray.length} page(s)`);
+
+    // ------------------------------------------------------------------
+    // Response
+    // ------------------------------------------------------------------
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'attachment; filename="presentation.pdf"');
