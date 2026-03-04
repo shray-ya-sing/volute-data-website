@@ -4,6 +4,9 @@ import { randomUUID } from 'crypto';
 import * as http from 'http';
 import * as https from 'https';
 
+// Import the slide generation handler directly — no HTTP call needed
+import generateSlideHandler from './generate-slide.js';
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -34,6 +37,24 @@ interface SearchResultItem {
 
 interface SearchApiResponse {
   results?: SearchResultItem[];
+}
+
+interface SlideTheme {
+  headingFont?: string;
+  bodyFont?: string;
+  accentColors?: string[];
+  headingTextColor?: string;
+  bodyTextColor?: string;
+  headingFontSize?: number;
+  bodyFontSize?: number;
+}
+
+interface CreateOrEditSlideInput {
+  prompt: string;
+  slideNumber?: number;
+  context?: string;
+  theme?: SlideTheme;
+  existingCode?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -91,11 +112,10 @@ function sendSSE(res: VercelResponse, payload: Record<string, unknown>): void {
 }
 
 // ---------------------------------------------------------------------------
-// Search URL — local in dev, relative internal in prod (Vercel)
+// Search URL — local in dev, production domain in Vercel
 // ---------------------------------------------------------------------------
 
 function getSearchUrl(): { protocol: 'http' | 'https'; hostname: string; port: number | null; path: string } {
-  // Explicit env var always wins
   if (process.env.SEARCH_API_URL) {
     const u = new URL(process.env.SEARCH_API_URL);
     return {
@@ -106,9 +126,6 @@ function getSearchUrl(): { protocol: 'http' | 'https'; hostname: string; port: n
     };
   }
 
-  // In Vercel, call the search endpoint on the same deployment internally.
-  // VERCEL_URL points to preview deployments which may have auth enabled,
-  // so we use the production domain instead.
   if (process.env.VERCEL) {
     return {
       protocol: 'https',
@@ -118,7 +135,6 @@ function getSearchUrl(): { protocol: 'http' | 'https'; hostname: string; port: n
     };
   }
 
-  // Local development
   return {
     protocol: 'http',
     hostname: 'localhost',
@@ -127,9 +143,8 @@ function getSearchUrl(): { protocol: 'http' | 'https'; hostname: string; port: n
   };
 }
 
-
 // ---------------------------------------------------------------------------
-// Vector search tool — uses http/https module to avoid Node fetch bugs
+// Vector search tool
 // ---------------------------------------------------------------------------
 
 async function vectorSearch(query: string): Promise<string> {
@@ -164,11 +179,9 @@ async function vectorSearch(query: string): Promise<string> {
     const req = transport.request(requestOptions, (httpRes) => {
       const status = httpRes.statusCode ?? 0;
 
-      // Handle redirects (301, 302, 307, 308)
       if ([301, 302, 307, 308].includes(status)) {
         const location = httpRes.headers['location'];
-        httpRes.resume(); // drain response body
-
+        httpRes.resume();
         console.log(`[agent] 🔍 ${status} redirect → ${location}`);
 
         if (!location) {
@@ -176,13 +189,10 @@ async function vectorSearch(query: string): Promise<string> {
           return;
         }
 
-        // Follow the redirect with a fresh request
-        followRedirect(location, bodyStr, byteLen, t0, query, 0)
-          .then(resolve);
+        followRedirect(location, bodyStr, byteLen, t0, query, 0).then(resolve);
         return;
       }
 
-      // Normal response
       let data = '';
       httpRes.setEncoding('utf8');
       httpRes.on('data', (chunk) => { data += chunk; });
@@ -207,7 +217,7 @@ async function vectorSearch(query: string): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
-// Redirect follower (max 5 hops)
+// Redirect follower
 // ---------------------------------------------------------------------------
 
 function followRedirect(
@@ -229,7 +239,6 @@ function followRedirect(
     try {
       targetUrl = new URL(location);
     } catch {
-      // Relative path redirect
       targetUrl = new URL(location, `https://www.getvolute.com`);
     }
 
@@ -257,7 +266,6 @@ function followRedirect(
         if ([301, 302, 307, 308].includes(status)) {
           const nextLocation = httpRes.headers['location'];
           httpRes.resume();
-
           console.log(`[agent] 🔍 ${status} redirect → ${nextLocation}`);
 
           if (!nextLocation) {
@@ -265,8 +273,7 @@ function followRedirect(
             return;
           }
 
-          followRedirect(nextLocation, bodyStr, byteLen, t0, query, depth + 1)
-            .then(resolve);
+          followRedirect(nextLocation, bodyStr, byteLen, t0, query, depth + 1).then(resolve);
           return;
         }
 
@@ -290,7 +297,7 @@ function followRedirect(
 }
 
 // ---------------------------------------------------------------------------
-// Parse the search API JSON response into a formatted string
+// Parse search API JSON response
 // ---------------------------------------------------------------------------
 
 function parseSearchResponse(
@@ -355,6 +362,95 @@ function parseSearchResponse(
 }
 
 // ---------------------------------------------------------------------------
+// Slide generation/editing — calls generate-slide handler directly
+// ---------------------------------------------------------------------------
+
+async function createOrEditSlide(input: CreateOrEditSlideInput): Promise<string> {
+  const isEdit = !!input.existingCode;
+  const action = isEdit ? 'editing' : 'creating';
+
+  console.log(
+    `[agent] 🎨 createOrEditSlide (${action}) → prompt: "${input.prompt.slice(0, 80)}..." | ` +
+    `slide: ${input.slideNumber ?? 1}`,
+  );
+  const t0 = Date.now();
+
+  // When editing, prepend the existing code to the prompt so the slide
+  // generator sees it as context and produces a modified version
+  let fullPrompt = input.prompt;
+  if (isEdit && input.existingCode) {
+    fullPrompt =
+      `EDIT THE FOLLOWING EXISTING SLIDE CODE. Apply the requested changes while preserving ` +
+      `the overall structure, layout approach, and data that should remain unchanged. ` +
+      `Return the COMPLETE updated component — do not return a partial diff.\n\n` +
+      `## Existing slide code:\n\`\`\`tsx\n${input.existingCode}\n\`\`\`\n\n` +
+      `## Requested changes:\n${input.prompt}`;
+  }
+
+  return new Promise((resolve) => {
+    const mockReq = {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: {
+        prompt: fullPrompt,
+        slideNumber: input.slideNumber ?? 1,
+        context: input.context ?? '',
+        theme: input.theme ?? {},
+        images: [],
+      },
+    } as any;
+
+    const mockRes = {
+      statusCode: 200,
+      _headers: {} as Record<string, string>,
+
+      setHeader(name: string, value: string) {
+        this._headers[name] = value;
+        return this;
+      },
+
+      status(code: number) {
+        this.statusCode = code;
+        return this;
+      },
+
+      json(data: any) {
+        const elapsed = Date.now() - t0;
+
+        if (this.statusCode !== 200 || data.error) {
+          console.error(
+            `[agent] 🎨 createOrEditSlide failed (${this.statusCode}) in ${elapsed}ms: ` +
+            `${data.error ?? 'unknown error'}`,
+          );
+          resolve(`Error ${action} slide: ${data.error ?? 'Unknown error'}`);
+          return;
+        }
+
+        console.log(
+          `[agent] 🎨 createOrEditSlide ← ${data.code?.length ?? 0} chars in ${elapsed}ms | ` +
+          `tokens: ${data.usage?.input_tokens ?? '?'}in / ${data.usage?.output_tokens ?? '?'}out`,
+        );
+
+        resolve(JSON.stringify({
+          success: true,
+          action: isEdit ? 'edited' : 'created',
+          code: data.code,
+          slideNumber: data.slideNumber,
+          codeLength: data.code?.length ?? 0,
+        }));
+      },
+
+      end() {},
+    } as any;
+
+    generateSlideHandler(mockReq, mockRes).catch((err: any) => {
+      console.error(`[agent] 🎨 createOrEditSlide exception: ${err.message}`);
+      resolve(`Error ${action} slide: ${err.message}`);
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Tool definitions
 // ---------------------------------------------------------------------------
 
@@ -380,6 +476,62 @@ const tools: Anthropic.Tool[] = [
       required: ['query'],
     },
   },
+  {
+    name: 'create_or_edit_slide',
+    description:
+      'Create a new presentation slide or edit an existing one. Generates a React/TypeScript ' +
+      'component rendered at 960x540px (16:9). Supports charts (recharts: BarChart, LineChart, ' +
+      'PieChart, AreaChart), tables, icons (lucide-react), and rich layouts.\n\n' +
+      'FOR CREATING: Provide a detailed prompt with all data points, numbers, and layout preferences.\n\n' +
+      'FOR EDITING: Provide the existing slide code in existingCode and describe the changes ' +
+      'you want in the prompt. The tool returns the complete updated component.\n\n' +
+      'CRITICAL: The slide generator has NO access to conversation history or search results. ' +
+      'You MUST include ALL data (every number, label, metric, company name) directly in the prompt.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        prompt: {
+          type: 'string',
+          description:
+            'For NEW slides: Detailed instructions including ALL data points, numbers, labels, ' +
+            'and layout preferences (chart type, column layout, table structure, etc.).\n' +
+            'For EDITING: Description of what to change (e.g. "change the bar chart to a line chart", ' +
+            '"update the revenue figure to $2.4B", "add a footer with the source URL", ' +
+            '"change accent color to blue", "make the title font larger").',
+        },
+        slideNumber: {
+          type: 'number',
+          description: 'Slide number in the deck (default: 1). Affects the component export name.',
+        },
+        context: {
+          type: 'string',
+          description:
+            'Optional context about the overall presentation or prior slides for visual/narrative consistency.',
+        },
+        theme: {
+          type: 'object',
+          description: 'Optional theme overrides. If omitted, defaults are used.',
+          properties: {
+            headingFont:      { type: 'string', description: 'Font family for headings (e.g. "Inter, sans-serif")' },
+            bodyFont:         { type: 'string', description: 'Font family for body text' },
+            accentColors:     { type: 'array', items: { type: 'string' }, description: 'Array of hex colors for accents' },
+            headingTextColor: { type: 'string', description: 'Hex color for heading text' },
+            bodyTextColor:    { type: 'string', description: 'Hex color for body text' },
+            headingFontSize:  { type: 'number', description: 'Base heading font size in px' },
+            bodyFontSize:     { type: 'number', description: 'Base body font size in px' },
+          },
+        },
+        existingCode: {
+          type: 'string',
+          description:
+            'The FULL existing React/TypeScript component code to edit. ' +
+            'When provided, the tool modifies this code based on the prompt instructions ' +
+            'and returns the complete updated component. Omit this field to create a new slide.',
+        },
+      },
+      required: ['prompt'],
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -388,11 +540,16 @@ const tools: Anthropic.Tool[] = [
 
 interface ToolInput {
   query?: string;
+  prompt?: string;
+  slideNumber?: number;
+  context?: string;
+  theme?: SlideTheme;
+  existingCode?: string;
   [key: string]: unknown;
 }
 
 async function executeTool(name: string, input: ToolInput): Promise<string> {
-  console.log(`[agent] ⚙️  executeTool: ${name}`, JSON.stringify(input));
+  console.log(`[agent] ⚙️  executeTool: ${name}`, JSON.stringify(input).slice(0, 200));
 
   switch (name) {
     case 'vector_search': {
@@ -401,8 +558,22 @@ async function executeTool(name: string, input: ToolInput): Promise<string> {
       }
       return vectorSearch(input.query);
     }
+
+    case 'create_or_edit_slide': {
+      if (!input.prompt || typeof input.prompt !== 'string') {
+        return 'Error: create_or_edit_slide requires a "prompt" string parameter.';
+      }
+      return createOrEditSlide({
+        prompt: input.prompt,
+        slideNumber: input.slideNumber,
+        context: input.context,
+        theme: input.theme,
+        existingCode: input.existingCode,
+      });
+    }
+
     default: {
-      console.warn(`[agent] ⚠️  Unknown tool requested: ${name}`);
+      console.warn(`[agent] ⚠️  Unknown tool: ${name}`);
       return `Unknown tool: ${name}`;
     }
   }
@@ -417,6 +588,7 @@ const SYSTEM_PROMPT = `You are Volute's master financial analyst agent. Volute i
 ## Your responsibilities
 - Understand and interpret financial data, metrics, and documents shared by the user
 - Use the vector_search tool to retrieve relevant data from the Volute database before answering analytical questions
+- Use the create_or_edit_slide tool to create new slides or modify existing ones when the user requests visual deliverables
 - Help the user plan and create high-quality financial deliverables
 - Ask clarifying questions when the user's intent is ambiguous
 - Maintain context across a multi-turn conversation
@@ -426,6 +598,30 @@ const SYSTEM_PROMPT = `You are Volute's master financial analyst agent. Volute i
 - Run multiple searches with varied queries to triangulate complete information
 - Synthesise results across multiple searches before responding
 - Reference source titles or URLs when citing data so the user can verify
+
+## How to use create_or_edit_slide
+
+### Creating new slides
+- Use this when the user asks for a slide, chart, visual, or presentation component
+- CRITICAL: The slide generator has NO access to our conversation or search results. You MUST include ALL data directly in the prompt — every number, label, metric, company name, and data point
+- First gather data via vector_search, then pass a comprehensive prompt to create_or_edit_slide with all the data embedded in the prompt text
+- Specify layout preferences: chart types (bar, line, area, pie), table structures, column layouts
+- You can generate multiple slides by calling the tool multiple times with different slideNumber values
+
+### Editing existing slides
+- When the user wants to modify a slide that was already generated, use the existingCode parameter
+- Pass the COMPLETE existing component code in existingCode
+- In the prompt, describe ONLY the changes to make — be specific: "change the bar chart to a line chart", "update revenue to $2.4B", "add a row to the table for EBITDA margin", "make heading font larger", "change accent color to navy blue"
+- The tool returns the complete updated component with changes applied
+- For minor tweaks (color, font, single value), keep the edit prompt focused and concise
+- For major restructuring (different layout, different chart type, add/remove sections), provide more detailed instructions
+
+### Workflow for data-driven slides
+1. Use vector_search to gather relevant financial data
+2. Synthesise the key data points you want to visualise
+3. Call create_or_edit_slide with a detailed prompt that includes ALL the data
+4. Describe the result to the user and ask if they want modifications
+5. If they request changes, call create_or_edit_slide again with existingCode set to the previously generated code and the edit instructions in the prompt
 
 ## Tone and style
 Professional, concise, and analytical. Lead with the most important insight. Avoid filler phrases. Prioritise accuracy — if data is unavailable, say so clearly rather than speculating.
@@ -536,6 +732,49 @@ async function runStreamingAgentLoop(
             `[agent] 🛠  ${toolUse.name} completed in ${Date.now() - t1}ms | ` +
             `result length: ${result.length} chars`,
           );
+
+          // Slide tool: emit dedicated SSE event so frontend can render immediately
+          // Emit full code to frontend, but give agent a summary
+          if (toolUse.name === 'create_or_edit_slide') {
+            try {
+              const parsed = JSON.parse(result);
+              if (parsed.success && parsed.code) {
+                // Send full code to frontend via SSE
+                sendSSE(res, {
+                  type: 'slide_generated',
+                  action: parsed.action ?? 'created',
+                  code: parsed.code,
+                  slideNumber: parsed.slideNumber ?? 1,
+                });
+
+                // Return a compact summary to the agent instead of the full
+                // code so we don't bloat the conversation context window.
+                // The agent doesn't need the code — it only needs to know
+                // the slide was created/edited successfully.
+                const summary = JSON.stringify({
+                  success: true,
+                  action: parsed.action,
+                  slideNumber: parsed.slideNumber,
+                  codeLength: parsed.codeLength,
+                  message: `Slide ${parsed.slideNumber} ${parsed.action} successfully (${parsed.codeLength} chars). The code has been sent to the user's browser for rendering.`,
+                });
+
+                sendSSE(res, {
+                  type: 'tool_result',
+                  name: toolUse.name,
+                  preview: `Slide ${parsed.action} (${parsed.codeLength} chars)`,
+                });
+
+                return {
+                  type: 'tool_result' as const,
+                  tool_use_id: toolUse.id,
+                  content: summary,  // ~200 tokens instead of ~20,000
+                };
+              }
+            } catch {
+              // Not JSON — tool returned an error string, fall through
+            }
+          }
 
           sendSSE(res, {
             type: 'tool_result',
