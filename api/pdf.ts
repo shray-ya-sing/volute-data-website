@@ -435,11 +435,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const html = buildHtml(slide.code, theme);
 
-      // DEBUG: Write the generated HTML to disk so you can open it in a browser
-      const debugPath = path.join(__dirname, `debug-slide-${slideLabel}.html`);
-      fs.writeFileSync(debugPath, html, 'utf8');
-      console.log(`[pdf] Debug HTML written to: ${debugPath}`);
-
       const page = await context.newPage();
 
       // Listen for console messages from the page for debugging
