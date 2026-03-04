@@ -9,7 +9,10 @@
     }
   ],
   "functions": {
-    "api/pdf.ts": { "memory": 1024, "maxDuration": 120 }
+    "api/pdf.ts": {
+      "memory": 1024,
+      "maxDuration": 120
+    }
   },
   "crons": [
     {
