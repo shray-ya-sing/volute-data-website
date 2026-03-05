@@ -280,7 +280,8 @@ Pixel-to-EMU conversion: multiply every px value by 9525 (= 914400 / 96).
 6. Chart elements have at least one series with at least one point.
 7. Table elements: column count = cell count in every row.
 8. Root object has exactly one "slide" key.
-9. No JSON syntax errors — all strings quoted, no trailing commas.`;
+9. No JSON syntax errors — all strings quoted, no trailing commas.
+Your prior assistant message has the opening json bracket, so continue the json from there. Don't output your reasoning, json output only`;
 
   try {
     const stream = await anthropic.messages.stream({
@@ -299,6 +300,10 @@ Pixel-to-EMU conversion: multiply every px value by 9525 (= 914400 / 96).
           role: 'user',
           content: `Convert this slide component to JSON:\n\n${code}`,
         },
+        {
+          role: 'assistant',
+          content: '{',  // ← prefill forces the model to start mid-JSON
+        }
       ],
     });
 
@@ -311,7 +316,7 @@ Pixel-to-EMU conversion: multiply every px value by 9525 (= 914400 / 96).
       .trim();
 
     // Strip markdown fences if the model added them despite instructions
-    let jsonText = responseText;
+    let jsonText = '{' + responseText;
     const fenceMatch = jsonText.match(/```(?:json)?\n?([\s\S]*?)```/);
     if (fenceMatch) {
       jsonText = fenceMatch[1].trim();

@@ -10,7 +10,8 @@ interface CanvasViewProps {
 }
 
 export function CanvasView({ onCitationClick }: CanvasViewProps) {
-  const [isExporting, setIsExporting] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [isExportingPptx, setIsExportingPptx] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [isEditingName, setIsEditingName] = useState(false);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
@@ -40,7 +41,7 @@ export function CanvasView({ onCitationClick }: CanvasViewProps) {
 
   const handleExportPDF = useCallback(async () => {
     if (slides.length === 0) return;
-    setIsExporting(true);
+    setIsExportingPdf(true);
     setExportError(null);
 
     const payload = {
@@ -97,13 +98,13 @@ export function CanvasView({ onCitationClick }: CanvasViewProps) {
       console.error("[CanvasView] PDF export failed:", err);
       setExportError(err.message || "Network error — could not reach PDF server");
     } finally {
-      setIsExporting(false);
+      setIsExportingPdf(false);
     }
   }, [slides, theme, presentationName]);
 
 const handleExportPptx = useCallback(async () => {
     if (slides.length === 0) return;
-    setIsExporting(true);
+    setIsExportingPptx(true);
     setExportError(null);
 
     try {
@@ -185,7 +186,7 @@ const handleExportPptx = useCallback(async () => {
       console.error("[CanvasView] Pptx export failed:", err);
       setExportError(err.message || "Network error during Pptx export");
     } finally {
-      setIsExporting(false);
+      setIsExportingPptx(false);
     }
   }, [slides, presentationName]);
 
@@ -232,10 +233,10 @@ const handleExportPptx = useCallback(async () => {
           )}
           <button
             onClick={handleExportPptx}
-            disabled={isExporting || slides.length === 0}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${ slides.length === 0 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : isExporting ? 'bg-blue-400 text-white cursor-wait' : 'bg-blue-600 text-white hover:bg-blue-700' } bg-[#000000]`}
+            disabled={isExportingPptx || slides.length === 0}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${ slides.length === 0 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : isExportingPptx ? 'bg-blue-400 text-white cursor-wait' : 'bg-blue-600 text-white hover:bg-blue-700' } bg-[#000000]`}
           >
-            {isExporting ? (
+            {isExportingPptx ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
               <>
@@ -246,10 +247,10 @@ const handleExportPptx = useCallback(async () => {
           </button>
           <button
             onClick={handleExportPDF}
-            disabled={isExporting || slides.length === 0}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${ slides.length === 0 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : isExporting ? 'bg-blue-400 text-white cursor-wait' : 'bg-blue-600 text-white hover:bg-blue-700' } bg-[#000000]`}
+            disabled={isExportingPdf || slides.length === 0}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${ slides.length === 0 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : isExportingPdf ? 'bg-blue-400 text-white cursor-wait' : 'bg-blue-600 text-white hover:bg-blue-700' } bg-[#000000]`}
           >
-            {isExporting ? (
+            {isExportingPdf ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
               <>
