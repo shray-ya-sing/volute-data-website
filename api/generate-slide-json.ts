@@ -285,7 +285,7 @@ Your prior assistant message has the opening json bracket, so continue the json 
 
   try {
     const stream = await anthropic.messages.stream({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-sonnet-4-5',
       max_tokens: 16000,
       temperature: 0,  // Deterministic — we want exact schema compliance, not creativity
       system: [
