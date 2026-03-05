@@ -101,6 +101,97 @@ export function CanvasView({ onCitationClick }: CanvasViewProps) {
     }
   }, [slides, theme, presentationName]);
 
+const handleExportPptx = useCallback(async () => {
+    if (slides.length === 0) return;
+    setIsExporting(true);
+    setExportError(null);
+
+    try {
+      // ── Step 1: Convert each slide's TSX code to slide JSON in parallel ──
+      console.log(`[CanvasView] Converting ${slides.length} slide(s) to JSON…`);
+
+      const jsonResults = await Promise.all(
+        slides.map(async (slide) => {
+          const res = await fetch("https://www.getvolute.com/api/generate-slide-json", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code: slide.code, slideNumber: slide.slideNumber }),
+          });
+
+          if (!res.ok) {
+            const errBody = await res.json().catch(() => ({}));
+            throw new Error(
+              `Slide ${slide.slideNumber} JSON conversion failed: ${errBody.error || res.status}`
+            );
+          }
+
+          const { slideNumber, slideJson } = await res.json();
+          console.log(`[CanvasView] Slide ${slideNumber} JSON ready`);
+          return { slideNumber, slideJson };
+        })
+      );
+
+      // Sort by slideNumber to guarantee correct order regardless of Promise resolution order
+      jsonResults.sort((a, b) => a.slideNumber - b.slideNumber);
+      const slideJsonArray = jsonResults.map((r) => r.slideJson);
+
+      console.log(`[CanvasView] All ${slideJsonArray.length} slide(s) converted. Sending to export endpoint…`, {
+        payloadSize: `${(new Blob([JSON.stringify(slideJsonArray)]).size / 1024).toFixed(1)} KB`,
+      });
+
+      // ── Step 2: Send the JSON array to the C# export endpoint ──
+      const exportPayload = {
+        presentationName,
+        slideJsonArray,
+      };
+
+      const exportRes = await fetch("https://doclayer.onrender.com/api/Presentation/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(exportPayload),
+      });
+
+      const contentType = exportRes.headers.get("content-type") || "";
+
+      if (
+        exportRes.ok &&
+        (contentType.includes("application/vnd.openxmlformats-officedocument.presentationml") ||
+          contentType.includes("application/octet-stream"))
+      ) {
+        const blob = await exportRes.blob();
+        console.log(`[CanvasView] Pptx received: ${(blob.size / 1024).toFixed(1)} KB`);
+
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${presentationName.replace(/[^a-zA-Z0-9\s-_]/g, "").trim() || "presentation"}.pptx`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } else {
+        let errorMsg = `Export server returned ${exportRes.status}`;
+        try {
+          const errBody = await exportRes.json();
+          errorMsg = errBody.error || errBody.message || errorMsg;
+          console.error("[CanvasView] Pptx export error:", errBody);
+        } catch {
+          const text = await exportRes.text();
+          console.error("[CanvasView] Pptx export raw error:", text.slice(0, 500));
+        }
+        setExportError(errorMsg);
+      }
+    } catch (err: any) {
+      console.error("[CanvasView] Pptx export failed:", err);
+      setExportError(err.message || "Network error during Pptx export");
+    } finally {
+      setIsExporting(false);
+    }
+  }, [slides, presentationName]);
+
+
+
+
   return (
     <div className="flex-1 flex flex-col">
       {/* Header */}
@@ -139,6 +230,20 @@ export function CanvasView({ onCitationClick }: CanvasViewProps) {
               Error exporting, please try again
             </span>
           )}
+          <button
+            onClick={handleExportPptx}
+            disabled={isExporting || slides.length === 0}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${ slides.length === 0 ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : isExporting ? 'bg-blue-400 text-white cursor-wait' : 'bg-blue-600 text-white hover:bg-blue-700' } bg-[#000000]`}
+          >
+            {isExporting ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <>
+                <Download className="w-4 h-4" />
+                <span className="text-sm">Export to Pptx</span>
+              </>
+            )}
+          </button>
           <button
             onClick={handleExportPDF}
             disabled={isExporting || slides.length === 0}
