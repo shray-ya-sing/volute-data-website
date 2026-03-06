@@ -26,7 +26,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  // Handle preflight
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
@@ -40,17 +39,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     slideNumber = 1,
     context = '',
     theme = {},
-    /**
-     * Optional array of images to include in the prompt.
-     * Each image should be a base64-encoded string (with or without the
-     * "data:<mediaType>;base64," prefix — both are handled).
-     *
-     * Example:
-     *   images: [
-     *     { data: "<base64string>", mediaType: "image/png" },
-     *     { data: "data:image/jpeg;base64,<base64string>" }   // prefix auto-stripped
-     *   ]
-     */
     images = [] as ImageInput[],
   } = req.body;
 
@@ -58,7 +46,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: 'Prompt is required' });
   }
 
-  // Validate images array
   if (!Array.isArray(images)) {
     return res.status(400).json({ error: '`images` must be an array' });
   }
@@ -73,7 +60,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   console.log(`[generate-slide] Generating slide ${slideNumber} with ${images.length} image(s)...`);
 
   try {
-    // Build theme props documentation for the prompt
     const themePropsDoc = `
 Theme Properties (use these as props — font sizes are NUMBERS, not strings):
 - headingFont: "${theme.headingFont || "'Inter', sans-serif"}" (for titles and headings)
@@ -251,6 +237,117 @@ DO NOT import any other packages. DO NOT use external images or assets.
 - Code must be production-ready and immediately executable
 - Use inline styles only — no CSS files, no styled-components, no Tailwind
 
+## PPTX Export Annotations — MANDATORY
+
+Every slide you generate will be parsed by a headless browser DOM extractor that converts it to PowerPoint. To ensure faithful conversion you MUST annotate elements with \`data-pptx-type\` and \`data-pptx-id\` attributes. This is not optional — slides without these attributes will produce degraded PowerPoint output.
+
+### Rules
+
+1. Every meaningful visible element MUST have \`data-pptx-type\` and a unique \`data-pptx-id\` (integer string, starting at 1).
+2. Do NOT annotate the root 960×540 container — it is handled separately as the slide background.
+3. Do NOT annotate purely structural wrapper divs that have no background, no border, and no direct text content.
+4. Use the correct type value from this list:
+
+| data-pptx-type | When to use |
+|---|---|
+| \`heading\` | Primary title / heading text |
+| \`subheading\` | Secondary title or subtitle |
+| \`text\` | Body text, labels, annotations, footnotes |
+| \`shape\` | Div with a background color or border but no direct text |
+| \`chart\` | The outermost div wrapping a Recharts component |
+| \`table\` | The \`<table>\` element |
+| \`divider\` | A thin horizontal or vertical line element |
+
+### Shape and text annotation example
+\`\`\`tsx
+<div
+  data-pptx-type="shape"
+  data-pptx-id="3"
+  style={{ position: 'absolute', top: '140px', left: '60px', width: '200px', height: '80px',
+           backgroundColor: accentColors[0] }}
+>
+  <span
+    data-pptx-type="text"
+    data-pptx-id="4"
+    style={{ position: 'absolute', top: '8px', left: '12px', fontSize: \`\${bodyFontSize}px\`, color: '#ffffff' }}
+  >
+    Label text
+  </span>
+</div>
+\`\`\`
+
+### Chart annotation — data-chart-json is MANDATORY for charts
+
+For every chart, place \`data-pptx-type="chart"\` and \`data-chart-json\` on the outermost wrapper div. The \`data-chart-json\` attribute must contain a JSON string with the full chart data so the PPTX exporter can reconstruct native PowerPoint charts.
+
+**The JSON must be serialised with \`JSON.stringify()\` assigned to the attribute — do not use a template literal for the JSON.**
+
+\`\`\`tsx
+{(() => {
+  const revenueData = [
+    { year: 'FY23A', mgmt: 1181, street: 1181 },
+    { year: 'FY24A', mgmt: 1212, street: 1127 },
+    { year: 'FY25E', mgmt: 1236, street: 1217 },
+  ];
+
+  const chartJson = JSON.stringify({
+    chartType: 'lineChart',   // 'lineChart' | 'barChart' | 'pieChart'
+    barDir: 'col',            // only relevant for barChart: 'col' | 'bar'
+    series: [
+      {
+        name: 'Mgmt Plan',
+        color: accentColors[0],
+        smooth: true,
+        markerSize: 4,
+        points: revenueData.map(d => ({ label: d.year, value: d.mgmt })),
+      },
+      {
+        name: 'Street Case',
+        color: accentColors[1] || '#22c55e',
+        smooth: true,
+        markerSize: 4,
+        points: revenueData.map(d => ({ label: d.year, value: d.street })),
+      },
+    ],
+    axes: {
+      catAx: { labelColor: '#ffffff', labelFontSize: 800 },
+      valAx: { labelColor: '#ffffff', labelFontSize: 800 },
+    },
+    legend: { visible: true, position: 'b' },
+    dataLabels: { visible: false },
+  });
+
+  return (
+    <div
+      data-pptx-type="chart"
+      data-pptx-id="5"
+      data-chart-json={chartJson}
+      style={{ position: 'absolute', top: '120px', left: '60px', width: '840px', height: '370px' }}
+    >
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={revenueData}>
+          <XAxis dataKey="year" />
+          <YAxis />
+          <Line type="monotone" dataKey="mgmt"   stroke={accentColors[0]} strokeWidth={2} />
+          <Line type="monotone" dataKey="street" stroke={accentColors[1] || '#22c55e'} strokeWidth={2} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+})()}
+\`\`\`
+
+### Key requirements for data-chart-json
+- \`chartType\`: must be \`'lineChart'\`, \`'barChart'\`, or \`'pieChart'\`
+- \`series[].points\`: every point needs \`label\` (string) and \`value\` (number)
+- \`series[].color\`: must be a resolved hex string — use accentColors[0] etc., not a variable reference that will appear as \`"accentColors[0]"\` in the JSON. Compute the value first.
+- The attribute value must be the result of \`JSON.stringify()\` called at render time — not a hardcoded string — so that dynamic values like accentColors are resolved correctly.
+
+### IDs
+- Assign \`data-pptx-id\` values as sequential integers starting from 1.
+- Every annotated element in the slide must have a unique ID.
+- Do not reuse IDs within a slide.
+
 ## Citation Markers
 
 If the user's prompt contains citation markers in the format [cite:N] or [cite:N,M]:
@@ -288,7 +385,6 @@ If the user's prompt contains citation markers in the format [cite:N] or [cite:N
 - Keep badges small (16x16px) so they don't disrupt the layout
 - Use accentColors[0] with 20% opacity for the badge background
 
-
 Now generate the slide component based on the user's request.`;
 
     const userPromptText = context
@@ -296,13 +392,11 @@ Now generate the slide component based on the user's request.`;
       : `Create slide ${slideNumber}:\n${prompt}`;
 
     // Build the content array — images first, then text prompt.
-    // Placing images before the text gives Claude visual context before reading instructions.
     const userContent: Anthropic.MessageParam['content'] = [];
 
     for (let i = 0; i < images.length; i++) {
       const img = images[i];
 
-      // Strip data URI prefix if present, e.g. "data:image/png;base64,<data>"
       let rawBase64 = img.data;
       let detectedMediaType: SupportedMediaType | undefined;
 
@@ -332,13 +426,11 @@ Now generate the slide component based on the user's request.`;
       console.log(`[generate-slide] Added image ${i + 1}/${images.length} (${mediaType}, ${rawBase64.length} base64 chars)`);
     }
 
-    // Append the text prompt after all images
     userContent.push({
       type: 'text',
       text: userPromptText,
     });
 
-    // Use streaming to avoid SDK timeout on large outputs (>10 min threshold)
     const stream = await anthropic.messages.stream({
       model: 'claude-opus-4-6',
       max_tokens: 25000,
@@ -347,7 +439,7 @@ Now generate the slide component based on the user's request.`;
         {
           type: 'text',
           text: systemPrompt,
-          cache_control: { type: 'ephemeral' }, // Cache system prompt to reduce input token costs on repeat requests
+          cache_control: { type: 'ephemeral' },
         },
       ],
       messages: [{ role: 'user', content: userContent }],
@@ -361,7 +453,6 @@ Now generate the slide component based on the user's request.`;
       .join('\n')
       .trim();
 
-    // Clean up response - remove markdown code fences if Claude added them anyway
     let code = responseText;
 
     const codeBlockMatch = code.match(/```(?:typescript|tsx|ts|jsx|javascript)?\n?([\s\S]*?)```/);
@@ -369,7 +460,6 @@ Now generate the slide component based on the user's request.`;
       code = codeBlockMatch[1].trim();
     }
 
-    // Detect truncation — a complete component always ends with a closing brace
     if (!code.trimEnd().endsWith('}')) {
       console.error(`[generate-slide] WARNING: Output appears truncated! Last 100 chars: ${code.slice(-100)}`);
       return res.status(500).json({
@@ -383,7 +473,6 @@ Now generate the slide component based on the user's request.`;
       console.warn('[generate-slide] Raw response:', responseText.substring(0, 200));
     }
 
-    // Log code in chunks to avoid Vercel log line truncation
     const CHUNK_SIZE = 500;
     const totalChunks = Math.ceil(code.length / CHUNK_SIZE);
     console.log(`[generate-slide] Code output (${code.length} chars, ${totalChunks} chunks):`);
