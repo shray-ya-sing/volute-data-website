@@ -182,47 +182,109 @@ function buildHtml(code: string, theme: ThemeInput): string {
     })();
   </script>
 
-  <script type="text/babel" data-presets="react">
-    const __componentCode__ = \`${escapedCode}\`;
-
-    const themeProps = {
-      headingFont:      ${JSON.stringify(headingFont)},
-      bodyFont:         ${JSON.stringify(bodyFont)},
-      accentColors:     ${JSON.stringify(accentColors)},
-      headingTextColor: ${JSON.stringify(headingTextColor)},
-      bodyTextColor:    ${JSON.stringify(bodyTextColor)},
-      headingFontSize:  ${headingFontSize},
-      bodyFontSize:     ${bodyFontSize},
+  <script>
+    // Lazy require shim — same as pdf.ts
+    window.require = function(mod) {
+      switch (mod) {
+        case 'react':            return window.React;
+        case 'react-dom':        return window.ReactDOM;
+        case 'react-dom/client': return window.ReactDOM;
+        case 'recharts':         return window.Recharts || window.recharts || {};
+        case 'lucide-react':     return window.LucideReact || window.lucideReact || {};
+        case 'prop-types':       return window.PropTypes || {};
+        default: break;
+      }
+      throw new Error('[export-png] Unknown module: ' + mod);
     };
 
-    try {
-      const exports = {};
-      const module  = { exports };
+    (function() {
+      if (window.__SLIDE_ERROR__) return;
 
-      const fn = new Function(
-        'React', 'ReactDOM', 'Recharts', 'LucideReact', 'module', 'exports',
-        Babel.transform(__componentCode__, { presets: ['react'] }).code
-      );
-      fn(React, ReactDOM, Recharts, LucideReact, module, exports);
+      var rawCode = \`${escapedCode}\`;
 
-      const SlideComponent =
-        module.exports?.default ||
-        module.exports?.Slide   ||
-        Object.values(module.exports || {}).find(v => typeof v === 'function') ||
-        (() => React.createElement('pre', { style: { color: 'red', padding: 16 } }, 'No default export found'));
+      var transpiledCode;
+      try {
+        transpiledCode = Babel.transform(rawCode, {
+          presets: [
+            ['react', {
+              runtime: 'classic',
+              pragma: 'React.createElement',
+              pragmaFrag: 'React.Fragment',
+            }],
+            ['typescript', { allExtensions: true, isTSX: true }],
+          ],
+          plugins: [['transform-modules-commonjs', { strict: false }]],
+          filename: 'slide.tsx',
+          sourceType: 'module',
+        }).code;
+      } catch (err) {
+        document.getElementById('root').innerHTML =
+          '<pre style="color:red;padding:16px;font-size:11px;">Babel transpile error:\\n' + err.message + '</pre>';
+        window.__SLIDE_ERROR__ = 'Babel error: ' + err.message;
+        return;
+      }
 
-      const rootEl = document.getElementById('root');
-      const root   = window.ReactDOM.createRoot(rootEl);
-      root.render(React.createElement(SlideComponent, themeProps));
-    } catch (err) {
-      document.getElementById('root').innerHTML =
-        '<pre style="color:red;padding:16px;font-size:11px;">Render error:\\n' + err.message + '</pre>';
-      window.__SLIDE_ERROR__ = 'Render error: ' + err.message;
-    }
+      var moduleObj = { exports: {} };
+      try {
+        var fn = new Function(
+          'require', 'module', 'exports',
+          'React', 'ReactDOM', 'Recharts', 'LucideReact', 'PropTypes',
+          transpiledCode
+        );
+        fn(
+          window.require,
+          moduleObj,
+          moduleObj.exports,
+          window.React,
+          window.ReactDOM,
+          window.Recharts  || window.recharts || {},
+          window.LucideReact || window.lucideReact || {},
+          window.PropTypes || {}
+        );
+      } catch (err) {
+        document.getElementById('root').innerHTML =
+          '<pre style="color:red;padding:16px;font-size:11px;">Runtime error:\\n' + err.message + '</pre>';
+        window.__SLIDE_ERROR__ = 'Runtime error: ' + err.message;
+        return;
+      }
 
-    requestAnimationFrame(function() {
-      setTimeout(function() { window.__SLIDE_READY__ = true; }, 1500);
-    });
+      var SlideComponent =
+        moduleObj.exports['default'] ||
+        moduleObj.exports[Object.keys(moduleObj.exports)[0]];
+
+      if (!SlideComponent) {
+        var msg = 'No default export found. exports keys: ' + JSON.stringify(Object.keys(moduleObj.exports));
+        document.getElementById('root').innerHTML =
+          '<pre style="color:red;padding:16px;font-size:11px;">' + msg + '</pre>';
+        window.__SLIDE_ERROR__ = msg;
+        return;
+      }
+
+      var themeProps = {
+        headingFont:      ${JSON.stringify(headingFont)},
+        bodyFont:         ${JSON.stringify(bodyFont)},
+        accentColors:     ${JSON.stringify(accentColors)},
+        headingTextColor: ${JSON.stringify(headingTextColor)},
+        bodyTextColor:    ${JSON.stringify(bodyTextColor)},
+        headingFontSize:  ${headingFontSize},
+        bodyFontSize:     ${bodyFontSize},
+      };
+
+      try {
+        var rootEl = document.getElementById('root');
+        var root = window.ReactDOM.createRoot(rootEl);
+        root.render(window.React.createElement(SlideComponent, themeProps));
+      } catch (err) {
+        document.getElementById('root').innerHTML =
+          '<pre style="color:red;padding:16px;font-size:11px;">Render error:\\n' + err.message + '</pre>';
+        window.__SLIDE_ERROR__ = 'Render error: ' + err.message;
+        return;
+      }
+
+      requestAnimationFrame(function() {
+        setTimeout(function() { window.__SLIDE_READY__ = true; }, 1500);
+      });
+    })();
   </script>
 </body>
 </html>`;
