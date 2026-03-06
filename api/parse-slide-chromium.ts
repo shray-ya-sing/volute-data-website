@@ -392,7 +392,7 @@ function buildHtml(code: string, theme: ThemeInput): string {
             return runs;
           }
 
-          // Extract <table> row/cell data
+          // Extract <table> row/cell data from a real <table> element
           function extractTableRows(tableEl) {
             var rows = [];
             var maxCols = 0;
@@ -415,6 +415,60 @@ function buildHtml(code: string, theme: ThemeInput): string {
               rows.push({ h: h, cells: cells });
             });
             return { rows: rows, cols: maxCols };
+          }
+
+          // Extract table data from a CSS grid container (div with display:grid).
+          // Reads grid-template-columns to determine column count, then walks
+          // direct children in DOM order, grouping them into rows of numCols each.
+          // Works for Tailwind grid-cols-N and explicit inline-style grids.
+          function extractGridTable(containerEl) {
+            var cs = window.getComputedStyle(containerEl);
+            // grid-template-columns is a space-separated list of resolved track sizes
+            var templateCols = (cs.gridTemplateColumns || '').trim();
+            var numCols = templateCols ? templateCols.split(/\\s+(?![^(]*\\))/).filter(Boolean).length : 0;
+
+            var directChildren = Array.from(containerEl.children).filter(function(c) {
+              var ccs = window.getComputedStyle(c);
+              return ccs.display !== 'none' && ccs.visibility !== 'hidden';
+            });
+
+            // Fallback: estimate columns by counting children that share the
+            // same top position as the first child (i.e. all in row 1)
+            if (numCols < 1 && directChildren.length > 0) {
+              var firstTop = directChildren[0].getBoundingClientRect().top;
+              numCols = directChildren.filter(function(c) {
+                return Math.abs(c.getBoundingClientRect().top - firstTop) < 4;
+              }).length;
+            }
+
+            if (numCols < 1) numCols = 1;
+
+            var rows = [];
+            for (var i = 0; i < directChildren.length; i += numCols) {
+              var rowChildren = directChildren.slice(i, i + numCols);
+              if (rowChildren.length === 0) continue;
+
+              var rowH = rowChildren.reduce(function(max, c) {
+                return Math.max(max, c.getBoundingClientRect().height);
+              }, 0);
+
+              var cells = rowChildren.map(function(cell) {
+                var ccs = window.getComputedStyle(cell);
+                return {
+                  text:   (cell.innerText || cell.textContent || '').replace(/\\s+/g, ' ').trim(),
+                  bold:   parseInt(ccs.fontWeight) >= 600,
+                  italic: ccs.fontStyle === 'italic',
+                  fs:     ccs.fontSize,
+                  color:  rgbToHex(ccs.color) || 'FFFFFF',
+                  bg:     rgbToHex(ccs.backgroundColor),
+                  align:  ccs.textAlign,
+                };
+              });
+
+              rows.push({ h: rowH, cells: cells });
+            }
+
+            return { rows: rows, cols: numCols };
           }
 
           // Get position relative to the root element (not viewport)
@@ -451,13 +505,36 @@ function buildHtml(code: string, theme: ThemeInput): string {
               result.runs = collectRuns(el);
             }
 
-            // Full row/cell extraction for <table> elements
+            // Full row/cell extraction for data-pptx-type="table" elements.
+            // Supports both real <table> tags and CSS grid containers.
             if (pptxType === 'table') {
-              var tableEl = el.tagName.toLowerCase() === 'table' ? el : el.querySelector('table');
-              if (tableEl) {
-                var td = extractTableRows(tableEl);
+              var nativeTable = el.tagName.toLowerCase() === 'table' ? el : el.querySelector('table');
+              if (nativeTable) {
+                // Real <table> — use tr/td/th extraction
+                var td = extractTableRows(nativeTable);
                 result.tableRows = td.rows;
                 result.tableCols = td.cols;
+              } else {
+                // No <table> found — check if this container is a CSS grid
+                var ecs = window.getComputedStyle(el);
+                var isGrid = ecs.display === 'grid' || ecs.display === 'inline-grid';
+                // Also check for a direct child grid wrapper (common pattern:
+                // outer div → inner div with display:grid containing cells)
+                if (!isGrid) {
+                  var gridChild = Array.from(el.children).find(function(c) {
+                    var ccs = window.getComputedStyle(c);
+                    return ccs.display === 'grid' || ccs.display === 'inline-grid';
+                  });
+                  if (gridChild) {
+                    var gd = extractGridTable(gridChild);
+                    result.tableRows = gd.rows;
+                    result.tableCols = gd.cols;
+                  }
+                } else {
+                  var gd2 = extractGridTable(el);
+                  result.tableRows = gd2.rows;
+                  result.tableCols = gd2.cols;
+                }
               }
             }
 
@@ -646,9 +723,9 @@ function mapElementsToSchema(rawElements: RawElem[], slideBg: string | null): Sl
       continue;
     }
 
-    // ── Table (annotated <table> element) ──────────────────────────────────
+    // ── Table (annotated element — real <table> or CSS grid) ──────────────
     if (raw.pptxType === 'table' && raw.tableRows && raw.tableRows.length > 0) {
-      const numCols  = raw.tableCols || 2;
+      const numCols  = raw.tableCols > 0 ? raw.tableCols : 1;
       const colW     = Math.round(pxToEMU(raw.w) / numCols);
 
       out.push({
@@ -702,7 +779,7 @@ function mapElementsToSchema(rawElements: RawElem[], slideBg: string | null): Sl
   }
 
   return {
-    slide: { width: 12192000, height: 6858000, background, elements: out },
+    slide: { width: 9144000, height: 5143500, background, elements: out },
   };
 }
 
