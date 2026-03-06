@@ -10,25 +10,18 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
 
-export const config = {
-  maxDuration: 120,
-};
+export const config = { maxDuration: 120 };
 
 // ---------------------------------------------------------------------------
-// Vendor bundles — identical pattern to pdf.ts
+// Vendor bundles
 // ---------------------------------------------------------------------------
 
 const VENDOR_DIR = path.join(__dirname, 'vendor');
 
 function readVendor(filename: string): string {
-  const filePath = path.join(VENDOR_DIR, filename);
-  if (!fs.existsSync(filePath)) {
-    throw new Error(
-      `[parse-slide-chromium] Missing vendor file: ${filePath}\n` +
-      `Run: curl -o api/vendor/${filename} <url>`
-    );
-  }
-  return fs.readFileSync(filePath, 'utf8');
+  const p = path.join(VENDOR_DIR, filename);
+  if (!fs.existsSync(p)) throw new Error(`[parse-slide-chromium] Missing vendor: ${p}`);
+  return fs.readFileSync(p, 'utf8');
 }
 
 function safeInlineScript(js: string): string {
@@ -36,11 +29,7 @@ function safeInlineScript(js: string): string {
 }
 
 function escapeForTemplateLiteral(code: string): string {
-  const jsonStr = JSON.stringify(code);
-  return jsonStr
-    .slice(1, -1)
-    .replace(/`/g, '\\`')
-    .replace(/\$\{/g, '\\${');
+  return JSON.stringify(code).slice(1, -1).replace(/`/g, '\\`').replace(/\$\{/g, '\\${');
 }
 
 const REACT_JS      = safeInlineScript(readVendor('react.umd.js'));
@@ -49,180 +38,100 @@ const PROP_TYPES_JS = safeInlineScript(readVendor('prop-types.umd.js'));
 const RECHARTS_JS   = safeInlineScript(readVendor('recharts.umd.js'));
 const BABEL_JS      = safeInlineScript(readVendor('babel.min.js'));
 
-console.log('[parse-slide-chromium] Vendor bundles loaded:', {
-  react:     `${(REACT_JS.length     / 1024).toFixed(0)} KB`,
-  reactDom:  `${(REACT_DOM_JS.length / 1024).toFixed(0)} KB`,
-  propTypes: `${(PROP_TYPES_JS.length / 1024).toFixed(0)} KB`,
-  recharts:  `${(RECHARTS_JS.length  / 1024).toFixed(0)} KB`,
-  babel:     `${(BABEL_JS.length     / 1024).toFixed(0)} KB`,
-});
+console.log('[parse-slide-chromium] Vendor bundles loaded');
 
 // ---------------------------------------------------------------------------
-// Types
+// Input types
 // ---------------------------------------------------------------------------
 
-interface SlideInput {
-  code: string;
-  slideNumber?: number;
-}
-
-interface ThemeInput {
-  headingFont?: string;
-  bodyFont?: string;
-  accentColors?: string[];
-  headingTextColor?: string;
-  bodyTextColor?: string;
-  headingFontSize?: number;
-  bodyFontSize?: number;
+interface SlideInput  { code: string; slideNumber?: number; }
+interface ThemeInput  {
+  headingFont?: string; bodyFont?: string; accentColors?: string[];
+  headingTextColor?: string; bodyTextColor?: string;
+  headingFontSize?: number; bodyFontSize?: number;
 }
 
 // ---------------------------------------------------------------------------
-// SlideSchema types — mirrors PresentationModels.cs / types.ts
+// SlideSchema output types (mirrors PresentationModels.cs)
 // ---------------------------------------------------------------------------
 
-interface PositionDefinition {
-  x: number;   // EMU
-  y: number;   // EMU
-  cx: number;  // EMU
-  cy: number;  // EMU
-}
+interface Pos  { x: number; y: number; cx: number; cy: number; }
+interface Fill { type: 'solid' | 'none'; color?: string; }
+interface Bdr  { type: 'solid' | 'none'; color?: string; width?: number; }
 
-interface FillDefinition {
-  type: 'solid' | 'none';
-  color?: string; // 6-char hex, no #
-}
-
-interface BorderDefinition {
-  type: 'solid' | 'none';
-  color?: string;
-  width?: number; // EMU
-}
-
-interface RunDefinition {
+interface Run {
   text: string;
-  bold?: boolean;
-  italic?: boolean;
-  fontSize?: number;  // half-points
-  color?: string;     // 6-char hex, no #
-  baseline?: number;  // 30000 = superscript
+  bold?: boolean; italic?: boolean;
+  fontSize?: number;   // OOXML half-points
+  color?: string;      // 6-char hex
+  baseline?: number;   // 30000 = superscript, -10000 = subscript
 }
+interface Para { alignment?: 'left' | 'ctr' | 'right'; lineSpacing?: number; runs?: Run[]; }
+interface TextBody { anchor?: 't' | 'ctr' | 'b'; autofit?: boolean; paragraphs?: Para[]; }
 
-interface ParagraphDefinition {
-  alignment?: 'left' | 'ctr' | 'right';
-  lineSpacing?: number;
-  runs?: RunDefinition[];
-}
+interface Series { name: string; color: string; smooth?: boolean; markerSize?: number; markerColor?: string; points: { label: string; value: number }[]; }
+interface Axis   { visible: boolean; labelColor?: string; labelFontSize?: number; gridLine?: { type: 'none' | 'solid'; color?: string }; }
 
-interface TextDefinition {
-  body?: {
-    anchor?: 't' | 'ctr' | 'b';
-    autofit?: boolean;
-    paragraphs?: ParagraphDefinition[];
-  };
-}
+interface Cell   { text: string; bold?: boolean; italic?: boolean; fontSize?: number; color?: string; fill?: Fill; alignment?: 'left' | 'ctr' | 'right'; }
+interface Row    { height: number; cells?: Cell[]; }
+interface Col    { width: number; }
 
-interface DataPoint {
-  label: string;
-  value: number;
-}
-
-interface SeriesDefinition {
-  name: string;
-  color: string;
-  smooth?: boolean;
-  markerSize?: number;
-  markerColor?: string;
-  points: DataPoint[];
-}
-
-interface AxisDefinition {
-  visible: boolean;
-  labelColor?: string;
-  labelFontSize?: number;
-  min?: number;
-  max?: number;
-  gridLine?: { type: 'none' | 'solid'; color?: string };
-}
-
-interface ElementDefinition {
-  type: 'sp' | 'cxnSp' | 'chart' | 'table' | 'pic';
-  id: number;
-  name: string;
-  position: PositionDefinition;
-  fill?: FillDefinition;
-  border?: BorderDefinition;
-  text?: TextDefinition;
-  // chart fields
+interface Elem {
+  type: 'sp' | 'chart' | 'table' | 'pic';
+  id: number; name: string; position: Pos;
+  fill?: Fill; border?: Bdr;
+  text?: { body?: TextBody };
+  // chart
   chartType?: 'lineChart' | 'barChart' | 'pieChart';
   barDir?: 'col' | 'bar';
-  series?: SeriesDefinition[];
-  axes?: {
-    catAx?: AxisDefinition;
-    valAx?: AxisDefinition;
-  };
+  series?: Series[];
+  axes?: { catAx?: Axis; valAx?: Axis };
   legend?: { visible: boolean; position?: string };
   dataLabels?: { visible: boolean };
-  plotArea?: { fill?: FillDefinition };
+  plotArea?: { fill?: Fill; border?: Bdr };
+  // table
+  columns?: Col[]; rows?: Row[];
 }
 
 interface SlideSchema {
-  slide: {
-    width: number;
-    height: number;
-    background?: { fill?: FillDefinition };
-    elements?: ElementDefinition[];
-  };
+  slide: { width: number; height: number; background?: { fill?: Fill }; elements?: Elem[]; };
 }
 
 // ---------------------------------------------------------------------------
-// DOM extraction types — what page.evaluate() returns
+// Raw extraction types  (produced inside page.evaluate)
 // ---------------------------------------------------------------------------
 
-interface RawElement {
-  // Identity
-  pptxType: string;       // data-pptx-type attribute
-  pptxId: string;         // data-pptx-id attribute
+// A single styled text run extracted by walking DOM child nodes
+interface RawRun {
+  text: string;
+  bold: boolean; italic: boolean;
+  fontSize: string;   // e.g. "12px"
+  color: string;      // 6-char hex
+  isSuper: boolean; isSub: boolean;
+}
 
-  // Geometry (px, relative to 960×540 canvas)
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-
-  // Computed styles
-  backgroundColor: string;
-  borderColor: string;
-  borderWidth: string;
-  borderStyle: string;
-  color: string;
-  fontSize: string;
-  fontWeight: string;
-  fontStyle: string;
+// A single extracted element
+interface RawElem {
+  pptxType: string;
+  pptxId: string;
+  // geometry in px, relative to root element's top-left (NO canvas clipping)
+  x: number; y: number; w: number; h: number;
+  // computed styles
+  bgColor: string | null;
+  bdrColor: string | null; bdrWidth: string; bdrStyle: string;
   textAlign: string;
-  verticalAlign: string;
-  opacity: string;
-
-  // Text content (for text/shape elements)
-  textContent: string;
-  innerText: string;
-
-  // Chart data (serialised JSON on data-chart-json attribute)
   chartJson: string | null;
-
-  // Tag name for fallback logic
-  tagName: string;
+  // structured runs (populated for text/heading/subheading/auto-text)
+  runs: RawRun[];
+  // table rows (populated for data-pptx-type="table")
+  tableRows: Array<{ h: number; cells: Array<{ text: string; bold: boolean; italic: boolean; fs: string; color: string; bg: string | null; align: string }> }> | null;
+  tableCols: number;
 }
 
 // ---------------------------------------------------------------------------
-// buildHtml
-// Identical transpile / render pipeline to pdf.ts.
-// Adds a post-render DOM extraction step that fires before __SLIDE_READY__,
-// storing element data in window.__SLIDE_ELEMENTS__.
-//
-// The slide generator adds data-pptx-type / data-pptx-id attributes to key
-// elements. For charts, it also adds data-chart-json with series data.
-// Elements without data-pptx-type are extracted too (as 'auto') so nothing
-// is silently lost.
+// buildHtml  — identical transpile pipeline to pdf.ts
+// Key difference: NO height/overflow clipping on html/body/#root.
+// The viewport is set to 960×2400 so Tailwind min-h-screen doesn't clip.
 // ---------------------------------------------------------------------------
 
 function buildHtml(code: string, theme: ThemeInput): string {
@@ -236,7 +145,7 @@ function buildHtml(code: string, theme: ThemeInput): string {
     bodyFontSize     = 14,
   } = theme;
 
-  const escapedCode = escapeForTemplateLiteral(code);
+  const esc = escapeForTemplateLiteral(code);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -245,8 +154,10 @@ function buildHtml(code: string, theme: ThemeInput): string {
   <title>Slide Parse</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { width: 960px; height: 540px; overflow: hidden; background: #ffffff; }
-    #root { width: 960px; height: 540px; overflow: hidden; position: relative; }
+    /* NO height or overflow constraints — let the component render at full natural height.
+       Tailwind min-h-screen will expand to fill the 2400px viewport height, so nothing clips. */
+    html, body { width: 960px; background: #ffffff; }
+    #root { width: 960px; position: relative; }
   </style>
 </head>
 <body>
@@ -259,50 +170,34 @@ function buildHtml(code: string, theme: ThemeInput): string {
   <script>${BABEL_JS}</script>
 
   <script>
-    // ── Globals check ────────────────────────────────────────────────────────
-    console.log('[slide] Globals check:', {
-      React:    typeof React     !== 'undefined' ? 'ok' : 'MISSING',
-      ReactDOM: typeof ReactDOM  !== 'undefined' ? 'ok' : 'MISSING',
-      Recharts: typeof Recharts  !== 'undefined' || typeof recharts !== 'undefined' ? 'ok' : 'MISSING',
-      Babel:    typeof Babel     !== 'undefined' ? 'ok' : 'MISSING',
-    });
-
-    (function verifyGlobals() {
+    // ── Globals verify ───────────────────────────────────────────────────────
+    (function() {
       var missing = [];
       if (typeof React    === 'undefined') missing.push('React');
       if (typeof ReactDOM === 'undefined') missing.push('ReactDOM');
       if (typeof Babel    === 'undefined') missing.push('Babel');
       if (typeof Recharts === 'undefined' && typeof recharts === 'undefined') missing.push('Recharts');
-
-      if (typeof Recharts === 'undefined' && typeof recharts !== 'undefined') {
-        window.Recharts = recharts;
-      }
-
+      if (typeof Recharts === 'undefined' && typeof recharts !== 'undefined') window.Recharts = recharts;
       if (missing.length) {
-        var msg = 'Missing UMD globals: ' + missing.join(', ');
-        document.getElementById('root').innerHTML =
-          '<pre style="color:red;padding:16px;font-size:11px;">' + msg + '</pre>';
-        window.__SLIDE_ERROR__ = msg;
+        window.__SLIDE_ERROR__ = 'Missing globals: ' + missing.join(', ');
+        document.getElementById('root').innerHTML = '<pre style="color:red">' + window.__SLIDE_ERROR__ + '</pre>';
       }
     })();
 
-    // ── Lucide-react shim ────────────────────────────────────────────────────
+    // ── Lucide shim ──────────────────────────────────────────────────────────
     (function() {
       var cache = {};
       window.LucideReact = new Proxy({}, {
-        get: function(_target, prop) {
+        get: function(_t, prop) {
           if (prop === '__esModule') return true;
           if (typeof prop === 'symbol') return undefined;
           if (cache[prop]) return cache[prop];
           if (typeof React !== 'undefined') {
             var Icon = React.forwardRef(function(props, ref) {
               var s = props.size || 24;
-              return React.createElement('svg', {
-                ref: ref, width: s, height: s, viewBox: '0 0 24 24',
+              return React.createElement('svg', { ref: ref, width: s, height: s, viewBox: '0 0 24 24',
                 fill: 'none', stroke: props.color || 'currentColor',
-                strokeWidth: props.strokeWidth || 2,
-                style: props.style || {}, className: props.className || ''
-              });
+                strokeWidth: props.strokeWidth || 2, style: props.style || {}, className: props.className || '' });
             });
             Icon.displayName = 'Lucide_' + String(prop);
             cache[prop] = Icon;
@@ -316,32 +211,26 @@ function buildHtml(code: string, theme: ThemeInput): string {
     // ── Require shim ─────────────────────────────────────────────────────────
     window.require = function(mod) {
       switch (mod) {
-        case 'react':            return window.React;
-        case 'react-dom':        return window.ReactDOM;
+        case 'react': return window.React;
+        case 'react-dom': return window.ReactDOM;
         case 'react-dom/client': return window.ReactDOM;
-        case 'recharts':         return window.Recharts || window.recharts || {};
-        case 'lucide-react':     return window.LucideReact || window.lucideReact || {};
-        case 'prop-types':       return window.PropTypes || {};
-        default: break;
+        case 'recharts': return window.Recharts || window.recharts || {};
+        case 'lucide-react': return window.LucideReact || {};
+        case 'prop-types': return window.PropTypes || {};
+        default: throw new Error('[parse-slide-chromium] Unknown module: ' + mod);
       }
-      throw new Error('[parse-slide-chromium] Unknown module: ' + mod);
     };
 
-    // ── Transpile + execute slide code ────────────────────────────────────────
+    // ── Transpile + render ────────────────────────────────────────────────────
     (function() {
       if (window.__SLIDE_ERROR__) return;
 
-      var rawCode = \`${escapedCode}\`;
-
+      var rawCode = \`${esc}\`;
       var transpiledCode;
       try {
         transpiledCode = Babel.transform(rawCode, {
           presets: [
-            ['react', {
-              runtime: 'classic',
-              pragma: 'React.createElement',
-              pragmaFrag: 'React.Fragment',
-            }],
+            ['react', { runtime: 'classic', pragma: 'React.createElement', pragmaFrag: 'React.Fragment' }],
             ['typescript', { allExtensions: true, isTSX: true }],
           ],
           plugins: [['transform-modules-commonjs', { strict: false }]],
@@ -349,86 +238,77 @@ function buildHtml(code: string, theme: ThemeInput): string {
           sourceType: 'module',
         }).code;
       } catch (err) {
-        document.getElementById('root').innerHTML =
-          '<pre style="color:red;padding:16px;font-size:11px;">Babel error:\\n' + err.message + '</pre>';
         window.__SLIDE_ERROR__ = 'Babel error: ' + err.message;
+        document.getElementById('root').innerHTML = '<pre style="color:red">' + window.__SLIDE_ERROR__ + '</pre>';
         return;
       }
 
-      var moduleObj = { exports: {} };
+      var mod = { exports: {} };
       try {
-        var fn = new Function(
-          'require', 'module', 'exports',
-          'React', 'ReactDOM', 'Recharts', 'LucideReact', 'PropTypes',
-          transpiledCode
-        );
-        fn(
-          window.require,
-          moduleObj,
-          moduleObj.exports,
-          window.React,
-          window.ReactDOM,
-          window.Recharts  || window.recharts || {},
-          window.LucideReact || window.lucideReact || {},
-          window.PropTypes || {}
-        );
+        var fn = new Function('require','module','exports','React','ReactDOM','Recharts','LucideReact','PropTypes', transpiledCode);
+        fn(window.require, mod, mod.exports, window.React, window.ReactDOM,
+           window.Recharts || window.recharts || {}, window.LucideReact || {}, window.PropTypes || {});
       } catch (err) {
-        document.getElementById('root').innerHTML =
-          '<pre style="color:red;padding:16px;font-size:11px;">Runtime error:\\n' + err.message + '</pre>';
         window.__SLIDE_ERROR__ = 'Runtime error: ' + err.message;
+        document.getElementById('root').innerHTML = '<pre style="color:red">' + window.__SLIDE_ERROR__ + '</pre>';
         return;
       }
 
-      var SlideComponent =
-        moduleObj.exports['default'] ||
-        moduleObj.exports[Object.keys(moduleObj.exports)[0]];
-
+      var SlideComponent = mod.exports['default'] || mod.exports[Object.keys(mod.exports)[0]];
       if (!SlideComponent) {
-        var msg = 'No default export found in slide component';
-        document.getElementById('root').innerHTML =
-          '<pre style="color:red;padding:16px;font-size:11px;">' + msg + '</pre>';
-        window.__SLIDE_ERROR__ = msg;
+        window.__SLIDE_ERROR__ = 'No default export found';
         return;
       }
 
       var themeProps = {
-        headingFont:      ${JSON.stringify(headingFont)},
-        bodyFont:         ${JSON.stringify(bodyFont)},
-        accentColors:     ${JSON.stringify(accentColors)},
+        headingFont: ${JSON.stringify(headingFont)},
+        bodyFont: ${JSON.stringify(bodyFont)},
+        accentColors: ${JSON.stringify(accentColors)},
         headingTextColor: ${JSON.stringify(headingTextColor)},
-        bodyTextColor:    ${JSON.stringify(bodyTextColor)},
-        headingFontSize:  ${headingFontSize},
-        bodyFontSize:     ${bodyFontSize},
+        bodyTextColor: ${JSON.stringify(bodyTextColor)},
+        headingFontSize: ${headingFontSize},
+        bodyFontSize: ${bodyFontSize},
       };
 
       try {
         var rootEl = document.getElementById('root');
-        var root = window.ReactDOM.createRoot(rootEl);
-        root.render(window.React.createElement(SlideComponent, themeProps));
+        window.ReactDOM.createRoot(rootEl).render(window.React.createElement(SlideComponent, themeProps));
       } catch (err) {
-        document.getElementById('root').innerHTML =
-          '<pre style="color:red;padding:16px;font-size:11px;">Render error:\\n' + err.message + '</pre>';
         window.__SLIDE_ERROR__ = 'Render error: ' + err.message;
+        document.getElementById('root').innerHTML = '<pre style="color:red">' + window.__SLIDE_ERROR__ + '</pre>';
         return;
       }
 
-      // ── DOM extraction ──────────────────────────────────────────────────────
-      // Runs after React has painted. Extracts every element with a
-      // data-pptx-type attribute, plus all leaf elements with visible content
-      // as a fallback (type: 'auto') so nothing is silently dropped.
+      // ── DOM Extraction ────────────────────────────────────────────────────
+      // Design principles:
       //
-      // For charts, the slide generator is expected to place a
-      // data-chart-json attribute on the chart container with the series data.
-      // See generate-slide.ts system prompt for the required annotation format.
+      // 1. NO canvas clipping.  Components may be taller than 960×540 (Tailwind
+      //    min-h-screen etc.).  We extract everything and let the Node.js side
+      //    decide what to include.
+      //
+      // 2. Per-run text extraction.  We walk the DOM subtree of each text
+      //    element collecting runs with their own bold/italic/color/fontSize.
+      //    This preserves <sup>, <span style="color:…">, <strong>, etc.
+      //
+      // 3. Charts and their annotated children are BOTH captured.
+      //    A chart div may contain data-pptx-type="text" children (title, CAGR
+      //    annotations).  We extract both the chart element AND its children as
+      //    separate elements so the server can emit them all.
+      //
+      // 4. Shape containers.  A data-pptx-type="shape" with annotated children
+      //    is extracted as a shape, and its children are extracted separately.
+      //    The server recombines them into background-shape + text elements.
+      //
+      // 5. Tables.  data-pptx-type="table" triggers full row/cell extraction.
+      //    Grid-based "tables" (div grids used as tables) are handled by their
+      //    individual data-pptx-type="text" children — each cell is its own
+      //    text element.
+
       requestAnimationFrame(function() {
         setTimeout(function() {
-          var canvasEl = document.getElementById('root');
-          var canvasRect = canvasEl.getBoundingClientRect();
 
-          var elements = [];
-          var idCounter = 1;
+          // ── Helpers ────────────────────────────────────────────────────────
 
-          // Helper: parse computed RGB/RGBA → 6-char hex or null
           function rgbToHex(rgb) {
             if (!rgb || rgb === 'transparent' || rgb === 'rgba(0, 0, 0, 0)') return null;
             var m = rgb.match(/rgba?\\((\\d+),\\s*(\\d+),\\s*(\\d+)/);
@@ -440,94 +320,193 @@ function buildHtml(code: string, theme: ThemeInput): string {
             ).toUpperCase();
           }
 
-          // Helper: extract a single element's data
-          function extractEl(el, pptxType) {
-            var rect = el.getBoundingClientRect();
-            var cs   = window.getComputedStyle(el);
+          // Walk the DOM subtree of el collecting styled text runs.
+          // Handles: text nodes, <br>, <sup>, <sub>, <strong>, <em>, <b>, <i>,
+          // <span>, <div> (when they are inline children inside a text block).
+          // Does NOT descend into SVG or nested data-pptx-type children
+          // (those are separate elements handled at the top level).
+          function collectRuns(el) {
+            var runs = [];
 
-            // Skip elements outside the canvas or with zero area
-            var relX = rect.left - canvasRect.left;
-            var relY = rect.top  - canvasRect.top;
-            if (rect.width < 1 || rect.height < 1) return null;
-            if (relX + rect.width  < 0) return null;
-            if (relY + rect.height < 0) return null;
-            if (relX > 960 || relY > 540) return null;
+            function walk(node, inherited) {
+              // Text node
+              if (node.nodeType === 3) {
+                var t = (node.textContent || '').replace(/\\s+/g, ' ');
+                if (!t || t === ' ') return;
+                runs.push({
+                  text: t, bold: inherited.bold, italic: inherited.italic,
+                  fontSize: inherited.fontSize, color: inherited.color,
+                  isSuper: inherited.isSuper, isSub: inherited.isSub,
+                });
+                return;
+              }
+              if (node.nodeType !== 1) return;
 
-            return {
-              pptxType:        pptxType,
-              pptxId:          el.getAttribute('data-pptx-id') || String(idCounter++),
-              x:               relX,
-              y:               relY,
-              width:           rect.width,
-              height:          rect.height,
-              backgroundColor: rgbToHex(cs.backgroundColor),
-              borderColor:     rgbToHex(cs.borderColor),
-              borderWidth:     cs.borderWidth,
-              borderStyle:     cs.borderStyle,
-              color:           rgbToHex(cs.color) || '000000',
-              fontSize:        cs.fontSize,
-              fontWeight:      cs.fontWeight,
-              fontStyle:       cs.fontStyle,
-              textAlign:       cs.textAlign,
-              verticalAlign:   cs.verticalAlign,
-              opacity:         cs.opacity,
-              textContent:     (el.textContent || '').trim(),
-              innerText:       (el.innerText    || '').trim(),
-              chartJson:       el.getAttribute('data-chart-json'),
-              tagName:         el.tagName.toLowerCase(),
+              var tag = node.tagName.toLowerCase();
+              if (tag === 'svg') return;  // skip SVG trees
+
+              // Stop descent into nested annotated elements — they are separate
+              if (node !== el && node.hasAttribute && node.hasAttribute('data-pptx-type')) return;
+
+              if (tag === 'br') {
+                runs.push({ text: '\\n', bold: false, italic: false,
+                  fontSize: inherited.fontSize, color: inherited.color,
+                  isSuper: false, isSub: false });
+                return;
+              }
+
+              var cs = window.getComputedStyle(node);
+              var style = {
+                bold:    inherited.bold   || parseInt(cs.fontWeight) >= 600 || cs.fontWeight === 'bold',
+                italic:  inherited.italic || cs.fontStyle === 'italic' || tag === 'em' || tag === 'i',
+                fontSize: cs.fontSize || inherited.fontSize,
+                color:   rgbToHex(cs.color) || inherited.color,
+                isSuper: inherited.isSuper || tag === 'sup' || cs.verticalAlign === 'super',
+                isSub:   inherited.isSub   || tag === 'sub' || cs.verticalAlign === 'sub',
+              };
+
+              // Newline between block-level siblings that don't share a parent text node
+              var isBlock = cs.display === 'block' || cs.display === 'flex' ||
+                            cs.display === 'grid'  || cs.display === 'table-cell';
+              if (isBlock && node !== el && runs.length > 0) {
+                var last = runs[runs.length - 1];
+                if (last.text !== '\\n') {
+                  runs.push({ text: '\\n', bold: false, italic: false,
+                    fontSize: style.fontSize, color: style.color,
+                    isSuper: false, isSub: false });
+                }
+              }
+
+              Array.from(node.childNodes).forEach(function(c) { walk(c, style); });
+            }
+
+            var baseCs = window.getComputedStyle(el);
+            var base = {
+              bold:    parseInt(baseCs.fontWeight) >= 600 || baseCs.fontWeight === 'bold',
+              italic:  baseCs.fontStyle === 'italic',
+              fontSize: baseCs.fontSize,
+              color:   rgbToHex(baseCs.color) || '000000',
+              isSuper: false, isSub: false,
             };
+            Array.from(el.childNodes).forEach(function(c) { walk(c, base); });
+            return runs;
           }
 
-          // ── Pass 1: extract all annotated elements (data-pptx-type) ────────
-          var annotated = document.querySelectorAll('[data-pptx-type]');
-          var annotatedSet = new Set();
+          // Extract <table> row/cell data
+          function extractTableRows(tableEl) {
+            var rows = [];
+            var maxCols = 0;
+            tableEl.querySelectorAll('tr').forEach(function(tr) {
+              var cells = [];
+              var h = tr.getBoundingClientRect().height;
+              tr.querySelectorAll('td, th').forEach(function(td) {
+                var cs = window.getComputedStyle(td);
+                cells.push({
+                  text:   (td.innerText || td.textContent || '').replace(/\\s+/g, ' ').trim(),
+                  bold:   parseInt(cs.fontWeight) >= 600,
+                  italic: cs.fontStyle === 'italic',
+                  fs:     cs.fontSize,
+                  color:  rgbToHex(cs.color) || 'FFFFFF',
+                  bg:     rgbToHex(cs.backgroundColor),
+                  align:  cs.textAlign,
+                });
+              });
+              if (cells.length > maxCols) maxCols = cells.length;
+              rows.push({ h: h, cells: cells });
+            });
+            return { rows: rows, cols: maxCols };
+          }
 
+          // Get position relative to the root element (not viewport)
+          var rootEl = document.getElementById('root');
+          var rootRect = rootEl.getBoundingClientRect();
+
+          function extractEl(el, pptxType) {
+            var r   = el.getBoundingClientRect();
+            var cs  = window.getComputedStyle(el);
+            var x   = r.left - rootRect.left;
+            var y   = r.top  - rootRect.top;
+
+            if (r.width < 1 || r.height < 1) return null;
+            // Only skip elements with truly negative positions (scrolled off above)
+            if (y + r.height < 0 || x + r.width < 0) return null;
+
+            var result = {
+              pptxType:  pptxType,
+              pptxId:    el.getAttribute('data-pptx-id') || '',
+              x: x, y: y, w: r.width, h: r.height,
+              bgColor:   rgbToHex(cs.backgroundColor),
+              bdrColor:  rgbToHex(cs.borderColor),
+              bdrWidth:  cs.borderWidth,
+              bdrStyle:  cs.borderStyle,
+              textAlign: cs.textAlign,
+              chartJson: el.getAttribute('data-chart-json'),
+              runs:      [],
+              tableRows: null,
+              tableCols: 0,
+            };
+
+            // Collect runs for text-type elements (not for pure shape/chart backgrounds)
+            if (pptxType !== 'shape') {
+              result.runs = collectRuns(el);
+            }
+
+            // Full row/cell extraction for <table> elements
+            if (pptxType === 'table') {
+              var tableEl = el.tagName.toLowerCase() === 'table' ? el : el.querySelector('table');
+              if (tableEl) {
+                var td = extractTableRows(tableEl);
+                result.tableRows = td.rows;
+                result.tableCols = td.cols;
+              }
+            }
+
+            return result;
+          }
+
+          // ── Main extraction pass ─────────────────────────────────────────
+          // We visit ALL elements with data-pptx-type, regardless of nesting.
+          // This means chart containers AND their text children are both captured.
+          // The server-side mapper emits them as separate PPTX elements.
+          var elements = [];
+          var seen = new Set();
+
+          var annotated = document.querySelectorAll('[data-pptx-type]');
           annotated.forEach(function(el) {
+            if (seen.has(el)) return;
+            seen.add(el);
             var type = el.getAttribute('data-pptx-type');
             var extracted = extractEl(el, type);
-            if (extracted) {
-              elements.push(extracted);
-              annotatedSet.add(el);
-            }
-          });
-
-          // ── Pass 2: fallback — leaf text nodes not inside annotated elements
-          // Catches slides generated before annotation was added to the prompt.
-          var allEls = document.querySelectorAll(
-            '#root div, #root span, #root p, #root h1, #root h2, #root h3, #root h4, #root h5, #root h6, #root td, #root th'
-          );
-
-          allEls.forEach(function(el) {
-            // Skip if already captured or is ancestor/descendant of annotated
-            var isAnnotated = annotatedSet.has(el);
-            var insideAnnotated = false;
-            annotatedSet.forEach(function(a) {
-              if (a.contains(el) || el.contains(a)) insideAnnotated = true;
-            });
-            if (isAnnotated || insideAnnotated) return;
-
-            // Only extract leaf nodes (no element children) with non-empty text
-            var hasElementChildren = Array.from(el.children).some(function(c) {
-              return c.tagName !== 'SVG' && c.tagName !== 'svg';
-            });
-            if (hasElementChildren) return;
-
-            var text = (el.textContent || '').trim();
-            if (!text) return;
-
-            var cs = window.getComputedStyle(el);
-            // Skip invisible elements
-            if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return;
-
-            var extracted = extractEl(el, 'auto-text');
             if (extracted) elements.push(extracted);
           });
+
+          // ── Fallback pass (no annotations at all) ────────────────────────
+          // If fewer than 3 annotated elements, assume the slide has no
+          // annotations and fall back to extracting all leaf text nodes.
+          if (elements.length < 3) {
+            var leafSel = '#root div, #root span, #root p, #root h1, #root h2, #root h3, #root h4, #root h5, #root h6, #root td, #root th';
+            document.querySelectorAll(leafSel).forEach(function(el) {
+              if (seen.has(el)) return;
+              // Only leaves with text
+              var hasElKids = Array.from(el.children).some(function(c) {
+                return c.tagName !== 'SVG' && c.tagName !== 'svg';
+              });
+              if (hasElKids) return;
+              var t = (el.textContent || '').trim();
+              if (!t) return;
+              var cs = window.getComputedStyle(el);
+              if (cs.display === 'none' || cs.visibility === 'hidden' || cs.opacity === '0') return;
+              var extracted = extractEl(el, 'auto-text');
+              if (extracted) { elements.push(extracted); seen.add(el); }
+            });
+          }
 
           window.__SLIDE_ELEMENTS__ = elements;
           window.__SLIDE_READY__    = true;
 
-          console.log('[slide] DOM extraction complete: ' + elements.length + ' elements');
-        }, 1500); // same delay as pdf.ts
+          console.log('[slide] DOM extraction complete: ' + elements.length + ' elements extracted');
+
+        }, 1500);
       });
     })();
   </script>
@@ -536,213 +515,194 @@ function buildHtml(code: string, theme: ThemeInput): string {
 }
 
 // ---------------------------------------------------------------------------
-// EMU conversion
+// Unit helpers
 // ---------------------------------------------------------------------------
 
 const PX_TO_EMU = 9525;
+const pxToEMU   = (px: number) => Math.round(px * PX_TO_EMU);
+const parsePx   = (v: string)  => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+const pxToHp    = (px: number) => Math.round((px / 0.75) * 100);  // px → OOXML half-points
 
-function pxToEMU(px: number): number {
-  return Math.round(px * PX_TO_EMU);
+function normalizeHex(c: string | null | undefined): string | undefined {
+  if (!c) return undefined;
+  const h = c.replace('#', '').toUpperCase();
+  if (h.length === 6) return h;
+  if (h.length === 3) return h.split('').map(x => x + x).join('');
+  return undefined;
 }
+
+const toFill   = (c: string | null | undefined): Fill => {
+  const h = normalizeHex(c); return h ? { type: 'solid', color: h } : { type: 'none' };
+};
+const toBorder = (c: string | null | undefined, w: string, s: string): Bdr => {
+  const h = normalizeHex(c); const px = parsePx(w);
+  return (h && px > 0 && s !== 'none') ? { type: 'solid', color: h, width: pxToEMU(px) } : { type: 'none' };
+};
+const toAlign  = (a: string): 'left' | 'ctr' | 'right' =>
+  a === 'center' ? 'ctr' : a === 'right' ? 'right' : 'left';
 
 // ---------------------------------------------------------------------------
-// Style helpers
+// buildParagraphs  — convert raw runs (with \n sentinels) into Para[]
 // ---------------------------------------------------------------------------
 
-/**
- * Parse "16px" → 16. Returns 0 on failure.
- */
-function parsePx(value: string): number {
-  const n = parseFloat(value);
-  return isNaN(n) ? 0 : n;
-}
+function buildParagraphs(rawRuns: RawElem['runs'], defaultAlign: 'left' | 'ctr' | 'right'): Para[] {
+  if (!rawRuns || rawRuns.length === 0) return [];
 
-/**
- * Convert px font size → half-points for OOXML.
- * Formula: (px / 0.75) * 100
- */
-function pxToHalfPoints(px: number): number {
-  return Math.round((px / 0.75) * 100);
-}
+  // Split into lines on \n sentinel runs
+  const lines: typeof rawRuns[number][][] = [[]];
+  for (const r of rawRuns) {
+    if (r.text === '\n') { lines.push([]); }
+    else                 { lines[lines.length - 1].push(r); }
+  }
 
-/**
- * Normalise a color value that may already be a 6-char hex (from the browser
- * extraction) or may need stripping of the # prefix.
- */
-function normalizeColor(color: string | null | undefined): string | undefined {
-  if (!color) return undefined;
-  return color.replace('#', '').toUpperCase().slice(0, 6) || undefined;
-}
-
-function parseFill(color: string | null | undefined): FillDefinition {
-  const c = normalizeColor(color);
-  return c ? { type: 'solid', color: c } : { type: 'none' };
-}
-
-function parseBorder(
-  color: string | null | undefined,
-  widthStr: string,
-  style: string,
-): BorderDefinition {
-  const c   = normalizeColor(color);
-  const w   = parsePx(widthStr);
-  const hasB = c && w > 0 && style !== 'none';
-  return hasB
-    ? { type: 'solid', color: c, width: pxToEMU(w) }
-    : { type: 'none' };
-}
-
-function parseTextAlign(align: string): 'left' | 'ctr' | 'right' {
-  if (align === 'center') return 'ctr';
-  if (align === 'right')  return 'right';
-  return 'left';
+  return lines
+    .filter(l => l.length > 0 && l.some(r => r.text.trim()))
+    .map(line => ({
+      alignment:   defaultAlign,
+      lineSpacing: 0,
+      runs: line.map(r => {
+        const run: Run = {
+          text:     r.text,
+          bold:     r.bold   || undefined,
+          italic:   r.italic || undefined,
+          fontSize: pxToHp(parsePx(r.fontSize) || 12),
+          color:    normalizeHex(r.color) ?? '000000',
+        };
+        if (r.isSuper) run.baseline = 30000;
+        if (r.isSub)   run.baseline = -10000;
+        return run;
+      }),
+    }));
 }
 
 // ---------------------------------------------------------------------------
 // mapElementsToSchema
-// Converts the raw DOM data into SlideSchema ElementDefinition[]
 // ---------------------------------------------------------------------------
 
-function mapElementsToSchema(
-  rawElements: RawElement[],
-  slideBackground: string | null | undefined,
-): SlideSchema {
-  const elements: ElementDefinition[] = [];
-  let idCounter = 2; // id 1 is reserved for background by convention
+function mapElementsToSchema(rawElements: RawElem[], slideBg: string | null): SlideSchema {
+  const out: Elem[] = [];
+  let id = 2;
 
-  // ── Background ─────────────────────────────────────────────────────────────
-  const background = slideBackground
-    ? { fill: parseFill(slideBackground) }
-    : undefined;
+  const background = slideBg ? { fill: toFill(slideBg) } : undefined;
 
-  rawElements.forEach((raw) => {
-    const position: PositionDefinition = {
-      x:  pxToEMU(raw.x),
-      y:  pxToEMU(raw.y),
-      cx: pxToEMU(raw.width),
-      cy: pxToEMU(raw.height),
+  for (const raw of rawElements) {
+    const pos: Pos = {
+      x: pxToEMU(raw.x), y: pxToEMU(raw.y),
+      cx: pxToEMU(raw.w), cy: pxToEMU(raw.h),
     };
+    const eid  = id++;
+    const name = raw.pptxId || `${raw.pptxType}-${eid}`;
 
-    const id = idCounter++;
-
-    // ── Chart element ─────────────────────────────────────────────────────────
-    if (raw.pptxType === 'chart' && raw.chartJson) {
-      let chartData: any;
-      try {
-        chartData = JSON.parse(raw.chartJson);
-      } catch {
-        console.warn(`[parse-slide-chromium] Failed to parse chart JSON for element ${id}`);
-      }
-
-      if (chartData) {
-        const el: ElementDefinition = {
-          type: 'chart',
-          id,
-          name: `chart-${id}`,
-          position,
-          chartType: chartData.chartType ?? 'lineChart',
-          barDir: chartData.barDir ?? 'col',
-          series: (chartData.series ?? []).map((s: any) => ({
-            name:        s.name       ?? '',
-            color:       normalizeColor(s.color) ?? '000000',
-            smooth:      s.smooth     ?? false,
-            markerSize:  s.markerSize ?? 5,
-            markerColor: normalizeColor(s.markerColor) ?? normalizeColor(s.color) ?? '000000',
-            points:      (s.points ?? []).map((p: any) => ({
-              label: String(p.label ?? ''),
-              value: Number(p.value ?? 0),
-            })),
-          })),
-          axes: {
-            catAx: {
-              visible:       true,
-              labelColor:    normalizeColor(chartData.axes?.catAx?.labelColor) ?? 'FFFFFF',
-              labelFontSize: chartData.axes?.catAx?.labelFontSize ?? 800,
-              gridLine:      { type: 'none' },
-            },
-            valAx: {
-              visible:       true,
-              labelColor:    normalizeColor(chartData.axes?.valAx?.labelColor) ?? 'FFFFFF',
-              labelFontSize: chartData.axes?.valAx?.labelFontSize ?? 800,
-              gridLine:      { type: 'none' },
-            },
-          },
-          legend:     chartData.legend     ?? { visible: false },
-          dataLabels: chartData.dataLabels ?? { visible: false },
-        };
-
-        // Background fill of the chart container (e.g. the blue bg in the Alpha slide)
-        if (raw.backgroundColor) {
-          el.plotArea = { fill: parseFill(raw.backgroundColor) };
+    // ── Chart ─────────────────────────────────────────────────────────────
+    if (raw.pptxType === 'chart') {
+      if (!raw.chartJson) {
+        // Chart container without data-chart-json → emit as coloured shape
+        const fill = toFill(raw.bgColor);
+        if (fill.type !== 'none') {
+          out.push({ type: 'sp', id: eid, name, position: pos, fill, border: { type: 'none' } });
         }
-
-        elements.push(el);
-        return;
+        continue;
       }
-    }
 
-    // ── Text / shape element ──────────────────────────────────────────────────
-    // Covers pptxType: 'text', 'shape', 'auto-text', and unrecognised types.
+      let cd: any;
+      try { cd = JSON.parse(raw.chartJson); }
+      catch { console.warn(`[parse-slide-chromium] Bad chartJson on "${name}"`); continue; }
 
-    const fill   = parseFill(raw.backgroundColor);
-    const border = parseBorder(raw.borderColor, raw.borderWidth, raw.borderStyle);
-
-    // Only create an element if it has visual output (bg, border, or text)
-    const hasVisual =
-      fill.type === 'solid' ||
-      border.type === 'solid' ||
-      raw.innerText.length > 0;
-
-    if (!hasVisual) return;
-
-    const fontSizePx   = parsePx(raw.fontSize) || 14;
-    const fontSizeHp   = pxToHalfPoints(fontSizePx);
-    const isBold       = parseInt(raw.fontWeight) >= 600 || raw.fontWeight === 'bold';
-    const isItalic     = raw.fontStyle === 'italic';
-    const textColor    = normalizeColor(raw.color) ?? '000000';
-    const textAlign    = parseTextAlign(raw.textAlign);
-
-    const el: ElementDefinition = {
-      type: 'sp',
-      id,
-      name: `${raw.pptxType}-${id}`,
-      position,
-      fill,
-      border,
-    };
-
-    if (raw.innerText) {
-      // Split on newlines to create multiple paragraphs
-      const lines = raw.innerText.split(/\n+/).filter(l => l.trim().length > 0);
-      el.text = {
-        body: {
-          anchor: 't',
-          autofit: false,
-          paragraphs: lines.map(line => ({
-            alignment: textAlign,
-            lineSpacing: 0,
-            runs: [{
-              text:     line.trim(),
-              bold:     isBold,
-              italic:   isItalic,
-              fontSize: fontSizeHp,
-              color:    textColor,
-            }],
-          })),
+      const elem: Elem = {
+        type: 'chart', id: eid, name, position: pos,
+        chartType: cd.chartType ?? 'lineChart',
+        barDir:    cd.barDir    ?? 'col',
+        series: (cd.series ?? []).map((s: any) => ({
+          name:        s.name        ?? '',
+          color:       normalizeHex(s.color)      ?? '000000',
+          smooth:      s.smooth      ?? false,
+          markerSize:  s.markerSize  ?? 5,
+          markerColor: normalizeHex(s.markerColor ?? s.color) ?? '000000',
+          points: (s.points ?? []).map((p: any) => ({ label: String(p.label ?? ''), value: Number(p.value ?? 0) })),
+        })),
+        axes: {
+          catAx: {
+            visible:       true,
+            labelColor:    normalizeHex(cd.axes?.catAx?.labelColor) ?? 'FFFFFF',
+            labelFontSize: cd.axes?.catAx?.labelFontSize ?? 800,
+            gridLine:      { type: 'none' },
+          },
+          valAx: {
+            visible:       true,
+            labelColor:    normalizeHex(cd.axes?.valAx?.labelColor) ?? 'FFFFFF',
+            labelFontSize: cd.axes?.valAx?.labelFontSize ?? 800,
+            gridLine:      { type: 'none' },
+          },
         },
+        legend:     cd.legend     ?? { visible: false },
+        dataLabels: cd.dataLabels ?? { visible: false },
       };
+
+      if (raw.bgColor) {
+        elem.plotArea = { fill: toFill(raw.bgColor), border: { type: 'none' } };
+      }
+
+      out.push(elem);
+      continue;
     }
 
-    elements.push(el);
-  });
+    // ── Table (annotated <table> element) ──────────────────────────────────
+    if (raw.pptxType === 'table' && raw.tableRows && raw.tableRows.length > 0) {
+      const numCols  = raw.tableCols || 2;
+      const colW     = Math.round(pxToEMU(raw.w) / numCols);
+
+      out.push({
+        type: 'table', id: eid, name, position: pos,
+        fill: { type: 'none' }, border: { type: 'none' },
+        columns: Array.from({ length: numCols }, () => ({ width: colW })),
+        rows: raw.tableRows.map(tr => ({
+          height: pxToEMU(tr.h),
+          cells: tr.cells.map(tc => ({
+            text:      tc.text,
+            bold:      tc.bold   || undefined,
+            italic:    tc.italic || undefined,
+            fontSize:  pxToHp(parsePx(tc.fs) || 12),
+            color:     normalizeHex(tc.color) ?? 'FFFFFF',
+            fill:      toFill(tc.bg),
+            alignment: toAlign(tc.align),
+          })),
+        })),
+      });
+      continue;
+    }
+
+    // ── Shape (background container, no direct text) ───────────────────────
+    if (raw.pptxType === 'shape') {
+      const fill   = toFill(raw.bgColor);
+      const border = toBorder(raw.bdrColor, raw.bdrWidth, raw.bdrStyle);
+      // Only emit if it has a visible fill or border
+      if (fill.type === 'none' && border.type === 'none') continue;
+      out.push({ type: 'sp', id: eid, name, position: pos, fill, border });
+      continue;
+    }
+
+    // ── Text / heading / subheading / auto-text / divider ──────────────────
+    {
+      const fill     = toFill(raw.bgColor);
+      const border   = toBorder(raw.bdrColor, raw.bdrWidth, raw.bdrStyle);
+      const align    = toAlign(raw.textAlign);
+      const paragraphs = buildParagraphs(raw.runs, align);
+
+      const hasVisual = fill.type === 'solid' || border.type === 'solid' || paragraphs.length > 0;
+      if (!hasVisual) continue;
+
+      const elem: Elem = { type: 'sp', id: eid, name, position: pos, fill, border };
+
+      if (paragraphs.length > 0) {
+        elem.text = { body: { anchor: 't', autofit: false, paragraphs } };
+      }
+
+      out.push(elem);
+    }
+  }
 
   return {
-    slide: {
-      width:      12192000,
-      height:     6858000,
-      background,
-      elements,
-    },
+    slide: { width: 12192000, height: 6858000, background, elements: out },
   };
 }
 
@@ -758,19 +718,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST')    return res.status(405).json({ error: 'Method not allowed' });
 
-  const {
-    slides,
-    theme = {} as ThemeInput,
-  } = req.body;
+  const { slides, theme = {} as ThemeInput } = req.body;
 
-  if (!slides) {
-    return res.status(400).json({
-      error: '`slides` is required. Pass a single slide object or an array.',
-    });
-  }
+  if (!slides) return res.status(400).json({ error: '`slides` is required.' });
 
   const slideArray: SlideInput[] = (Array.isArray(slides) ? slides : [slides])
-    .sort((a: SlideInput, b: SlideInput) => (a.slideNumber ?? 0) - (b.slideNumber ?? 0));
+    .sort((a, b) => (a.slideNumber ?? 0) - (b.slideNumber ?? 0));
 
   if (slideArray.some(s => !s.code)) {
     return res.status(400).json({ error: 'Every slide must have a `code` field.' });
@@ -781,15 +734,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let browser = null;
 
   try {
-    // ── Browser launch — identical to pdf.ts ─────────────────────────────────
     let executablePath: string | undefined;
-    let launchArgs: string[] = [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--font-render-hinting=none',
-    ];
+    let launchArgs = ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--font-render-hinting=none'];
 
     const isVercel = process.env.VERCEL === '1' || !!process.env.AWS_LAMBDA_FUNCTION_NAME;
 
@@ -797,52 +743,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       try {
         const chromiumPkg = await import('@sparticuz/chromium');
         executablePath = await chromiumPkg.default.executablePath();
-        launchArgs = [
-          ...chromiumPkg.default.args,
-          '--disable-gpu',
-          '--font-render-hinting=none',
-          '--no-sandbox',
-          '--disable-dev-shm-usage',
-        ];
-        console.log(`[parse-slide-chromium] Using @sparticuz/chromium at: ${executablePath}`);
+        launchArgs = [...chromiumPkg.default.args, '--disable-gpu', '--font-render-hinting=none', '--no-sandbox', '--disable-dev-shm-usage'];
+        console.log(`[parse-slide-chromium] @sparticuz/chromium: ${executablePath}`);
       } catch (err) {
-        throw new Error(`@sparticuz/chromium required on Vercel but failed: ${err}`);
+        throw new Error(`@sparticuz/chromium required on Vercel: ${err}`);
       }
-    } else {
-      console.log('[parse-slide-chromium] Local dev — using playwright installed browser');
-      executablePath = undefined;
     }
 
-    browser = await chromium.launch({
-      executablePath,
-      args: launchArgs,
-      headless: true,
-    });
+    browser = await chromium.launch({ executablePath, args: launchArgs, headless: true });
 
-    const context = await browser.newContext({
-      viewport: { width: 960, height: 540 },
-      deviceScaleFactor: 1, // no need for 2x — we're extracting data not pixels
-    });
+    // Viewport height set to 2400 so Tailwind min-h-screen doesn't truncate content
+    const context = await browser.newContext({ viewport: { width: 960, height: 2400 }, deviceScaleFactor: 1 });
 
     const results: Array<{ slideNumber: number; slideJson: SlideSchema }> = [];
 
     for (let i = 0; i < slideArray.length; i++) {
       const slide      = slideArray[i];
       const slideLabel = slide.slideNumber ?? i + 1;
+      const t0         = Date.now();
 
-      console.log(`[parse-slide-chromium] Rendering slide ${slideLabel} for DOM extraction...`);
-      const t0 = Date.now();
+      console.log(`[parse-slide-chromium] Rendering slide ${slideLabel}...`);
 
       const html = buildHtml(slide.code, theme);
       const page = await context.newPage();
 
-      page.on('console', msg => {
-        console.log(`[slide ${slideLabel} console] ${msg.type()}: ${msg.text()}`);
-      });
-
-      page.on('pageerror', err => {
-        console.error(`[slide ${slideLabel} pageerror]`, err.message);
-      });
+      page.on('console', msg => console.log(`[slide ${slideLabel}] ${msg.type()}: ${msg.text()}`));
+      page.on('pageerror', err => console.error(`[slide ${slideLabel} ERR]`, err.message));
 
       await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
@@ -851,61 +777,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         { timeout: 30000 },
       );
 
-      // Check for render errors
       const renderError = await page.evaluate(() => (window as any).__SLIDE_ERROR__);
       if (renderError) {
         await page.close();
         throw new Error(`Slide ${slideLabel} render error: ${renderError}`);
       }
 
-      // Extract DOM element data and the root background color
-      const { rawElements, rootBackground } = await page.evaluate(() => {
-        const els: any[]  = (window as any).__SLIDE_ELEMENTS__ ?? [];
-        const rootEl       = document.getElementById('root');
-        const rootBg       = rootEl
-          ? window.getComputedStyle(rootEl).backgroundColor
-          : null;
-        return { rawElements: els, rootBackground: rootBg };
-      });
-
-      console.log(
-        `[parse-slide-chromium] Slide ${slideLabel}: extracted ${rawElements.length} elements ` +
-        `in ${Date.now() - t0}ms`,
-      );
+      const { rawElements, rootBg } = await page.evaluate(() => ({
+        rawElements: (window as any).__SLIDE_ELEMENTS__ as RawElem[],
+        rootBg:      window.getComputedStyle(document.getElementById('root')!).backgroundColor,
+      }));
 
       await page.close();
 
-      // Map raw DOM data → SlideSchema
-      const slideSchema = mapElementsToSchema(rawElements, rootBackground);
+      console.log(`[parse-slide-chromium] Slide ${slideLabel}: ${rawElements.length} elements in ${Date.now() - t0}ms`);
 
-      results.push({ slideNumber: slideLabel, slideJson: slideSchema });
+      results.push({
+        slideNumber: slideLabel,
+        slideJson:   mapElementsToSchema(rawElements, rootBg),
+      });
     }
 
     await browser.close();
     browser = null;
 
-    console.log(`[parse-slide-chromium] Done. ${results.length} slide(s) parsed.`);
-
-    // Return array when multiple slides, single object when one — mirrors
-    // how the frontend already handles parse-slide.ts responses.
     if (results.length === 1) {
-      return res.status(200).json({
-        slideNumber: results[0].slideNumber,
-        slideJson:   results[0].slideJson,
-      });
+      return res.status(200).json({ slideNumber: results[0].slideNumber, slideJson: results[0].slideJson });
     }
-
     return res.status(200).json({ slides: results });
 
   } catch (error: any) {
     console.error('[parse-slide-chromium] Error:', error.message);
-    console.error('[parse-slide-chromium] Stack:', error.stack);
-    if (browser) {
-      try { await browser.close(); } catch { /* ignore */ }
-    }
-    return res.status(500).json({
-      error:   error.message,
-      details: error.stack,
-    });
+    if (browser) try { await browser.close(); } catch { /**/ }
+    return res.status(500).json({ error: error.message, details: error.stack });
   }
 }
