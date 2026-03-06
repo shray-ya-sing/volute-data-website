@@ -31,7 +31,7 @@ export function SlideWithCitations({
 
   // Inject a small script into the Sandpack code that adds click listeners
   // to all [data-citation] elements and posts a message to the parent
-  const codeWithCitationHandlers = `${code}
+  const codeWithCitationHandlers = code + `
 
 // --- Citation click handler (injected) ---
 if (typeof window !== 'undefined') {

@@ -47,6 +47,7 @@ interface UseAgentStreamOptions {
 
 interface SendOptions {
   images?: Array<{ data: string; mediaType?: string }>;
+  imageRefs?: Array<{ blobId: string; blobUrl: string; mediaType: string }>;
   existingCode?: string;
 }
 
@@ -75,6 +76,10 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const currentAssistantMessageRef = useRef<AgentMessage | null>(null);
+
+  // Keep a ref to slides so the SSE handler always reads the latest value
+  const slidesRef = useRef(slides);
+  slidesRef.current = slides;
 
   // ---------------------------------------------------------------------------
   // Send a message to the agent
@@ -123,6 +128,10 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
 
         if (sendOptions?.images) {
           requestBody.images = sendOptions.images;
+        }
+
+        if (sendOptions?.imageRefs) {
+          requestBody.imageRefs = sendOptions.imageRefs;
         }
 
         // If this is an edit request and we have slides, pass the latest slide code
@@ -288,9 +297,13 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
             setSources(event.sources);
           }
 
-          // Store in Redux
-          const existingSlide = slides.find((s) => s.slideNumber === slideData.slideNumber);
+          // Store in Redux — use ref to always see the latest slides
+          const currentSlides = slidesRef.current;
+          const existingSlide = currentSlides.find((s) => s.slideNumber === slideData.slideNumber);
           if (existingSlide && slideData.action === 'edited') {
+            dispatch(updateSlide({ id: existingSlide.id, code: slideData.code }));
+          } else if (existingSlide) {
+            // Same slide number already exists (e.g. re-generated) — update instead of duplicating
             dispatch(updateSlide({ id: existingSlide.id, code: slideData.code }));
           } else {
             dispatch(addSlide({ slideNumber: slideData.slideNumber, code: slideData.code }));
@@ -334,7 +347,7 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
           console.warn('[useAgentStream] Unknown event type:', type, event);
       }
     },
-    [dispatch, slides, onSlideGenerated]
+    [dispatch, onSlideGenerated]
   );
 
   // ---------------------------------------------------------------------------

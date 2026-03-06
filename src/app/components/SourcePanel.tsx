@@ -36,10 +36,7 @@ export function SourcePanel({
     return (
       <div className="h-full flex flex-col">
         {/* Header with collapse */}
-        <div className="px-4 py-3 border-b border-gray-200 flex-shrink-0 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-            Sources
-          </h3>
+        <div className="px-4 py-3 flex-shrink-0 flex items-center justify-end">
           {onToggleCollapse && (
             <button
               onClick={onToggleCollapse}
@@ -52,7 +49,6 @@ export function SourcePanel({
         </div>
         <div className="flex-1 flex items-center justify-center text-gray-400 text-sm p-6 text-center">
           <div>
-            <FileText className="size-8 mx-auto mb-3 opacity-40" />
             <p>
               Sources will appear here as the agent researches
               your query
@@ -66,11 +62,7 @@ export function SourcePanel({
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-200 flex-shrink-0 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-          <FileText className="size-4" />
-          Sources ({sources.length})
-        </h3>
+      <div className="px-4 py-3 flex-shrink-0 flex items-center justify-end">
         {onToggleCollapse && (
           <button
             onClick={onToggleCollapse}
