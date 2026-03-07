@@ -4,10 +4,12 @@ import { ChatSidebar } from "../components/ChatSidebar";
 import type { AttachmentPreview } from "../components/ChatSidebar";
 import { CanvasView } from "../components/CanvasView";
 import { SourcePanel } from "../components/SourcePanel";
-import { useAppSelector } from "../store/hooks";
+import { TopBar } from "../components/TopBar";
+import { useAppSelector, useAppDispatch } from "../store/hooks";
+import { clearAttachments } from "../store/attachmentsSlice";
 import { useAgentStream } from "../hooks/useAgentStream";
 import { attachmentPreviewsToApiImages } from "../utils/fileToBase64";
-import { PanelRightOpen } from "lucide-react";
+import { PanelRightOpen, PanelLeftOpen } from "lucide-react";
 
 export interface Message {
   id: string;
@@ -19,11 +21,14 @@ export interface Message {
 
 export function Workspace() {
   const location = useLocation();
+  const dispatch = useAppDispatch();
   const initialQuery = location.state?.initialQuery || "";
   const initialAttachments: AttachmentPreview[] = location.state?.initialAttachments || [];
   const slides = useAppSelector((state) => state.slides.slides);
+  const attachments = useAppSelector((state) => state.attachments.attachments);
   const [sourcesCollapsed, setSourcesCollapsed] = useState(false);
-  
+  const [chatCollapsed, setChatCollapsed] = useState(false);
+
   const {
     messages,
     isStreaming,
@@ -38,6 +43,23 @@ export function Workspace() {
     apiUrl: 'https://www.getvolute.com/api/agent',
     onSlideGenerated: (slide) => {
       console.log(`[Workspace] Slide ${slide.slideNumber} ${slide.action}:`, `${slide.code.length} chars`);
+      
+      // Clean up attachments after slide generation
+      if (attachments.length > 0) {
+        attachments.forEach(async (att) => {
+          try {
+            await fetch('/api/upload-image', {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ blobUrl: att.blobUrl }),
+            });
+            console.log(`[Workspace] Deleted blob: ${att.blobId}`);
+          } catch (err) {
+            console.warn(`[Workspace] Failed to delete blob ${att.blobId}:`, err);
+          }
+        });
+        dispatch(clearAttachments());
+      }
     },
     onError: (error) => {
       console.error('[Workspace] Agent stream error:', error);
@@ -46,7 +68,6 @@ export function Workspace() {
 
   useEffect(() => {
     if (initialQuery) {
-      // Send initial query with attachments
       const sendInitialQuery = async () => {
         let images: { data: string }[] | undefined;
         if (initialAttachments.length > 0) {
@@ -57,98 +78,106 @@ export function Workspace() {
             console.warn("Failed to encode some attachments:", err);
           }
         }
-
         send(initialQuery, { images });
       };
-
       sendInitialQuery();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialQuery]); // Only run once when initialQuery is set
+  }, [initialQuery]);
 
-  const handleSendMessage = async (content: string, attachments?: AttachmentPreview[]) => {
-    // Convert attachments to base64 images for the API
-    let images: { data: string }[] | undefined;
-    if (attachments && attachments.length > 0) {
-      try {
-        images = await attachmentPreviewsToApiImages(attachments);
-        console.log(`[Workspace] Encoded ${images.length} image(s) for API`);
-      } catch (err) {
-        console.warn("[Workspace] Failed to encode some attachments:", err);
-      }
-    }
+  const handleSendMessage = async (content: string) => {
+    // Get imageRefs from Redux attachments
+    const imageRefs = attachments.map(att => ({
+      blobId: att.blobId,
+      blobUrl: att.blobUrl,
+      mediaType: att.mediaType,
+    }));
 
-    // Check if this might be an edit request - look for keywords and context
     const isLikelyEdit = /\b(edit|change|modify|update|adjust|fix|revise|make it|make the|change it|change the)\b/i.test(content);
     let enhancedPrompt = content;
 
     if (isLikelyEdit && slides.length > 0) {
-      // Get the most recently created/edited slide
       const latestSlide = slides[slides.length - 1];
-      
-      // Prepend slide context to help the agent understand what to edit
-      // The agent will then pass this existingCode to the create_or_edit_slide tool
       enhancedPrompt = `[SLIDE CONTEXT FOR EDITING]\nCurrent slide ${latestSlide.slideNumber} code:\n\`\`\`tsx\n${latestSlide.code}\n\`\`\`\n\n[USER REQUEST]\n${content}`;
-      
       console.log(`[Workspace] Edit mode detected - including slide ${latestSlide.slideNumber} context (${latestSlide.code.length} chars)`);
     }
 
-    send(enhancedPrompt, { images });
+    // Send with imageRefs
+    if (imageRefs.length > 0) {
+      console.log(`[Workspace] Sending message with ${imageRefs.length} image(s)`);
+      send(enhancedPrompt, { imageRefs });
+    } else {
+      send(enhancedPrompt);
+    }
   };
 
-  // Citation click from inside the slide → highlight source in panel
   const handleCitationClick = (citationId: number) => {
     setHighlightedSourceId(citationId);
-
-    // Auto-clear highlight after 3 seconds
     setTimeout(() => setHighlightedSourceId(null), 3000);
   };
 
   const handleSourceClick = (source: { id: number; url: string }) => {
-    // Highlight the clicked source
     setHighlightedSourceId(source.id);
     setTimeout(() => setHighlightedSourceId(null), 3000);
   };
 
   return (
-    <div className="h-screen flex bg-gray-50">
-      {/* Chat sidebar */}
-      <div data-no-print className="w-[400px] flex-shrink-0">
-        <ChatSidebar 
-          messages={messages} 
-          onSendMessage={handleSendMessage}
-          isStreaming={isStreaming}
-          activeTools={activeTools}
-          onNewChat={reset}
-        />
-      </div>
+    <div className="h-screen flex flex-col" style={{ backgroundColor: 'var(--volute-bg)' }}>
+      <TopBar onNewChat={reset} isStreaming={isStreaming} />
 
-      {/* Canvas — pass citation handler to slide renderer */}
-      <div className="flex-1">
-        <CanvasView onCitationClick={handleCitationClick} />
-      </div>
+      {/* Main content area */}
+      <div className="flex-1 flex overflow-x-auto overflow-y-hidden">
+        {/* Chat sidebar */}
+        {chatCollapsed ? (
+          <div data-no-print className="flex-shrink-0 border-r border-gray-200 bg-[var(--volute-bg)]">
+            <button
+              onClick={() => setChatCollapsed(false)}
+              className="p-2 m-2 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+              title="Expand chat panel"
+            >
+              <PanelLeftOpen className="size-4" />
+            </button>
+          </div>
+        ) : (
+          <div data-no-print className="w-[400px] flex-shrink-0">
+            <ChatSidebar
+              messages={messages}
+              onSendMessage={handleSendMessage}
+              isStreaming={isStreaming}
+              activeTools={activeTools}
+              onNewChat={reset}
+              onToggleCollapse={() => setChatCollapsed(true)}
+            />
+          </div>
+        )}
 
-      {/* Source panel — right sidebar */}
-      {sourcesCollapsed ? (
-        <div data-no-print className="flex-shrink-0 border-l border-gray-200 bg-white">
-          <button
-            onClick={() => setSourcesCollapsed(false)}
-            className="p-2 m-2 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
-            title="Expand sources panel"
-          >
-            <PanelRightOpen className="size-4" />
-          </button>
+        {/* Canvas */}
+        <div className="flex-1">
+          <CanvasView onCitationClick={handleCitationClick} />
         </div>
-      ) : (
-        <div data-no-print className="w-[300px] flex-shrink-0 border-l border-gray-200 bg-white">
-          <SourcePanel
-            sources={sources}
-            highlightedSourceId={highlightedSourceId}
-            onSourceClick={handleSourceClick}
-            onToggleCollapse={() => setSourcesCollapsed(true)}
-          />
-        </div>
-      )}
+
+        {/* Source panel */}
+        {sourcesCollapsed ? (
+          <div data-no-print className="flex-shrink-0 border-l border-gray-200 bg-[var(--volute-bg)]">
+            <button
+              onClick={() => setSourcesCollapsed(false)}
+              className="p-2 m-2 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+              title="Expand sources panel"
+            >
+              <PanelRightOpen className="size-4" />
+            </button>
+          </div>
+        ) : (
+          <div data-no-print className="w-[300px] flex-shrink-0 border-l border-gray-200 bg-[var(--volute-bg)]">
+            <SourcePanel
+              sources={sources}
+              highlightedSourceId={highlightedSourceId}
+              onSourceClick={handleSourceClick}
+              onToggleCollapse={() => setSourcesCollapsed(true)}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

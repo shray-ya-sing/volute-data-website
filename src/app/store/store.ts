@@ -1,11 +1,13 @@
 import { configureStore } from "@reduxjs/toolkit";
 import themeReducer from "./themeSlice";
 import slidesReducer from "./slidesSlice";
+import attachmentsReducer from "./attachmentsSlice";
 
 export const store = configureStore({
   reducer: {
     theme: themeReducer,
     slides: slidesReducer,
+    attachments: attachmentsReducer,
   },
 });
 

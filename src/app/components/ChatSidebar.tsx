@@ -1,15 +1,17 @@
-import { useState, useRef, useEffect } from "react";
-import { X, Plus, Book, Sparkles } from "lucide-react";
+import { useRef, useEffect } from "react";
+import { X, Paperclip, PanelLeftClose } from "lucide-react";
 import { ChatMessage } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
 import { fileToDataUri } from "../utils/fileToBase64";
+import { useAppDispatch, useAppSelector } from "../store/hooks";
+import { addAttachment, removeAttachment } from "../store/attachmentsSlice";
 import type { Message } from "../pages/Workspace";
 import type {
   AgentMessage,
   ToolActivity,
 } from "../hooks/useAgentStream";
 
-const ACCEPTED_IMAGE_TYPES = "image/png,image/jpeg,image/jpg";
+const ACCEPTED_IMAGE_TYPES = "image/png,image/jpeg,.jpg";
 
 export interface AttachmentPreview {
   name: string;
@@ -20,13 +22,11 @@ export interface AttachmentPreview {
 
 interface ChatSidebarProps {
   messages: (Message | AgentMessage)[];
-  onSendMessage: (
-    content: string,
-    attachments?: AttachmentPreview[],
-  ) => void;
+  onSendMessage: (content: string) => void;
   isStreaming?: boolean;
   activeTools?: ToolActivity[];
   onNewChat?: () => void;
+  onToggleCollapse?: () => void;
 }
 
 export function ChatSidebar({
@@ -35,9 +35,10 @@ export function ChatSidebar({
   isStreaming,
   activeTools,
   onNewChat,
+  onToggleCollapse,
 }: ChatSidebarProps) {
-  const [attachments, setAttachments] = useState<File[]>([]);
-  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  const attachmentsState = useAppSelector((state) => state.attachments.attachments);
+  const dispatch = useAppDispatch();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom when messages change
@@ -47,7 +48,7 @@ export function ChatSidebar({
     });
   }, [messages, activeTools]);
 
-  const handleFileSelect = (
+  const handleFileSelect = async (
     e: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const files = Array.from(e.target.files || []);
@@ -56,61 +57,96 @@ export function ChatSidebar({
     );
     if (imageFiles.length === 0) return;
 
-    setAttachments((prev) => [...prev, ...imageFiles]);
-    const newUrls = imageFiles.map((f) =>
-      URL.createObjectURL(f),
-    );
-    setPreviewUrls((prev) => [...prev, ...newUrls]);
+    // Upload each image to blob storage (or fallback to local storage)
+    for (const file of imageFiles) {
+      try {
+        // Convert to data URI
+        const dataUri = await fileToDataUri(file);
+        
+        // Extract media type from file
+        const mediaType = file.type; // e.g., "image/png", "image/jpeg"
+        
+        let blobId: string;
+        let blobUrl: string;
+
+        // Try to upload to blob storage
+        try {
+          const response = await fetch('/api/upload-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: dataUri }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`Upload failed: ${response.statusText}`);
+          }
+
+          const contentType = response.headers.get('content-type');
+          if (!contentType?.includes('application/json')) {
+            throw new Error('Blob storage not available');
+          }
+
+          const result = await response.json();
+          blobId = result.blobId;
+          blobUrl = result.blobUrl;
+          
+          console.log(`[ChatSidebar] Uploaded ${file.name} to blob storage → ${blobId}`);
+        } catch (uploadError: any) {
+          // Fallback: use data URI as "blob" URL (for local development)
+          console.warn(`[ChatSidebar] Blob storage unavailable, using data URI fallback:`, uploadError.message);
+          blobId = `local-${Date.now()}-${file.name}`;
+          blobUrl = dataUri;
+          console.log(`[ChatSidebar] Using local fallback for ${file.name} → ${blobId}`);
+        }
+
+        // Create local preview URL
+        const previewUrl = URL.createObjectURL(file);
+
+        // Add to Redux with full metadata
+        dispatch(addAttachment({
+          blobId,
+          blobUrl,
+          mediaType,
+          previewUrl,
+          name: file.name,
+        }));
+      } catch (err: any) {
+        console.error('[ChatSidebar] File processing error:', err);
+        alert(`Failed to process ${file.name}: ${err.message}`);
+      }
+    }
+
     e.target.value = "";
   };
 
-  const removeAttachment = (index: number) => {
-    URL.revokeObjectURL(previewUrls[index]);
-    setAttachments((prev) =>
-      prev.filter((_, i) => i !== index),
-    );
-    setPreviewUrls((prev) =>
-      prev.filter((_, i) => i !== index),
-    );
+  const handleRemoveAttachment = async (blobId: string, previewUrl: string) => {
+    // Revoke local preview URL
+    URL.revokeObjectURL(previewUrl);
+    
+    // Remove from Redux
+    dispatch(removeAttachment(blobId));
   };
 
   const handleSend = async (content: string) => {
-    // Convert files to data URIs so they persist and can be sent to API
-    const attachmentData = await Promise.all(
-      attachments.map(async (f, i) => {
-        const dataUri = await fileToDataUri(f);
-        return {
-          name: f.name,
-          type: f.type,
-          size: f.size,
-          url: dataUri,
-        };
-      }),
-    );
-    onSendMessage(
-      content,
-      attachmentData.length > 0 ? attachmentData : undefined,
-    );
-    // Clear attachments after sending
-    previewUrls.forEach((url) => URL.revokeObjectURL(url));
-    setAttachments([]);
-    setPreviewUrls([]);
+    // Just send the message - imageIds will be extracted from Redux in Workspace
+    onSendMessage(content);
   };
 
   return (
-    <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
-      {/* Header */}
-      <div className="p-4 border-b border-gray-200">
-        <button
-          onClick={onNewChat}
-          disabled={isStreaming}
-          className="w-full flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Plus className="w-4 h-4" />
-          <span className="text-sm">New Chat</span>
-        </button>
+    <div className="w-full h-full bg-[var(--volute-bg)] border-r border-gray-200 flex flex-col">
+      {/* Header with collapse button */}
+      <div className="px-4 py-3 flex-shrink-0 flex items-center justify-end">
+        {onToggleCollapse && (
+          <button
+            onClick={onToggleCollapse}
+            className="p-1 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+            title="Collapse chat panel"
+          >
+            <PanelLeftClose className="size-4" />
+          </button>
+        )}
       </div>
-
+      
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 ? (
@@ -172,20 +208,20 @@ export function ChatSidebar({
       {/* Bottom Controls */}
       <div className="p-4 border-t border-gray-200 space-y-3">
         {/* Attachment previews */}
-        {attachments.length > 0 && (
+        {attachmentsState.length > 0 && (
           <div className="flex gap-2 flex-wrap">
-            {attachments.map((file, index) => (
+            {attachmentsState.map((file, index) => (
               <div
                 key={index}
                 className="relative group w-12 h-12 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 flex-shrink-0"
               >
                 <img
-                  src={previewUrls[index]}
+                  src={file.previewUrl}
                   alt={file.name}
                   className="w-full h-full object-cover"
                 />
                 <button
-                  onClick={() => removeAttachment(index)}
+                  onClick={() => handleRemoveAttachment(file.blobId, file.previewUrl)}
                   className="absolute -top-1 -right-1 w-4 h-4 bg-gray-800 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                 >
                   <X className="w-2.5 h-2.5" />
@@ -219,22 +255,9 @@ export function ChatSidebar({
                 ?.click()
             }
             className="flex items-center gap-1 px-2 py-1 rounded hover:bg-gray-100"
-            title="Attach images"
+            title="Attach files"
           >
-            <Plus className="w-3 h-3" />
-          </button>
-          <button className="flex items-center gap-1 px-2 py-1 rounded hover:bg-gray-100">
-            <Book className="w-3 h-3" />
-          </button>
-          <button className="flex items-center gap-1 px-2 py-1 rounded hover:bg-gray-100">
-            <Sparkles className="w-3 h-3" />
-          </button>
-          <div className="flex-1" />
-          <select className="text-xs border border-gray-300 rounded px-2 py-1">
-            <option>Default</option>
-          </select>
-          <button className="w-5 h-5 rounded-full bg-gray-700 text-white flex items-center justify-center text-xs">
-            ?
+            <Paperclip className="w-3 h-3" />
           </button>
         </div>
       </div>

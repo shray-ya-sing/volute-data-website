@@ -1,0 +1,2095 @@
+{
+  "slide": {
+    "width": 9144000,
+    "height": 5143500,
+    "background": {
+      "fill": {
+        "type": "solid",
+        "color": "FFFFFF"
+      }
+    },
+    "elements": [
+      {
+        "type": "sp",
+        "id": 1,
+        "name": "title",
+        "position": {
+          "x": 457200,
+          "y": 228600,
+          "cx": 6400000,
+          "cy": 457200
+        },
+        "fill": {
+          "type": "none"
+        },
+        "border": {
+          "type": "none"
+        },
+        "text": {
+          "body": {
+            "anchor": "ctr",
+            "paragraphs": [
+              {
+                "alignment": "left",
+                "runs": [
+                  {
+                    "text": "Alpha Management Plan vs. Street",
+                    "bold": false,
+                    "fontSize": 3600,
+                    "fontFace": "Calibri",
+                    "color": "000000"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "sp",
+        "id": 2,
+        "name": "legend-box",
+        "position": {
+          "x": 7200000,
+          "y": 200000,
+          "cx": 1700000,
+          "cy": 380000
+        },
+        "fill": {
+          "type": "none"
+        },
+        "border": {
+          "color": "999999",
+          "width": 12700
+        },
+        "text": {
+          "type": "none"
+        }
+      },
+      {
+        "type": "sp",
+        "id": 3,
+        "name": "legend-mgmt-line",
+        "position": {
+          "x": 7320000,
+          "y": 320000,
+          "cx": 228600,
+          "cy": 0
+        },
+        "fill": {
+          "type": "none"
+        },
+        "border": {
+          "type": "none"
+        },
+        "line": {
+          "color": "4a5fa5",
+          "width": 19050
+        }
+      },
+      {
+        "type": "sp",
+        "id": 4,
+        "name": "legend-mgmt-label",
+        "position": {
+          "x": 7600000,
+          "y": 280000,
+          "cx": 1200000,
+          "cy": 200000
+        },
+        "fill": {
+          "type": "none"
+        },
+        "border": {
+          "type": "none"
+        },
+        "text": {
+          "body": {
+            "anchor": "ctr",
+            "paragraphs": [
+              {
+                "alignment": "left",
+                "runs": [
+                  {
+                    "text": "Management Plan",
+                    "italic": true,
+                    "fontSize": 800,
+                    "fontFace": "Calibri",
+                    "color": "000000"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "sp",
+        "id": 5,
+        "name": "legend-street-line",
+        "position": {
+          "x": 7320000,
+          "y": 430000,
+          "cx": 228600,
+          "cy": 0
+        },
+        "fill": {
+          "type": "none"
+        },
+        "border": {
+          "type": "none"
+        },
+        "line": {
+          "color": "16a34a",
+          "width": 19050
+        }
+      },
+      {
+        "type": "sp",
+        "id": 6,
+        "name": "legend-street-label",
+        "position": {
+          "x": 7600000,
+          "y": 395000,
+          "cx": 1200000,
+          "cy": 200000
+        },
+        "fill": {
+          "type": "none"
+        },
+        "border": {
+          "type": "none"
+        },
+        "text": {
+          "body": {
+            "anchor": "ctr",
+            "paragraphs": [
+              {
+                "alignment": "left",
+                "runs": [
+                  {
+                    "text": "Street Case",
+                    "italic": true,
+                    "fontSize": 800,
+                    "fontFace": "Calibri",
+                    "color": "000000"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "sp",
+        "id": 7,
+        "name": "chart-bg-acy",
+        "position": {
+          "x": 457200,
+          "y": 743000,
+          "cx": 2057400,
+          "cy": 1800000
+        },
+        "fill": {
+          "type": "solid",
+          "color": "4a5fa5"
+        },
+        "border": {
+          "type": "none"
+        }
+      },
+      {
+        "type": "sp",
+        "id": 8,
+        "name": "chart-label-acy",
+        "position": {
+          "x": 514000,
+          "y": 760000,
+          "cx": 1800000,
+          "cy": 250000
+        },
+        "fill": {
+          "type": "none"
+        },
+        "border": {
+          "type": "none"
+        },
+        "text": {
+          "body": {
+            "anchor": "t",
+            "paragraphs": [
+              {
+                "alignment": "left",
+                "runs": [
+                  {
+                    "text": "ACY ($MM)",
+                    "bold": true,
+                    "fontSize": 900,
+                    "fontFace": "Calibri",
+                    "color": "FFFFFF"
+                  },
+                  {
+                    "text": "(1)",
+                    "bold": true,
+                    "fontSize": 600,
+                    "fontFace": "Calibri",
+                    "color": "FFFFFF",
+                    "baseline": 30000
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "sp",
+        "id": 9,
+        "name": "chart-cagr-acy",
+        "position": {
+          "x": 514000,
+          "y": 1010000,
+          "cx": 1800000,
+          "cy": 380000
+        },
+        "fill": {
+          "type": "none"
+        },
+        "border": {
+          "type": "none"
+        },
+        "text": {
+          "body": {
+            "anchor": "t",
+            "paragraphs": [
+              {
+                "alignment": "left",
+                "runs": [
+                  {
+                    "text": "FY24A-FY'28E CAGR:",
+                    "italic": true,
+                    "fontSize": 700,
+                    "fontFace": "Calibri",
+                    "color": "4ade80"
+                  }
+                ]
+              },
+              {
+                "alignment": "left",
+                "runs": [
+                  {
+                    "text": "Mgmt. Plan 15%",
+                    "italic": true,
+                    "fontSize": 700,
+                    "fontFace": "Calibri",
+                    "color": "4ade80"
+                  }
+                ]
+              },
+              {
+                "alignment": "left",
+                "runs": [
+                  {
+                    "text": "Street (FY'23-'28): 9%",
+                    "italic": true,
+                    "fontSize": 700,
+                    "fontFace": "Calibri",
+                    "color": "4ade80"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "chart",
+        "id": 10,
+        "name": "chart-acy",
+        "chartType": "lineChart",
+        "position": {
+          "x": 457200,
+          "y": 1390000,
+          "cx": 2057400,
+          "cy": 1100000
+        },
+        "plotArea": {
+          "fill": {
+            "type": "solid",
+            "color": "4a5fa5"
+          },
+          "border": {
+            "type": "none"
+          }
+        },
+        "series": [
+          {
+            "name": "Mgmt. Plan",
+            "color": "4a5fa5",
+            "smooth": false,
+            "markerSize": 5,
+            "markerColor": "4a5fa5",
+            "points": [
+              {
+                "label": "FY23A",
+                "value": 1038
+              },
+              {
+                "label": "FY24A",
+                "value": 1149
+              },
+              {
+                "label": "FY25E",
+                "value": 1235
+              },
+              {
+                "label": "FY26E",
+                "value": 1412
+              },
+              {
+                "label": "FY27E",
+                "value": 1630
+              },
+              {
+                "label": "FY28E",
+                "value": 1998
+              }
+            ]
+          },
+          {
+            "name": "Street Case",
+            "color": "22c55e",
+            "smooth": false,
+            "markerSize": 5,
+            "markerColor": "22c55e",
+            "points": [
+              {
+                "label": "FY23A",
+                "value": 988
+              },
+              {
+                "label": "FY24A",
+                "value": 933
+              },
+              {
+                "label": "FY25E",
+                "value": 1199
+              },
+              {
+                "label": "FY26E",
+                "value": 1298
+              },
+              {
+                "label": "FY27E",
+                "value": 1498
+              },
+              {
+                "label": "FY28E",
+                "value": 1698
+              }
+            ]
+          }
+        ],
+        "axes": {
+          "catAx": {
+            "visible": true,
+            "labelColor": "FFFFFF",
+            "labelFontSize": 700,
+            "tickMark": "none",
+            "axLine": {
+              "type": "none"
+            }
+          },
+          "valAx": {
+            "visible": true,
+            "labelColor": "FFFFFF",
+            "labelFontSize": 700,
+            "tickMark": "none",
+            "axLine": {
+              "type": "none"
+            },
+            "gridLine": {
+              "type": "none"
+            }
+          }
+        },
+        "legend": {
+          "visible": false
+        }
+      },
+      {
+        "type": "sp",
+        "id": 11,
+        "name": "chart-bg-revenue",
+        "position": {
+          "x": 2571600,
+          "y": 743000,
+          "cx": 2057400,
+          "cy": 1800000
+        },
+        "fill": {
+          "type": "solid",
+          "color": "4a5fa5"
+        },
+        "border": {
+          "type": "none"
+        }
+      },
+      {
+        "type": "sp",
+        "id": 12,
+        "name": "chart-label-revenue",
+        "position": {
+          "x": 2628400,
+          "y": 760000,
+          "cx": 1800000,
+          "cy": 250000
+        },
+        "fill": {
+          "type": "none"
+        },
+        "border": {
+          "type": "none"
+        },
+        "text": {
+          "body": {
+            "anchor": "t",
+            "paragraphs": [
+              {
+                "alignment": "left",
+                "runs": [
+                  {
+                    "text": "Revenue ($MM)",
+                    "bold": true,
+                    "fontSize": 900,
+                    "fontFace": "Calibri",
+                    "color": "FFFFFF"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "sp",
+        "id": 13,
+        "name": "chart-cagr-revenue",
+        "position": {
+          "x": 2628400,
+          "y": 1010000,
+          "cx": 1800000,
+          "cy": 380000
+        },
+        "fill": {
+          "type": "none"
+        },
+        "border": {
+          "type": "none"
+        },
+        "text": {
+          "body": {
+            "anchor": "t",
+            "paragraphs": [
+              {
+                "alignment": "left",
+                "runs": [
+                  {
+                    "text": "FY24A-FY'28E CAGR:",
+                    "italic": true,
+                    "fontSize": 700,
+                    "fontFace": "Calibri",
+                    "color": "4ade80"
+                  }
+                ]
+              },
+              {
+                "alignment": "left",
+                "runs": [
+                  {
+                    "text": "Mgmt. Plan 8%",
+                    "italic": true,
+                    "fontSize": 700,
+                    "fontFace": "Calibri",
+                    "color": "4ade80"
+                  }
+                ]
+              },
+              {
+                "alignment": "left",
+                "runs": [
+                  {
+                    "text": "Street (FY'23-'28): 7%",
+                    "italic": true,
+                    "fontSize": 700,
+                    "fontFace": "Calibri",
+                    "color": "4ade80"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "chart",
+        "id": 14,
+        "name": "chart-revenue",
+        "chartType": "lineChart",
+        "position": {
+          "x": 2571600,
+          "y": 1390000,
+          "cx": 2057400,
+          "cy": 1100000
+        },
+        "plotArea": {
+          "fill": {
+            "type": "solid",
+            "color": "4a5fa5"
+          },
+          "border": {
+            "type": "none"
+          }
+        },
+        "series": [
+          {
+            "name": "Mgmt. Plan",
+            "color": "4a5fa5",
+            "smooth": false,
+            "markerSize": 5,
+            "markerColor": "4a5fa5",
+            "points": [
+              {
+                "label": "FY23A",
+                "value": 1181
+              },
+              {
+                "label": "FY24A",
+                "value": 1212
+              },
+              {
+                "label": "FY25E",
+                "value": 1236
+              },
+              {
+                "label": "FY26E",
+                "value": 1285
+              },
+              {
+                "label": "FY27E",
+                "value": 1477
+              },
+              {
+                "label": "FY28E",
+                "value": 1677
+              }
+            ]
+          },
+          {
+            "name": "Street Case",
+            "color": "22c55e",
+            "smooth": false,
+            "markerSize": 5,
+            "markerColor": "22c55e",
+            "points": [
+              {
+                "label": "FY23A",
+                "value": 1181
+              },
+              {
+                "label": "FY24A",
+                "value": 1127
+              },
+              {
+                "label": "FY25E",
+                "value": 1217
+              },
+              {
+                "label": "FY26E",
+                "value": 1231
+              },
+              {
+                "label": "FY27E",
+                "value": 1285
+              },
+              {
+                "label": "FY28E",
+                "value": 1477
+              }
+            ]
+          }
+        ],
+        "axes": {
+          "catAx": {
+            "visible": true,
+            "labelColor": "FFFFFF",
+            "labelFontSize": 700,
+            "tickMark": "none",
+            "axLine": {
+              "type": "none"
+            }
+          },
+          "valAx": {
+            "visible": true,
+            "labelColor": "FFFFFF",
+            "labelFontSize": 700,
+            "tickMark": "none",
+            "axLine": {
+              "type": "none"
+            },
+            "gridLine": {
+              "type": "none"
+            }
+          }
+        },
+        "legend": {
+          "visible": false
+        }
+      },
+      {
+        "type": "sp",
+        "id": 15,
+        "name": "chart-bg-opincome",
+        "position": {
+          "x": 4686000,
+          "y": 743000,
+          "cx": 2057400,
+          "cy": 1800000
+        },
+        "fill": {
+          "type": "solid",
+          "color": "4a5fa5"
+        },
+        "border": {
+          "type": "none"
+        }
+      },
+      {
+        "type": "sp",
+        "id": 16,
+        "name": "chart-label-opincome",
+        "position": {
+          "x": 4742800,
+          "y": 760000,
+          "cx": 1943400,
+          "cy": 350000
+        },
+        "fill": {
+          "type": "none"
+        },
+        "border": {
+          "type": "none"
+        },
+        "text": {
+          "body": {
+            "anchor": "t",
+            "paragraphs": [
+              {
+                "alignment": "left",
+                "runs": [
+                  {
+                    "text": "Non-GAAP Operating Income ($MM)",
+                    "bold": true,
+                    "fontSize": 900,
+                    "fontFace": "Calibri",
+                    "color": "FFFFFF"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "sp",
+        "id": 17,
+        "name": "chart-cagr-opincome",
+        "position": {
+          "x": 4742800,
+          "y": 1110000,
+          "cx": 1800000,
+          "cy": 380000
+        },
+        "fill": {
+          "type": "none"
+        },
+        "border": {
+          "type": "none"
+        },
+        "text": {
+          "body": {
+            "anchor": "t",
+            "paragraphs": [
+              {
+                "alignment": "left",
+                "runs": [
+                  {
+                    "text": "FY24A-FY'28E CAGR:",
+                    "italic": true,
+                    "fontSize": 700,
+                    "fontFace": "Calibri",
+                    "color": "4ade80"
+                  }
+                ]
+              },
+              {
+                "alignment": "left",
+                "runs": [
+                  {
+                    "text": "Mgmt. Plan 19%",
+                    "italic": true,
+                    "fontSize": 700,
+                    "fontFace": "Calibri",
+                    "color": "4ade80"
+                  }
+                ]
+              },
+              {
+                "alignment": "left",
+                "runs": [
+                  {
+                    "text": "Street (FY'23-'28): 14%",
+                    "italic": true,
+                    "fontSize": 700,
+                    "fontFace": "Calibri",
+                    "color": "4ade80"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "chart",
+        "id": 18,
+        "name": "chart-opincome",
+        "chartType": "lineChart",
+        "position": {
+          "x": 4686000,
+          "y": 1390000,
+          "cx": 2057400,
+          "cy": 1100000
+        },
+        "plotArea": {
+          "fill": {
+            "type": "solid",
+            "color": "4a5fa5"
+          },
+          "border": {
+            "type": "none"
+          }
+        },
+        "series": [
+          {
+            "name": "Mgmt. Plan",
+            "color": "4a5fa5",
+            "smooth": false,
+            "markerSize": 5,
+            "markerColor": "4a5fa5",
+            "points": [
+              {
+                "label": "FY23A",
+                "value": 370
+              },
+              {
+                "label": "FY24A",
+                "value": 462
+              },
+              {
+                "label": "FY25E",
+                "value": 650
+              },
+              {
+                "label": "FY26E",
+                "value": 726
+              },
+              {
+                "label": "FY27E",
+                "value": 1147
+              },
+              {
+                "label": "FY28E",
+                "value": 1361
+              }
+            ]
+          },
+          {
+            "name": "Street Case",
+            "color": "22c55e",
+            "smooth": false,
+            "markerSize": 5,
+            "markerColor": "22c55e",
+            "points": [
+              {
+                "label": "FY23A",
+                "value": 456
+              },
+              {
+                "label": "FY24A",
+                "value": 456
+              },
+              {
+                "label": "FY25E",
+                "value": 650
+              },
+              {
+                "label": "FY26E",
+                "value": 726
+              },
+              {
+                "label": "FY27E",
+                "value": 618
+              },
+              {
+                "label": "FY28E",
+                "value": 726
+              }
+            ]
+          }
+        ],
+        "axes": {
+          "catAx": {
+            "visible": true,
+            "labelColor": "FFFFFF",
+            "labelFontSize": 700,
+            "tickMark": "none",
+            "axLine": {
+              "type": "none"
+            }
+          },
+          "valAx": {
+            "visible": true,
+            "labelColor": "FFFFFF",
+            "labelFontSize": 700,
+            "tickMark": "none",
+            "axLine": {
+              "type": "none"
+            },
+            "gridLine": {
+              "type": "none"
+            }
+          }
+        },
+        "legend": {
+          "visible": false
+        }
+      },
+      {
+        "type": "sp",
+        "id": 19,
+        "name": "chart-bg-cashflow",
+        "position": {
+          "x": 6800400,
+          "y": 743000,
+          "cx": 2057400,
+          "cy": 1800000
+        },
+        "fill": {
+          "type": "solid",
+          "color": "4a5fa5"
+        },
+        "border": {
+          "type": "none"
+        }
+      },
+      {
+        "type": "sp",
+        "id": 20,
+        "name": "chart-label-cashflow",
+        "position": {
+          "x": 6857200,
+          "y": 760000,
+          "cx": 1943400,
+          "cy": 350000
+        },
+        "fill": {
+          "type": "none"
+        },
+        "border": {
+          "type": "none"
+        },
+        "text": {
+          "body": {
+            "anchor": "t",
+            "paragraphs": [
+              {
+                "alignment": "left",
+                "runs": [
+                  {
+                    "text": "Levered Free Cash Flow ($MM)",
+                    "bold": true,
+                    "fontSize": 900,
+                    "fontFace": "Calibri",
+                    "color": "FFFFFF"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "sp",
+        "id": 21,
+        "name": "chart-cagr-cashflow",
+        "position": {
+          "x": 6857200,
+          "y": 1110000,
+          "cx": 1800000,
+          "cy": 380000
+        },
+        "fill": {
+          "type": "none"
+        },
+        "border": {
+          "type": "none"
+        },
+        "text": {
+          "body": {
+            "anchor": "t",
+            "paragraphs": [
+              {
+                "alignment": "left",
+                "runs": [
+                  {
+                    "text": "FY24A-FY'28E CAGR:",
+                    "italic": true,
+                    "fontSize": 700,
+                    "fontFace": "Calibri",
+                    "color": "4ade80"
+                  }
+                ]
+              },
+              {
+                "alignment": "left",
+                "runs": [
+                  {
+                    "text": "Mgmt. Plan 21%",
+                    "italic": true,
+                    "fontSize": 700,
+                    "fontFace": "Calibri",
+                    "color": "4ade80"
+                  }
+                ]
+              },
+              {
+                "alignment": "left",
+                "runs": [
+                  {
+                    "text": "Street (FY'23-'28): 12%",
+                    "italic": true,
+                    "fontSize": 700,
+                    "fontFace": "Calibri",
+                    "color": "4ade80"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "chart",
+        "id": 22,
+        "name": "chart-cashflow",
+        "chartType": "lineChart",
+        "position": {
+          "x": 6800400,
+          "y": 1390000,
+          "cx": 2057400,
+          "cy": 1100000
+        },
+        "plotArea": {
+          "fill": {
+            "type": "solid",
+            "color": "4a5fa5"
+          },
+          "border": {
+            "type": "none"
+          }
+        },
+        "series": [
+          {
+            "name": "Mgmt. Plan",
+            "color": "4a5fa5",
+            "smooth": false,
+            "markerSize": 5,
+            "markerColor": "4a5fa5",
+            "points": [
+              {
+                "label": "FY23A",
+                "value": 336
+              },
+              {
+                "label": "FY24A",
+                "value": 350
+              },
+              {
+                "label": "FY25E",
+                "value": 373
+              },
+              {
+                "label": "FY26E",
+                "value": 411
+              },
+              {
+                "label": "FY27E",
+                "value": 638
+              },
+              {
+                "label": "FY28E",
+                "value": 834
+              }
+            ]
+          },
+          {
+            "name": "Street Case",
+            "color": "22c55e",
+            "smooth": false,
+            "markerSize": 5,
+            "markerColor": "22c55e",
+            "points": [
+              {
+                "label": "FY23A",
+                "value": 336
+              },
+              {
+                "label": "FY24A",
+                "value": 350
+              },
+              {
+                "label": "FY25E",
+                "value": 373
+              },
+              {
+                "label": "FY26E",
+                "value": 411
+              },
+              {
+                "label": "FY27E",
+                "value": 501
+              },
+              {
+                "label": "FY28E",
+                "value": 620
+              }
+            ]
+          }
+        ],
+        "axes": {
+          "catAx": {
+            "visible": true,
+            "labelColor": "FFFFFF",
+            "labelFontSize": 700,
+            "tickMark": "none",
+            "axLine": {
+              "type": "none"
+            }
+          },
+          "valAx": {
+            "visible": true,
+            "labelColor": "FFFFFF",
+            "labelFontSize": 700,
+            "tickMark": "none",
+            "axLine": {
+              "type": "none"
+            },
+            "gridLine": {
+              "type": "none"
+            }
+          }
+        },
+        "legend": {
+          "visible": false
+        }
+      },
+      {
+        "type": "sp",
+        "id": 23,
+        "name": "chart-bg-acy-growth",
+        "position": {
+          "x": 457200,
+          "y": 2743000,
+          "cx": 2057400,
+          "cy": 1943000
+        },
+        "fill": {
+          "type": "solid",
+          "color": "4a5fa5"
+        },
+        "border": {
+          "type": "none"
+        }
+      },
+      {
+        "type": "sp",
+        "id": 24,
+        "name": "chart-label-acy-growth",
+        "position": {
+          "x": 514000,
+          "y": 2760000,
+          "cx": 1800000,
+          "cy": 250000
+        },
+        "fill": {
+          "type": "none"
+        },
+        "border": {
+          "type": "none"
+        },
+        "text": {
+          "body": {
+            "anchor": "t",
+            "paragraphs": [
+              {
+                "alignment": "left",
+                "runs": [
+                  {
+                    "text": "ACY Growth (%)",
+                    "bold": true,
+                    "fontSize": 900,
+                    "fontFace": "Calibri",
+                    "color": "FFFFFF"
+                  },
+                  {
+                    "text": "(1)",
+                    "bold": true,
+                    "fontSize": 600,
+                    "fontFace": "Calibri",
+                    "color": "FFFFFF",
+                    "baseline": 30000
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "chart",
+        "id": 25,
+        "name": "chart-acy-growth",
+        "chartType": "barChart",
+        "position": {
+          "x": 457200,
+          "y": 3010000,
+          "cx": 2057400,
+          "cy": 1600000
+        },
+        "plotArea": {
+          "fill": {
+            "type": "solid",
+            "color": "4a5fa5"
+          },
+          "border": {
+            "type": "none"
+          }
+        },
+        "series": [
+          {
+            "name": "ACY Growth",
+            "color": "22c55e",
+            "points": [
+              {
+                "label": "1",
+                "value": 12
+              },
+              {
+                "label": "2",
+                "value": 7
+              },
+              {
+                "label": "3",
+                "value": 11
+              },
+              {
+                "label": "4",
+                "value": 12
+              },
+              {
+                "label": "5",
+                "value": 15
+              },
+              {
+                "label": "6",
+                "value": 13
+              },
+              {
+                "label": "7",
+                "value": 14
+              }
+            ]
+          }
+        ],
+        "barDir": "col",
+        "dataLabels": {
+          "visible": true,
+          "position": "outEnd",
+          "color": "FFFFFF",
+          "fontSize": 700
+        },
+        "axes": {
+          "catAx": {
+            "visible": false
+          },
+          "valAx": {
+            "visible": false,
+            "gridLine": {
+              "type": "none"
+            }
+          }
+        },
+        "legend": {
+          "visible": false
+        }
+      },
+      {
+        "type": "sp",
+        "id": 26,
+        "name": "chart-bg-rev-growth",
+        "position": {
+          "x": 2571600,
+          "y": 2743000,
+          "cx": 2057400,
+          "cy": 1943000
+        },
+        "fill": {
+          "type": "solid",
+          "color": "4a5fa5"
+        },
+        "border": {
+          "type": "none"
+        }
+      },
+      {
+        "type": "sp",
+        "id": 27,
+        "name": "chart-label-rev-growth",
+        "position": {
+          "x": 2628400,
+          "y": 2760000,
+          "cx": 1800000,
+          "cy": 250000
+        },
+        "fill": {
+          "type": "none"
+        },
+        "border": {
+          "type": "none"
+        },
+        "text": {
+          "body": {
+            "anchor": "t",
+            "paragraphs": [
+              {
+                "alignment": "left",
+                "runs": [
+                  {
+                    "text": "Revenue Growth (%)",
+                    "bold": true,
+                    "fontSize": 900,
+                    "fontFace": "Calibri",
+                    "color": "FFFFFF"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "chart",
+        "id": 28,
+        "name": "chart-rev-growth",
+        "chartType": "barChart",
+        "position": {
+          "x": 2571600,
+          "y": 3010000,
+          "cx": 2057400,
+          "cy": 1300000
+        },
+        "plotArea": {
+          "fill": {
+            "type": "solid",
+            "color": "4a5fa5"
+          },
+          "border": {
+            "type": "none"
+          }
+        },
+        "series": [
+          {
+            "name": "Revenue Growth",
+            "color": "22c55e",
+            "negativeColor": "ef4444",
+            "points": [
+              {
+                "label": "1",
+                "value": 3
+              },
+              {
+                "label": "2",
+                "value": -7
+              },
+              {
+                "label": "3",
+                "value": 2
+              },
+              {
+                "label": "4",
+                "value": 9
+              },
+              {
+                "label": "5",
+                "value": 15
+              },
+              {
+                "label": "6",
+                "value": 21
+              },
+              {
+                "label": "7",
+                "value": 10
+              },
+              {
+                "label": "8",
+                "value": 15
+              },
+              {
+                "label": "9",
+                "value": 13
+              }
+            ]
+          }
+        ],
+        "barDir": "col",
+        "dataLabels": {
+          "visible": true,
+          "position": "outEnd",
+          "color": "FFFFFF",
+          "fontSize": 700
+        },
+        "axes": {
+          "catAx": {
+            "visible": false
+          },
+          "valAx": {
+            "visible": false,
+            "gridLine": {
+              "type": "none"
+            }
+          }
+        },
+        "legend": {
+          "visible": false
+        }
+      },
+      {
+        "type": "sp",
+        "id": 29,
+        "name": "annotation-rev-growth",
+        "position": {
+          "x": 3800000,
+          "y": 3800000,
+          "cx": 1700000,
+          "cy": 380000
+        },
+        "fill": {
+          "type": "solid",
+          "color": "FFFFFF"
+        },
+        "border": {
+          "color": "999999",
+          "width": 9525
+        },
+        "text": {
+          "body": {
+            "anchor": "ctr",
+            "paragraphs": [
+              {
+                "alignment": "left",
+                "runs": [
+                  {
+                    "text": "Revenue and profitability metrics are impacted by timing of bookings",
+                    "fontSize": 700,
+                    "fontFace": "Calibri",
+                    "color": "000000"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "sp",
+        "id": 30,
+        "name": "chart-bg-op-margin",
+        "position": {
+          "x": 4686000,
+          "y": 2743000,
+          "cx": 2057400,
+          "cy": 1943000
+        },
+        "fill": {
+          "type": "solid",
+          "color": "4a5fa5"
+        },
+        "border": {
+          "type": "none"
+        }
+      },
+      {
+        "type": "sp",
+        "id": 31,
+        "name": "chart-label-op-margin",
+        "position": {
+          "x": 4742800,
+          "y": 2760000,
+          "cx": 1943400,
+          "cy": 350000
+        },
+        "fill": {
+          "type": "none"
+        },
+        "border": {
+          "type": "none"
+        },
+        "text": {
+          "body": {
+            "anchor": "t",
+            "paragraphs": [
+              {
+                "alignment": "left",
+                "runs": [
+                  {
+                    "text": "Non-GAAP Operating Margin (%)",
+                    "bold": true,
+                    "fontSize": 900,
+                    "fontFace": "Calibri",
+                    "color": "FFFFFF"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "table",
+        "id": 32,
+        "name": "table-op-margin",
+        "position": {
+          "x": 4686000,
+          "y": 3110000,
+          "cx": 2057400,
+          "cy": 1500000
+        },
+        "columns": [
+          {
+            "width": 1028700
+          },
+          {
+            "width": 1028700
+          }
+        ],
+        "rows": [
+          {
+            "height": 200000,
+            "cells": [
+              {
+                "text": "Mgmt",
+                "bold": false,
+                "fontSize": 700,
+                "color": "FFFFFF",
+                "fill": {
+                  "type": "none"
+                },
+                "alignment": "ctr"
+              },
+              {
+                "text": "Street",
+                "bold": false,
+                "fontSize": 700,
+                "color": "FFFFFF",
+                "fill": {
+                  "type": "none"
+                },
+                "alignment": "ctr"
+              }
+            ]
+          },
+          {
+            "height": 185000,
+            "cells": [
+              {
+                "text": "27%",
+                "fontSize": 700,
+                "color": "FFFFFF",
+                "fill": {
+                  "type": "none"
+                },
+                "alignment": "ctr"
+              },
+              {
+                "text": "23%",
+                "fontSize": 700,
+                "color": "FFFFFF",
+                "fill": {
+                  "type": "none"
+                },
+                "alignment": "ctr"
+              }
+            ]
+          },
+          {
+            "height": 185000,
+            "cells": [
+              {
+                "text": "38%",
+                "fontSize": 700,
+                "color": "FFFFFF",
+                "fill": {
+                  "type": "none"
+                },
+                "alignment": "ctr"
+              },
+              {
+                "text": "36%",
+                "fontSize": 700,
+                "color": "FFFFFF",
+                "fill": {
+                  "type": "none"
+                },
+                "alignment": "ctr"
+              }
+            ]
+          },
+          {
+            "height": 185000,
+            "cells": [
+              {
+                "text": "36%",
+                "fontSize": 700,
+                "color": "FFFFFF",
+                "fill": {
+                  "type": "none"
+                },
+                "alignment": "ctr"
+              },
+              {
+                "text": "36%",
+                "fontSize": 700,
+                "color": "FFFFFF",
+                "fill": {
+                  "type": "none"
+                },
+                "alignment": "ctr"
+              }
+            ]
+          },
+          {
+            "height": 185000,
+            "cells": [
+              {
+                "text": "43%",
+                "fontSize": 700,
+                "color": "FFFFFF",
+                "fill": {
+                  "type": "none"
+                },
+                "alignment": "ctr"
+              },
+              {
+                "text": "43%",
+                "fontSize": 700,
+                "color": "FFFFFF",
+                "fill": {
+                  "type": "none"
+                },
+                "alignment": "ctr"
+              }
+            ]
+          },
+          {
+            "height": 185000,
+            "cells": [
+              {
+                "text": "45%",
+                "fontSize": 700,
+                "color": "FFFFFF",
+                "fill": {
+                  "type": "none"
+                },
+                "alignment": "ctr"
+              },
+              {
+                "text": "45%",
+                "fontSize": 700,
+                "color": "FFFFFF",
+                "fill": {
+                  "type": "none"
+                },
+                "alignment": "ctr"
+              }
+            ]
+          },
+          {
+            "height": 185000,
+            "cells": [
+              {
+                "text": "49%",
+                "fontSize": 700,
+                "color": "FFFFFF",
+                "fill": {
+                  "type": "none"
+                },
+                "alignment": "ctr"
+              },
+              {
+                "text": "49%",
+                "fontSize": 700,
+                "color": "FFFFFF",
+                "fill": {
+                  "type": "none"
+                },
+                "alignment": "ctr"
+              }
+            ]
+          },
+          {
+            "height": 185000,
+            "cells": [
+              {
+                "text": "58%",
+                "fontSize": 700,
+                "color": "FFFFFF",
+                "fill": {
+                  "type": "none"
+                },
+                "alignment": "ctr"
+              },
+              {
+                "text": "58%",
+                "fontSize": 700,
+                "color": "FFFFFF",
+                "fill": {
+                  "type": "none"
+                },
+                "alignment": "ctr"
+              }
+            ]
+          },
+          {
+            "height": 185000,
+            "cells": [
+              {
+                "text": "68%",
+                "fontSize": 700,
+                "color": "FFFFFF",
+                "fill": {
+                  "type": "none"
+                },
+                "alignment": "ctr"
+              },
+              {
+                "text": "68%",
+                "fontSize": 700,
+                "color": "FFFFFF",
+                "fill": {
+                  "type": "none"
+                },
+                "alignment": "ctr"
+              }
+            ]
+          }
+        ],
+        "border": {
+          "type": "none"
+        }
+      },
+      {
+        "type": "sp",
+        "id": 33,
+        "name": "chart-bg-cf-margin",
+        "position": {
+          "x": 6800400,
+          "y": 2743000,
+          "cx": 2057400,
+          "cy": 1943000
+        },
+        "fill": {
+          "type": "solid",
+          "color": "4a5fa5"
+        },
+        "border": {
+          "type": "none"
+        }
+      },
+      {
+        "type": "sp",
+        "id": 34,
+        "name": "chart-label-cf-margin",
+        "position": {
+          "x": 6857200,
+          "y": 2760000,
+          "cx": 1943400,
+          "cy": 350000
+        },
+        "fill": {
+          "type": "none"
+        },
+        "border": {
+          "type": "none"
+        },
+        "text": {
+          "body": {
+            "anchor": "t",
+            "paragraphs": [
+              {
+                "alignment": "left",
+                "runs": [
+                  {
+                    "text": "Levered Free Cash Flow Margin (%)",
+                    "bold": true,
+                    "fontSize": 900,
+                    "fontFace": "Calibri",
+                    "color": "FFFFFF"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "table",
+        "id": 35,
+        "name": "table-cf-margin",
+        "position": {
+          "x": 6800400,
+          "y": 3110000,
+          "cx": 2057400,
+          "cy": 1200000
+        },
+        "columns": [
+          {
+            "width": 1028700
+          },
+          {
+            "width": 1028700
+          }
+        ],
+        "rows": [
+          {
+            "height": 200000,
+            "cells": [
+              {
+                "text": "Mgmt",
+                "bold": false,
+                "fontSize": 700,
+                "color": "FFFFFF",
+                "fill": {
+                  "type": "none"
+                },
+                "alignment": "ctr"
+              },
+              {
+                "text": "Street",
+                "bold": false,
+                "fontSize": 700,
+                "color": "FFFFFF",
+                "fill": {
+                  "type": "none"
+                },
+                "alignment": "ctr"
+              }
+            ]
+          },
+          {
+            "height": 166600,
+            "cells": [
+              {
+                "text": "33%",
+                "fontSize": 700,
+                "color": "FFFFFF",
+                "fill": {
+                  "type": "none"
+                },
+                "alignment": "ctr"
+              },
+              {
+                "text": "33%",
+                "fontSize": 700,
+                "color": "FFFFFF",
+                "fill": {
+                  "type": "none"
+                },
+                "alignment": "ctr"
+              }
+            ]
+          },
+          {
+            "height": 166600,
+            "cells": [
+              {
+                "text": "33%",
+                "fontSize": 700,
+                "color": "FFFFFF",
+                "fill": {
+                  "type": "none"
+                },
+                "alignment": "ctr"
+              },
+              {
+                "text": "33%",
+                "fontSize": 700,
+                "color": "FFFFFF",
+                "fill": {
+                  "type": "none"
+                },
+                "alignment": "ctr"
+              }
+            ]
+          },
+          {
+            "height": 166600,
+            "cells": [
+              {
+                "text": "29%",
+                "fontSize": 700,
+                "color": "FFFFFF",
+                "fill": {
+                  "type": "none"
+                },
+                "alignment": "ctr"
+              },
+              {
+                "text": "32%",
+                "fontSize": 700,
+                "color": "FFFFFF",
+                "fill": {
+                  "type": "none"
+                },
+                "alignment": "ctr"
+              }
+            ]
+          },
+          {
+            "height": 166600,
+            "cells": [
+              {
+                "text": "34%",
+                "fontSize": 700,
+                "color": "FFFFFF",
+                "fill": {
+                  "type": "none"
+                },
+                "alignment": "ctr"
+              },
+              {
+                "text": "37%",
+                "fontSize": 700,
+                "color": "FFFFFF",
+                "fill": {
+                  "type": "none"
+                },
+                "alignment": "ctr"
+              }
+            ]
+          },
+          {
+            "height": 166600,
+            "cells": [
+              {
+                "text": "37%",
+                "fontSize": 700,
+                "color": "FFFFFF",
+                "fill": {
+                  "type": "none"
+                },
+                "alignment": "ctr"
+              },
+              {
+                "text": "37%",
+                "fontSize": 700,
+                "color": "FFFFFF",
+                "fill": {
+                  "type": "none"
+                },
+                "alignment": "ctr"
+              }
+            ]
+          },
+          {
+            "height": 166600,
+            "cells": [
+              {
+                "text": "37%",
+                "fontSize": 700,
+                "color": "FFFFFF",
+                "fill": {
+                  "type": "none"
+                },
+                "alignment": "ctr"
+              },
+              {
+                "text": "37%",
+                "fontSize": 700,
+                "color": "FFFFFF",
+                "fill": {
+                  "type": "none"
+                },
+                "alignment": "ctr"
+              }
+            ]
+          }
+        ],
+        "border": {
+          "type": "none"
+        }
+      },
+      {
+        "type": "sp",
+        "id": 36,
+        "name": "footer-source",
+        "position": {
+          "x": 457200,
+          "y": 4800000,
+          "cx": 3600000,
+          "cy": 228600
+        },
+        "fill": {
+          "type": "none"
+        },
+        "border": {
+          "type": "none"
+        },
+        "text": {
+          "body": {
+            "anchor": "b",
+            "paragraphs": [
+              {
+                "alignment": "left",
+                "runs": [
+                  {
+                    "text": "Source: Public Filings, Company Guidance",
+                    "fontSize": 700,
+                    "fontFace": "Calibri",
+                    "color": "666666"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "sp",
+        "id": 37,
+        "name": "footer-brand",
+        "position": {
+          "x": 4000000,
+          "y": 4750000,
+          "cx": 1143000,
+          "cy": 300000
+        },
+        "fill": {
+          "type": "none"
+        },
+        "border": {
+          "type": "none"
+        },
+        "text": {
+          "body": {
+            "anchor": "b",
+            "paragraphs": [
+              {
+                "alignment": "ctr",
+                "runs": [
+                  {
+                    "text": "Catalyst",
+                    "fontSize": 1800,
+                    "fontFace": "Georgia",
+                    "color": "555555"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "sp",
+        "id": 38,
+        "name": "footer-page",
+        "position": {
+          "x": 8600000,
+          "y": 4800000,
+          "cx": 457200,
+          "cy": 228600
+        },
+        "fill": {
+          "type": "none"
+        },
+        "border": {
+          "type": "none"
+        },
+        "text": {
+          "body": {
+            "anchor": "b",
+            "paragraphs": [
+              {
+                "alignment": "right",
+                "runs": [
+                  {
+                    "text": "10",
+                    "fontSize": 800,
+                    "fontFace": "Calibri",
+                    "color": "999999"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "sp",
+        "id": 39,
+        "name": "footer-confidential",
+        "position": {
+          "x": 3200000,
+          "y": 4980000,
+          "cx": 2743000,
+          "cy": 163800
+        },
+        "fill": {
+          "type": "none"
+        },
+        "border": {
+          "type": "none"
+        },
+        "text": {
+          "body": {
+            "anchor": "ctr",
+            "paragraphs": [
+              {
+                "alignment": "ctr",
+                "runs": [
+                  {
+                    "text": "CONFIDENTIAL | DRAFT",
+                    "fontSize": 700,
+                    "fontFace": "Calibri",
+                    "color": "999999"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

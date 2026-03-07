@@ -1,5 +1,11 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 
+export interface SlideVersion {
+  code: string;
+  timestamp: number;
+  versionNumber: number;
+}
+
 export interface Slide {
   id: string;
   slideNumber: number;
@@ -14,6 +20,8 @@ export interface SlidesState {
   isGenerating: boolean;
   error: string | null;
   presentationName: string;
+  /** version history keyed by slideNumber → array of prior versions */
+  versionHistory: Record<number, SlideVersion[]>;
 }
 
 const STORAGE_KEY = "volute_slides";
@@ -23,7 +31,6 @@ function loadSlidesState(): SlidesState | undefined {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      // Keep cached slides for reference but don't auto-load into canvas
       return {
         slides: [],
         cachedSlides: parsed.slides || [],
@@ -31,6 +38,7 @@ function loadSlidesState(): SlidesState | undefined {
         isGenerating: false,
         error: null,
         presentationName: parsed.presentationName || "Untitled Presentation",
+        versionHistory: parsed.versionHistory || {},
       };
     }
   } catch (e) {
@@ -46,6 +54,7 @@ const defaultState: SlidesState = {
   isGenerating: false,
   error: null,
   presentationName: "Untitled Presentation",
+  versionHistory: {},
 };
 
 const initialState: SlidesState = loadSlidesState() || defaultState;
@@ -55,10 +64,26 @@ export const slidesSlice = createSlice({
   initialState,
   reducers: {
     addSlide: (state, action: PayloadAction<{ slideNumber: number; code: string }>) => {
+      const { slideNumber, code } = action.payload;
+
+      // If a slide with this number already exists, snapshot it before replacing
+      const existing = state.slides.find((s) => s.slideNumber === slideNumber);
+      if (existing) {
+        if (!state.versionHistory[slideNumber]) {
+          state.versionHistory[slideNumber] = [];
+        }
+        const nextVersion = state.versionHistory[slideNumber].length + 1;
+        state.versionHistory[slideNumber].push({
+          code: existing.code,
+          timestamp: existing.timestamp,
+          versionNumber: nextVersion,
+        });
+      }
+
       const newSlide: Slide = {
         id: `slide-${Date.now()}`,
-        slideNumber: action.payload.slideNumber,
-        code: action.payload.code,
+        slideNumber,
+        code,
         timestamp: Date.now(),
       };
       state.slides.push(newSlide);
@@ -67,6 +92,18 @@ export const slidesSlice = createSlice({
     updateSlide: (state, action: PayloadAction<{ id: string; code: string }>) => {
       const slide = state.slides.find((s) => s.id === action.payload.id);
       if (slide) {
+        // Snapshot the current version before updating
+        const sn = slide.slideNumber;
+        if (!state.versionHistory[sn]) {
+          state.versionHistory[sn] = [];
+        }
+        const nextVersion = state.versionHistory[sn].length + 1;
+        state.versionHistory[sn].push({
+          code: slide.code,
+          timestamp: slide.timestamp,
+          versionNumber: nextVersion,
+        });
+
         slide.code = action.payload.code;
         slide.timestamp = Date.now();
       }
@@ -96,6 +133,33 @@ export const slidesSlice = createSlice({
     clearCachedSlides: (state) => {
       state.cachedSlides = [];
     },
+    restoreVersion: (
+      state,
+      action: PayloadAction<{ slideNumber: number; versionNumber: number }>
+    ) => {
+      const { slideNumber, versionNumber } = action.payload;
+      const versions = state.versionHistory[slideNumber];
+      if (!versions) return;
+
+      const version = versions.find((v) => v.versionNumber === versionNumber);
+      if (!version) return;
+
+      const slide = state.slides.find((s) => s.slideNumber === slideNumber);
+      if (slide) {
+        // Snapshot current code before restoring
+        const nextVer = versions.length + 1;
+        versions.push({
+          code: slide.code,
+          timestamp: slide.timestamp,
+          versionNumber: nextVer,
+        });
+        slide.code = version.code;
+        slide.timestamp = Date.now();
+      }
+    },
+    clearVersionHistory: (state) => {
+      state.versionHistory = {};
+    },
   },
 });
 
@@ -109,6 +173,8 @@ export const {
   setPresentationName,
   clearSlides,
   clearCachedSlides,
+  restoreVersion,
+  clearVersionHistory,
 } = slidesSlice.actions;
 
 export default slidesSlice.reducer;

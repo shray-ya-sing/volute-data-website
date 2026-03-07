@@ -210,6 +210,11 @@ Position tables absolutely. Use fixed column widths and compact padding for data
 </div>
 \`\`\`
 
+### Logos
+
+Use the following URL pattern to include logos. Replace [TICKER] with the company ticker (ex. NVDA, AAPL, etc.) in all caps and without brackets and use process.env.LOGO_DEV_PUBLIC_KEY exactly as written for the token:
+https://img.logo.dev/ticker/[TICKER]?token=process.env.LOGO_DEV_PUBLIC_KEY
+
 ## Common Mistakes to AVOID
 
 ❌ Using flexbox or grid on the root or major layout containers

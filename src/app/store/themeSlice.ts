@@ -25,7 +25,7 @@ function loadThemeState(): ThemeState | undefined {
 const defaultState: ThemeState = {
   headingFont: "Inter",
   bodyFont: "Inter",
-  accentColors: ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#EC4899"],
+  accentColors: ["#0d1b2a", "#1b263b", "#415a77", "#778da9", "#e0e1dd"],
   headingTextColor: "#111827",
   bodyTextColor: "#374151",
   headingFontSize: 32,

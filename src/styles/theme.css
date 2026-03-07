@@ -1,7 +1,7 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --font-size: 16px;
+  --font-size: 10.72px; /* 16px * 0.67 = 10.72px to match 67% zoom at 100% */
   --background: #ffffff;
   --foreground: oklch(0.145 0 0);
   --card: #ffffff;
@@ -39,6 +39,21 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* ── Volute shared tokens ── */
+  --volute-bg: #faf9f7;
+  --volute-surface: #ffffff;
+  --volute-surface-2: #f2f0ed;
+  --volute-border: rgba(0, 0, 0, 0.08);
+  --volute-border-hover: rgba(0, 0, 0, 0.18);
+  --volute-text-primary: #1a1917;
+  --volute-text-secondary: #6b6a68;
+  --volute-text-muted: #b0aea9;
+  --volute-accent: #8a6a3a;
+  --volute-accent-dim: rgba(138, 106, 58, 0.08);
+  --volute-accent-glow: rgba(138, 106, 58, 0.06);
+  --volute-font-display: 'Instrument Serif', serif;
+  --volute-font-body: 'DM Sans', sans-serif;
 }
 
 .dark {
