@@ -390,6 +390,156 @@ If the user's prompt contains citation markers in the format [cite:N] or [cite:N
 - Keep badges small (16x16px) so they don't disrupt the layout
 - Use accentColors[0] with 20% opacity for the badge background
 
+## Slide Layout Examples
+
+The examples below are compressed reference patterns derived from real investment banking presentations. Use them ONLY as structural and layout guidance.
+
+⚠️ CRITICAL BRANDING RULE: These examples reference Goldman Sachs, Deutsche Bank, Morgan Stanley, Greenhill, and other banks purely as layout inspiration. You MUST NEVER mention, display, or allude to any of these banks (or any other bank/firm) in generated slides UNLESS the user explicitly names them in their prompt. Never render bank logos, names, color schemes associated with a specific bank, or any branding from these examples. Use only the layout patterns.
+
+### Example 1 — Three-Column Layout
+\`\`\`tsx
+// ThreeColumnLayout: header + 3 equal columns + footer, all in a 960×540 absolute canvas
+// col width = 260px each, gaps = 30px, left margin = 60px
+// header: absolute top:40 left:60 w:840 — can contain logo block + title + subtitle bar
+// leftColumn: absolute top:140 left:60 w:260 h:350 — text bullets with bottom-bordered lines
+// centerColumn: absolute top:140 left:350 w:260 h:350 — large stat/highlight + supporting text
+// rightColumn: absolute top:140 left:640 w:260 h:350 — 2 stacked BarCharts (w:240 h:150 each)
+// footer: absolute top:500 left:60 w:840 — footnotes left, page number right
+// Accent bar pattern: full-width colored div (h:32) directly under subtitle as a section divider
+\`\`\`
+
+### Example 2 — Multi-Chart Dashboard (4-up grid)
+\`\`\`tsx
+// 4 charts across top row + 4 metric panels across bottom row
+// Top charts: each absolute, w:190 h:220, left offsets: 60,260,460,660, top:110
+//   Each chart panel: colored background, title text, CAGR annotation, LineChart inside
+//   LineChart: w:170 h:150, 2 series (mgmt plan vs street case), no legend inside panel
+// Bottom panels: each absolute, w:190 h:180, left offsets same, top:340
+//   Growth %: manual bar columns using div heights proportional to value
+//   Margin table: 2-col grid (Mgmt / Street), rows for each forecast year
+// Shared legend: absolute top:60 right:60, bordered box, two line samples + labels
+// Page header: title left top:40, legend box right top:40
+// Footer: source left, firm name center, page number right — all absolute top:510
+\`\`\`
+
+### Example 3 — Executive Summary (2×2 grid)
+\`\`\`tsx
+// Layout: title bar top:40, then 2 columns × 2 rows of content panels
+// col1Left:60 w:390, col2Left:510 w:390, gap:60
+// Top row top:110 h:190: [Business Overview bullets] [Financial table]
+//   Bullets: 4 items, each ~36px tall, left-border accent line
+//   Table: thead with year cols + CAGR col, tbody rows alternating white/gray
+//     Bold rows: Revenue, Gross Profit, EBITDA; italic gray rows: growth/margin
+// Bottom row top:320 h:170: [Stock LineChart dual-axis] [Stacked BarChart with total labels]
+//   LineChart: left yAxis ($) right yAxis (x multiple), two lines different colors
+//   BarChart: stackId groups, 3 series, total label above each bar
+// Footer: absolute top:505, firm logo left, page number right
+\`\`\`
+
+### Example 4 — Comparables Bar Chart (ranked peers)
+\`\`\`tsx
+// Two stacked ChartSections, each ~220px tall, separated by a section header bar
+// Section header: top border line + label text, full width
+// Each BarChart: ResponsiveContainer w:100% h:200, barCategoryGap:20%
+//   XAxis: custom MultiLineTick (split on \\n), no tick lines
+//   YAxis: hidden, domain padded above max and below min for label room
+//   ReferenceLine y=0: thin stroke for zero baseline
+//   ReferenceLine y=peerMedian: dashed colored line + right-aligned italic label above chart
+//   Bar: Cell per entry with individual fill colors; highlighted bars use accent, peers use base blue
+//   LabelList: custom ValueLabel component — places value above bar (negative → below, wrapped in parens)
+// Footer: firm branding left, disclaimer center (fontSize:7), page number right
+\`\`\`
+
+### Example 5 — Summary / Agenda Slide
+\`\`\`tsx
+// Two-column layout: left col w:260 top:120 — intro paragraph, centered vertically
+// Right col w:540 top:80:
+//   Header band: colored bg h:50, large title text inside
+//   Agenda items: 3 items, each a flex row — colored label box w:130 h:70 + bullet list panel
+//     Label box: centered multi-line bold text, same accent color as header
+//     Bullet panel: top border line, 3-5 bullet items fontSize:13, lineHeight:1.6
+//     Items spaced ~80px apart vertically
+// Footer: absolute top:500, firm name serif italic left, page number right
+\`\`\`
+
+### Example 6 — Scorecard / Ratings Table
+\`\`\`tsx
+// Dark background slide (bg:#000 or dark navy), inner white content panel
+// Header: disclaimer bar top:0 h:20 (red text), title h1 left, firm logo box right
+// White panel: absolute top:80 left:40 w:880 h:430, padding inside
+//   Grid layout (CSS grid columns: [labelCol] repeat(N, 1fr)):
+//     Row 1: empty + N colored header cells (each agency/category gets its own accent color)
+//     Row 2 "Considerations": left label cell (dark bg, white text) + N bordered content cells
+//       Content cells: bold sub-label + bullet list items, fontSize:11
+//     Row 3 "Current Metrics": left label cell + N metric stacks
+//       Each metric stack: 3 rows of gray-bg pills showing metric name + bold value
+//     Row 4 "Breakpoints": left label cell + N mini-tables
+//       Mini-table: thead (Rating | Breakpoint), tbody rows, highlighted current row (blue-tinted bg)
+//   All cells: border:1px solid #ccc, padding:8px, fontSize:11
+// Footer inside white panel: sources line + 3 numbered footnotes, fontSize:9, top:410
+\`\`\`
+
+### Example 7 — Financial Model / DDM / Schedule
+\`\`\`tsx
+// Compact dense layout — many rows, small font (fontSize:9 body, fontSize:8.5 cells)
+// Left panel: absolute left:40 w:160 h:460 — assumptions list + small bar chart (w:140 h:110)
+//   Bar chart: 4 bars (dividends, terminal value, adjustments, total), top labels, no yAxis
+// Right panel: absolute left:210 w:710 h:460
+//   Main table: thead dark bg, year columns; tbody organized into labeled sections
+//     Section headers: full-width row, light gray bg, bold text (e.g. "A. Cash flows")
+//     Data rows: label cell w:38%, value cells text-right; base case row bold + heavier border
+//     Special rows: "Present/Terminal value" header spans cols with centered label
+//   Sensitivity section below main table (top border separator):
+//     Two sensitivity tables side by side, each w:48%
+//     Each table: header row dark bg + cost-of-equity row labels (rotated vertical text label beside)
+//     Base case intersection cell: highlighted blue bg
+//     Extra rows below tbody: implied ratio rows in lighter gray
+// Footer: firm name left (small colored text), long disclaimer center (fontSize:7), page# right
+\`\`\`
+
+### Example 8 — Title / Section Divider Slide
+\`\`\`tsx
+// Minimal slide — mostly whitespace, 2 elements:
+// Top-left: firm name line 1 + line 2 (colored, fontSize:18/14), absolute top:40 left:60
+// Top-right: square logo placeholder (w:60 h:60, solid bg), absolute top:40 right:60
+// Center: large section title h1 (fontSize:48 fontWeight:400), absolute top:240 left:60 w:840 textAlign:center
+//          subtitle paragraph below title, fontSize:20 textAlign:center, muted color
+// No footer, no decorative elements — clean open whitespace is intentional
+\`\`\`
+
+### Example 9 — Outreach / Process Summary Table
+\`\`\`tsx
+// Dark outer bg, centered white card w:900 aspectRatio:16/10
+// Black top accent bar h:6 absolute top:0
+// Title: absolute top:20, bold tracking-wide, fontSize:22
+// Table layout: left group-label column (w:100) + main data table (flex-1)
+//   Group label column: vertically stacked colored cells, each spanning N rows via explicit height
+//     Cell contains: centered bold text + small circular count badge
+//   Data table: thead dark gray bg (#4a4a4a), white text, columns: Counterparty | Date | NDA | Meeting | FollowUp | Status
+//     Counterparty cell: black rectangle placeholder (h:20 w:90) — logos redacted
+//     NDA cell: checkmark ✓ or empty
+//     Status cell: short text label
+//     Row height: 48px, alternating hover state
+// Footnote: absolute bottom:60 left:40, fontSize:8, gray text
+// Black footer bar: h:48 absolute bottom:0, centered italic colored confidentiality text
+\`\`\`
+
+### Example 10 — Metrics / Comparables Data Table
+\`\`\`tsx
+// White card centered on gray bg, aspectRatio:16/10
+// Decorative header bar: short wide colored rectangle centered top (w:500 h:10)
+// Title: centered bold fontSize:20, subtitle centered fontSize:12 below
+// Sub-label: italic gray "($ in millions, except per share data)" fontSize:10
+// Main table: w:full, complex multi-level headers
+//   Header row 1: empty colspan:2, then grouped headers spanning multiple cols (dark green bg / lighter green bg)
+//   Header row 2: sub-column labels (Low/Mid/High) under grouped headers
+//   Tbody: each row may have a rowSpan category label cell on far left (vertical text)
+//     Logo placeholder cell: black rectangle w:80 h:24
+//     Superscript cell: small raised notation
+//     Value cells: editable, text-right, alternating row bg
+// Footer: absolute bottom:20, firm name italic serif left, page divider + number right
+\`\`\`
+
 Now generate the slide component based on the user's request.`;
 
     const userPromptText = context
