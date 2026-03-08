@@ -24,7 +24,7 @@ export function CanvasView({ onCitationClick }: CanvasViewProps) {
   }, [dispatch]);
 
   return (
-    <div className="flex-1 flex flex-col">
+    <div className="flex-1 flex flex-col h-full">
       {/* Theme Toolbar */}
       <div data-no-print className="relative z-50">
         <ThemeToolbar />

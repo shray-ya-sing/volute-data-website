@@ -49,6 +49,7 @@ interface SendOptions {
   images?: Array<{ data: string; mediaType?: string }>;
   imageRefs?: Array<{ blobId: string; blobUrl: string; mediaType: string }>;
   existingCode?: string;
+  displayContent?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -57,7 +58,7 @@ interface SendOptions {
 
 export function useAgentStream(options: UseAgentStreamOptions = {}) {
   const {
-    apiUrl = 'https://www.getvolute.com/api/agent',
+    apiUrl = 'https://www.getvolute.com/api/agent-websearch',
     onSlideGenerated,
     onError,
   } = options;
@@ -96,7 +97,7 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
       const userMessage: AgentMessage = {
         id: `user-${Date.now()}`,
         role: 'user',
-        content: prompt,
+        content: sendOptions?.displayContent || prompt,
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, userMessage]);
@@ -124,6 +125,16 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
         const requestBody: any = {
           prompt,
           sessionId: sessionId || undefined,
+          theme: {
+            headingFont: theme.headingFont,
+            bodyFont: theme.bodyFont,
+            accentColors: theme.accentColors,
+            headingTextColor: theme.headingTextColor,
+            bodyTextColor: theme.bodyTextColor,
+            headingFontSize: theme.headingFontSize,
+            bodyFontSize: theme.bodyFontSize,
+            backgroundColor: theme.slideBackgroundColor,
+          },
         };
 
         if (sendOptions?.images) {
@@ -141,7 +152,7 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
           console.log('[useAgentStream] Edit mode with existing code');
         }
 
-        console.log('[useAgentStream] Connecting to agent...', { sessionId, hasImages: !!sendOptions?.images });
+        console.log('[useAgentStream] Connecting to agent...', { sessionId, hasImages: !!sendOptions?.images, backgroundColor: theme.slideBackgroundColor });
 
         const response = await fetch(apiUrl, {
           method: 'POST',
@@ -207,7 +218,7 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
         currentAssistantMessageRef.current = null;
       }
     },
-    [isStreaming, sessionId, apiUrl, dispatch, onError, onSlideGenerated]
+    [isStreaming, sessionId, apiUrl, dispatch, onError, onSlideGenerated, theme]
   );
 
   // ---------------------------------------------------------------------------
@@ -280,6 +291,11 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
         }
 
         case 'slide_generated': {
+          console.log(
+            `[useAgentStream] 📥 Raw slide_generated event:`,
+            { slideNumber: event.slideNumber, action: event.action, codeLength: event.code?.length }
+          );
+
           const slideData: SlideData = {
             action: event.action || 'created',
             code: event.code,
@@ -300,11 +316,21 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
           // Store in Redux — use ref to always see the latest slides
           const currentSlides = slidesRef.current;
           const existingSlide = currentSlides.find((s) => s.slideNumber === slideData.slideNumber);
+
           if (existingSlide && slideData.action === 'edited') {
+            // Explicit edit — update in place
             dispatch(updateSlide({ id: existingSlide.id, code: slideData.code }));
-          } else if (existingSlide) {
-            // Same slide number already exists (e.g. re-generated) — update instead of duplicating
-            dispatch(updateSlide({ id: existingSlide.id, code: slideData.code }));
+          } else if (existingSlide && slideData.action === 'created') {
+            // Backend sent a "created" action but a slide with this number already exists.
+            // This is the bug case — auto-assign the next available slide number instead of replacing.
+            const allNumbers = currentSlides.map((s) => s.slideNumber);
+            const nextNumber = Math.max(...allNumbers) + 1;
+            console.warn(
+              `[useAgentStream] Slide #${slideData.slideNumber} already exists but action is 'created'. ` +
+              `Auto-assigning slide number ${nextNumber} to avoid replacement.`
+            );
+            slideData.slideNumber = nextNumber;
+            dispatch(addSlide({ slideNumber: nextNumber, code: slideData.code }));
           } else {
             dispatch(addSlide({ slideNumber: slideData.slideNumber, code: slideData.code }));
           }

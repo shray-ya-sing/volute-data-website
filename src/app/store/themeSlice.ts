@@ -8,6 +8,7 @@ export interface ThemeState {
   bodyTextColor: string;
   headingFontSize: number;
   bodyFontSize: number;
+  slideBackgroundColor: string;
 }
 
 const STORAGE_KEY = "volute_theme";
@@ -26,10 +27,11 @@ const defaultState: ThemeState = {
   headingFont: "Inter",
   bodyFont: "Inter",
   accentColors: ["#0d1b2a", "#1b263b", "#415a77", "#778da9", "#e0e1dd"],
-  headingTextColor: "#111827",
-  bodyTextColor: "#374151",
+  headingTextColor: "#0a0a0b",
+  bodyTextColor: "#1a1a1a",
   headingFontSize: 32,
   bodyFontSize: 16,
+  slideBackgroundColor: "#ffffff",
 };
 
 const initialState: ThemeState = loadThemeState() || defaultState;
@@ -59,6 +61,9 @@ export const themeSlice = createSlice({
     setBodyFontSize: (state, action: PayloadAction<number>) => {
       state.bodyFontSize = action.payload;
     },
+    setSlideBackgroundColor: (state, action: PayloadAction<string>) => {
+      state.slideBackgroundColor = action.payload;
+    },
   },
 });
 
@@ -70,6 +75,7 @@ export const {
   setBodyTextColor,
   setHeadingFontSize,
   setBodyFontSize,
+  setSlideBackgroundColor,
 } = themeSlice.actions;
 
 export default themeSlice.reducer;

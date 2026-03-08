@@ -12,7 +12,7 @@ export function Landing() {
   const navigate = useNavigate();
 
   const samplePrompts = [
-    "2025 IPO performance summary deck",
+    "2024 Global PE fundraising trends by strategy",
     "2025 Industrials Buyouts with financial profiles",
     "US Mid-Market PE Software EV/EBITDA comps",
   ];
@@ -93,7 +93,7 @@ export function Landing() {
         <div className="v-center">
           {/* Hero */}
           <p className="v-eyebrow">
-            Private Markets · M&A · Public Equity
+            Private Markets
           </p>
           <h1 className="v-headline">
             Research at the

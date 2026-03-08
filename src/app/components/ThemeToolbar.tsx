@@ -9,6 +9,7 @@ import {
   setBodyTextColor,
   setHeadingFontSize,
   setBodyFontSize,
+  setSlideBackgroundColor,
 } from "../store/themeSlice";
 
 const FONT_OPTIONS = [
@@ -199,6 +200,20 @@ export function ThemeToolbar() {
             className="w-6 h-6 border border-gray-300 rounded cursor-pointer"
           />
         </div>
+      </div>
+
+      <div className="w-px h-6 bg-gray-300" />
+
+      {/* Slide Background Color */}
+      <div className="flex items-center gap-1.5 min-w-fit">
+        <label className="text-[10px] text-gray-600 font-medium">Background</label>
+        <input
+          type="color"
+          value={theme.slideBackgroundColor}
+          onChange={(e) => dispatch(setSlideBackgroundColor(e.target.value))}
+          className="w-6 h-6 border border-gray-300 rounded cursor-pointer"
+          title="Slide background color"
+        />
       </div>
 
       <div className="w-px h-6 bg-gray-300" />
