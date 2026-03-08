@@ -5,8 +5,8 @@ from pathlib import Path
 
 def parse_slide():
     script_dir = Path(__file__).parent.resolve()
-    source_file = script_dir / "generated_slide.tsx"
-    output_file = script_dir / "parsed_slide_output.json"
+    source_file = script_dir / "TitleSlideTemplate3.tsx"
+    output_file = script_dir / "parsed_slide_output_new.json"
 
     if not source_file.exists():
         print(f"Error: Could not find {source_file}")
@@ -29,7 +29,7 @@ def parse_slide():
         }
     }
 
-    url = "https://www.getvolute.com/api/parse-slide-chromium"
+    url = "https://www.getvolute.com/api/parse-slide-chromium-v2"
     headers = {"Content-Type": "application/json"}
 
     try:
