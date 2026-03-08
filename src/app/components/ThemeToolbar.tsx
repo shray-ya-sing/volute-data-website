@@ -13,8 +13,8 @@ import {
 } from "../store/themeSlice";
 
 const FONT_OPTIONS = [
-  "Inter",
   "Arial",
+  "Inter",
   "Helvetica",
   "Georgia",
   "Times New Roman",

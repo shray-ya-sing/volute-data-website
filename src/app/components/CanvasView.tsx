@@ -59,7 +59,7 @@ export function CanvasView({ onCitationClick }: CanvasViewProps) {
             data-slide-scroll-container
           >
             {slides.length > 0 ? (
-              <div className="flex flex-col items-center py-8 gap-8">
+              <div className="flex flex-col items-center py-8 px-20 gap-8">
                 {slides.map((slide) => (
                   <div
                     key={slide.id}
