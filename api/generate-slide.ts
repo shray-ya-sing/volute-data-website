@@ -14,6 +14,90 @@ interface ImageInput {
   mediaType?: SupportedMediaType;
 }
 
+// ---------------------------------------------------------------------------
+// Template categories — blob files must follow the naming convention:
+//   ${BLOB_BASE_URL}/slide-templates/${category}_1.jpg
+//   ${BLOB_BASE_URL}/slide-templates/${category}_2.jpg
+//   ${BLOB_BASE_URL}/slide-templates/${category}_3.jpg
+// ---------------------------------------------------------------------------
+
+export type TemplateCategory =
+  | 'title'
+  | 'table_of_contents'
+  | 'section_divider'
+  | 'executive_summary'
+  | 'market_overview'
+  | 'company_overview'
+  | 'peer_benchmarking'
+  | 'precedent_transactions'
+  | 'strategic_alternatives'
+  | 'valuation_football_field'
+  | 'financial_model'
+  | 'wacc_analysis'
+  | 'process_timeline'
+  | 'logo_splash'
+  | 'stock_performance';
+
+interface CachedReferenceImage {
+  type: 'base64';
+  media_type: 'image/jpeg';
+  data: string;
+}
+
+// Module-level cache — persists across requests on a warm Vercel instance.
+// On cold start, images are fetched once from Vercel Blob and cached for the
+// lifetime of that instance. No TTL needed — blob URLs are stable.
+const referenceImageCache = new Map<TemplateCategory, CachedReferenceImage[]>();
+
+async function getReferenceImages(category: TemplateCategory): Promise<CachedReferenceImage[]> {
+  if (referenceImageCache.has(category)) {
+    console.log(`[generate-slide] 🖼  Reference cache hit: ${category}`);
+    return referenceImageCache.get(category)!;
+  }
+
+  const baseUrl = process.env.BLOB_BASE_URL;
+  if (!baseUrl) {
+    console.warn('[generate-slide] ⚠️  BLOB_BASE_URL not set — skipping reference images');
+    return [];
+  }
+
+  const urls = [1, 2, 3].map(
+    (n) => `${baseUrl}/slide-templates/${category}_${n}.jpg`,
+  );
+
+  console.log(`[generate-slide] 🖼  Fetching reference images for category: ${category}`);
+
+  const images = await Promise.all(
+    urls.map(async (url, i) => {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) {
+          console.warn(`[generate-slide] ⚠️  Reference image ${i + 1} not found (${res.status}): ${url}`);
+          return null;
+        }
+        const buffer = await res.arrayBuffer();
+        console.log(
+          `[generate-slide] 🖼  Loaded reference ${i + 1} for ${category}: ` +
+          `${(buffer.byteLength / 1024).toFixed(1)} KB`,
+        );
+        return {
+          type: 'base64' as const,
+          media_type: 'image/jpeg' as const,
+          data: Buffer.from(buffer).toString('base64'),
+        };
+      } catch (err: any) {
+        console.warn(`[generate-slide] ⚠️  Failed to fetch reference image ${i + 1}: ${err.message}`);
+        return null;
+      }
+    }),
+  );
+
+  const valid = images.filter((img): img is CachedReferenceImage => img !== null);
+  referenceImageCache.set(category, valid);
+  console.log(`[generate-slide] 🖼  Cached ${valid.length}/3 reference images for ${category}`);
+  return valid;
+}
+
 // Vercel timeout handling - allows up to 5 minutes for generation (requires Pro or higher)
 export const config = {
   maxDuration: 300,
@@ -40,6 +124,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     context = '',
     theme = {},
     images = [] as ImageInput[],
+    templateCategory,   // optional: TemplateCategory — loads reference images for new slides
   } = req.body;
 
   if (!prompt) {
@@ -57,9 +142,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     'image/webp',
   ];
 
-  console.log(`[generate-slide] Generating slide ${slideNumber} with ${images.length} image(s)...`);
+  console.log(`[generate-slide] Generating slide ${slideNumber} with ${images.length} user image(s)${templateCategory ? `, template category: ${templateCategory}` : ''}...`);
 
   try {
+    // Load reference images for new slides when templateCategory is provided
+    let referenceImages: CachedReferenceImage[] = [];
+    if (templateCategory) {
+      referenceImages = await getReferenceImages(templateCategory as TemplateCategory);
+    }
+
     const themePropsDoc = `
 Theme Properties (use these as props — font sizes are NUMBERS, not strings):
 - headingFont: "${theme.headingFont || "'Inter', sans-serif"}" (for titles and headings)
@@ -1042,9 +1133,29 @@ Now generate the slide component based on the user's request.`;
       ? `${context}\n\nSlide ${slideNumber} requirements:\n${prompt}`
       : `Create slide ${slideNumber}:\n${prompt}`;
 
-    // Build the content array — images first, then text prompt.
+    // Build the content array:
+    // 1. Reference images (design templates, loaded from blob by category)
+    // 2. User-attached images (data sources, style references passed from agent)
+    // 3. Text prompt
     const userContent: Anthropic.MessageParam['content'] = [];
 
+    // 1. Reference images — prepended so the model sees design context first
+    if (referenceImages.length > 0) {
+      for (let i = 0; i < referenceImages.length; i++) {
+        userContent.push({
+          type: 'image',
+          source: referenceImages[i],
+        });
+      }
+      // Bridge instruction so model understands the role of these images
+      userContent.push({
+        type: 'text',
+        text: `The ${referenceImages.length} image(s) above are reference slides for the "${templateCategory}" slide type. Match their visual design language — layout density, typography hierarchy, color usage, table formatting, header/footer treatment, and spacing — but do NOT copy their content. Use only the structural and aesthetic patterns.\n\n`,
+      });
+      console.log(`[generate-slide] 🖼  Injected ${referenceImages.length} reference image(s) for category: ${templateCategory}`);
+    }
+
+    // 2. User-attached images
     for (let i = 0; i < images.length; i++) {
       const img = images[i];
 
@@ -1138,6 +1249,8 @@ Now generate the slide component based on the user's request.`;
       slideNumber,
       theme,
       imageCount: images.length,
+      referenceImageCount: referenceImages.length,
+      templateCategory: templateCategory ?? null,
       usage: {
         input_tokens: message.usage.input_tokens,
         output_tokens: message.usage.output_tokens,
