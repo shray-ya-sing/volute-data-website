@@ -56,6 +56,7 @@ interface SlideTheme {
   bodyTextColor?: string;
   headingFontSize?: number;
   bodyFontSize?: number;
+  backgroundColor?: string;
 }
 
 interface CreateOrEditSlideInput {
@@ -572,6 +573,7 @@ const tools: Anthropic.Tool[] = [
             bodyTextColor:    { type: 'string' },
             headingFontSize:  { type: 'number' },
             bodyFontSize:     { type: 'number' },
+            backgroundColor:  { type: 'string' },
           },
         },
         existingCode: {

@@ -68,7 +68,9 @@ Theme Properties (use these as props — font sizes are NUMBERS, not strings):
 - headingTextColor: "${theme.headingTextColor || '#000000'}" (color for heading text)
 - bodyTextColor: "${theme.bodyTextColor || '#333333'}" (color for body text)
 - headingFontSize: ${theme.headingFontSize || 36} (number — base px size for main headings, render as \`\${headingFontSize}px\`)
-- bodyFontSize: ${theme.bodyFontSize || 14} (number — base px size for body text, render as \`\${bodyFontSize}px\`)`;
+- bodyFontSize: ${theme.bodyFontSize || 14} (number — base px size for body text, render as \`\${bodyFontSize}px\`)
+- backgroundColor: "${theme.backgroundColor || '#ffffff'}" (background color for the slide, default white)  
+    `;
 
     const systemPrompt = `You are an expert at creating beautiful, professional presentation slides using React and TypeScript.
 
@@ -103,6 +105,7 @@ interface SlideProps {
   bodyTextColor: string;
   headingFontSize: number;
   bodyFontSize: number;
+  backgroundColor: string;
 }
 
 export default function Slide${slideNumber}({
@@ -113,6 +116,7 @@ export default function Slide${slideNumber}({
   bodyTextColor,
   headingFontSize,
   bodyFontSize,
+  backgroundColor,
 }: SlideProps) { ... }
 \`\`\`
 
@@ -155,7 +159,9 @@ fontSize: \`\${h1Size}px\`
 - Body text: bodyFont, bodyTextColor, bodyFontSize
 - Accents: accentColors[0] (primary), accentColors[1–5] (secondary)
 - Transparency: template literal e.g. \`\${accentColors[0]}20\` for 20% opacity hex suffix
-- IMPORTANT: ALWAYS USE WHITE FLAT BACKGROUND AS DEFAULT AND DARK COLORS AS TEXT UNLESS USER SPECIFICALLY REQUESTS OTHERWISE 
+- Slide background color: backgroundColor (always use white as default unless specified otherwise) 
+- DO NOT USE ANY ICONS UNLESS SPECIFIED BY USER
+- USE SIMPLE BULLETED PARAGRAPHS FOR ALL TEXT PARAGRAPHS UNLESS USER SPECIFICALLY REQUESTS OTHERWISE 
 
 ## Multi-Column Layouts
 
@@ -269,8 +275,7 @@ Every slide you generate will be parsed by a headless browser DOM extractor that
 <div
   data-pptx-type="shape"
   data-pptx-id="3"
-  style={{ position: 'absolute', top: '140px', left: '60px', width: '200px', height: '80px',
-           backgroundColor: accentColors[0] }}
+  style={{ position: 'absolute', top: '140px', left: '60px', width: '200px', height: '80px'}}
 >
   <span
     data-pptx-type="text"
