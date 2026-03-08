@@ -33,10 +33,12 @@ export type TemplateCategory =
   | 'strategic_alternatives'
   | 'valuation_football_field'
   | 'financial_model'
-  | 'wacc_analysis'
+  | 'market_map'
   | 'process_timeline'
   | 'logo_splash'
-  | 'stock_performance';
+  | 'company_overview'
+  | 'agenda'
+  ;
 
 interface CachedReferenceImage {
   type: 'base64';
@@ -232,6 +234,22 @@ ${themePropsDoc}
 - Content area: top: 140px, left: 60px, width: 840px, height: 340px
 - Footer: top: 500px, left: 60px, width: 840px
 
+## Reference Images and Brand Neutrality
+
+When reference images are provided, use them ONLY to understand:
+- Layout structure and element positioning
+- Typography hierarchy and sizing
+- Spacing and density conventions
+- Table and chart formatting patterns
+- Header/footer treatment
+
+IGNORE completely:
+- Any firm logos, wordmarks, or brand marks visible in the images
+- Specific color schemes associated with a particular firm (e.g. Goldman blue, Citi red)
+- Firm names, division labels, or legal disclaimers referencing a specific bank or advisor
+- Any text content in the reference images — numbers, company names, deal names
+
+The generated slide must be fully brand-neutral unless the user explicitly names a firm in their prompt. Use your default color palette if none is provided by the user. 
 ### 4. Typography Scaling (font sizes are numbers)
 \`\`\`tsx
 const h1Size = headingFontSize;           // e.g. 36

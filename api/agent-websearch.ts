@@ -604,11 +604,11 @@ const tools: Anthropic.Tool[] = [
             'precedent_transactions',
             'strategic_alternatives',
             'valuation_football_field',
-            'financial_model',
-            'wacc_analysis',
+            'competitive_landscape',
+            'agenda',
             'process_timeline',
             'logo_splash',
-            'stock_performance',
+            'market_map',
           ],
           description:
             'The visual category for a NEW slide. Triggers loading of 3 reference design images ' +
