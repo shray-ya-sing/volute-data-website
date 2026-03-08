@@ -157,7 +157,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 Theme Properties (use these as props — font sizes are NUMBERS, not strings):
 - headingFont: "${theme.headingFont || "'Inter', sans-serif"}" (for titles and headings)
 - bodyFont: "${theme.bodyFont || "'Inter', sans-serif"}" (for body text and paragraphs)
-- accentColors: ${JSON.stringify(theme.accentColors || ['#667eea', '#764ba2'])} (array of accent colors for highlights, buttons, etc.)
+- accentColors: ${JSON.stringify(theme.accentColors || ["#0d1b2a","#1b263b","#415a77","#778da9","#e0e1dd"] )} (array of accent colors for highlights, buttons, etc.)
 - headingTextColor: "${theme.headingTextColor || '#000000'}" (color for heading text)
 - bodyTextColor: "${theme.bodyTextColor || '#333333'}" (color for body text)
 - headingFontSize: ${theme.headingFontSize || 36} (number — base px size for main headings, render as \`\${headingFontSize}px\`)
