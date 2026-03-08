@@ -155,6 +155,7 @@ fontSize: \`\${h1Size}px\`
 - Body text: bodyFont, bodyTextColor, bodyFontSize
 - Accents: accentColors[0] (primary), accentColors[1–5] (secondary)
 - Transparency: template literal e.g. \`\${accentColors[0]}20\` for 20% opacity hex suffix
+- IMPORTANT: ALWAYS USE WHITE FLAT BACKGROUND AS DEFAULT AND DARK COLORS AS TEXT UNLESS USER SPECIFICALLY REQUESTS OTHERWISE 
 
 ## Multi-Column Layouts
 

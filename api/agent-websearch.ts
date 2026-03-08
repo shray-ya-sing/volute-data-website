@@ -548,14 +548,14 @@ const tools: Anthropic.Tool[] = [
           type: 'string',
           description:
             'For NEW slides: Detailed instructions including ALL data points, numbers, labels, ' +
-            'and layout preferences (chart type, column layout, table structure, etc.).\n' +
-            'For EDITING: Description of what to change (e.g. "change the bar chart to a line chart", ' +
+            'and elements required (chart type, column layout, table structure, etc.).\n' +
+            'For EDITING: Description of what to change based on the user request (e.g. "change the bar chart to a line chart", ' +
             '"update the revenue figure to $2.4B", "add a footer with the source URL", ' +
             '"change accent color to blue", "make the title font larger").',
         },
         slideNumber: {
           type: 'number',
-          description: 'Slide number in the deck (default: 1). Affects the component export name.',
+          description: 'Slide number in the deck. Affects the component export name. Respect the existing slides and your conversation history so new slides don\'t override old slides',
         },
         context: {
           type: 'string',
