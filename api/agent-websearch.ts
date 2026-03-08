@@ -534,7 +534,7 @@ const tools: Anthropic.Tool[] = [
       'Create a new presentation slide or edit an existing one. Generates a React/TypeScript ' +
       'component rendered at 960x540px (16:9). Supports charts (recharts: BarChart, LineChart, ' +
       'PieChart, AreaChart), tables, icons (lucide-react), and rich layouts.\n\n' +
-      'FOR CREATING: Provide a detailed prompt with all data points, numbers, and layout preferences.\n\n' +
+      'FOR CREATING: Provide a detailed prompt with all data points, numbers, and type of slide. The generator has its own library of templates so you do not need to provide your own styling preferences outside of what the user tells you. Specify the type of slide requested, like title slide, table of contents, precedents table, comparables benchmarking so the generator can access the correct templates based on your description. Slide backgrounds should always be white and text should always be dark colored unless specified by the user.\n\n' +
       'FOR EDITING: Provide the existing slide code in existingCode and describe the changes ' +
       'you want in the prompt. The tool returns the complete updated component.\n\n' +
       'NOTE: Any images the user attached are forwarded automatically — you do not need to ' +
