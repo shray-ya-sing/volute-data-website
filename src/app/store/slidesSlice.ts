@@ -65,10 +65,13 @@ export const slidesSlice = createSlice({
   reducers: {
     addSlide: (state, action: PayloadAction<{ slideNumber: number; code: string }>) => {
       const { slideNumber, code } = action.payload;
+      console.log(`[slidesSlice] addSlide called: slideNumber=${slideNumber}, codeLength=${code.length}, existingSlides=[${state.slides.map(s => s.slideNumber).join(', ')}]`);
 
       // If a slide with this number already exists, snapshot it before replacing
-      const existing = state.slides.find((s) => s.slideNumber === slideNumber);
-      if (existing) {
+      const existingIndex = state.slides.findIndex((s) => s.slideNumber === slideNumber);
+      if (existingIndex !== -1) {
+        const existing = state.slides[existingIndex];
+        console.log(`[slidesSlice] addSlide: replacing existing slide #${slideNumber} (id=${existing.id}) at index ${existingIndex}`);
         if (!state.versionHistory[slideNumber]) {
           state.versionHistory[slideNumber] = [];
         }
@@ -78,19 +81,33 @@ export const slidesSlice = createSlice({
           timestamp: existing.timestamp,
           versionNumber: nextVersion,
         });
-      }
 
-      const newSlide: Slide = {
-        id: `slide-${Date.now()}`,
-        slideNumber,
-        code,
-        timestamp: Date.now(),
-      };
-      state.slides.push(newSlide);
-      state.currentSlideId = newSlide.id;
+        // Replace the existing slide
+        const newSlide: Slide = {
+          id: `slide-${Date.now()}`,
+          slideNumber,
+          code,
+          timestamp: Date.now(),
+        };
+        state.slides[existingIndex] = newSlide;
+        state.currentSlideId = newSlide.id;
+        console.log(`[slidesSlice] addSlide: replaced → new id=${newSlide.id}, version history count=${state.versionHistory[slideNumber]?.length}`);
+      } else {
+        // No existing slide with this number, add new
+        const newSlide: Slide = {
+          id: `slide-${Date.now()}`,
+          slideNumber,
+          code,
+          timestamp: Date.now(),
+        };
+        state.slides.push(newSlide);
+        state.currentSlideId = newSlide.id;
+        console.log(`[slidesSlice] addSlide: appended new slide #${slideNumber} (id=${newSlide.id}), total slides=${state.slides.length}`);
+      }
     },
     updateSlide: (state, action: PayloadAction<{ id: string; code: string }>) => {
       const slide = state.slides.find((s) => s.id === action.payload.id);
+      console.log(`[slidesSlice] updateSlide called: id=${action.payload.id}, found=${!!slide}${slide ? `, slideNumber=${slide.slideNumber}` : ''}`);
       if (slide) {
         // Snapshot the current version before updating
         const sn = slide.slideNumber;

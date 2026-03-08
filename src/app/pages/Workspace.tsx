@@ -40,7 +40,7 @@ export function Workspace() {
     send,
     reset,
   } = useAgentStream({
-    apiUrl: 'https://www.getvolute.com/api/agent',
+    apiUrl: 'https://www.getvolute.com/api/agent-websearch',
     onSlideGenerated: (slide) => {
       console.log(`[Workspace] Slide ${slide.slideNumber} ${slide.action}:`, `${slide.code.length} chars`);
       
@@ -97,17 +97,43 @@ export function Workspace() {
     let enhancedPrompt = content;
 
     if (isLikelyEdit && slides.length > 0) {
-      const latestSlide = slides[slides.length - 1];
-      enhancedPrompt = `[SLIDE CONTEXT FOR EDITING]\nCurrent slide ${latestSlide.slideNumber} code:\n\`\`\`tsx\n${latestSlide.code}\n\`\`\`\n\n[USER REQUEST]\n${content}`;
-      console.log(`[Workspace] Edit mode detected - including slide ${latestSlide.slideNumber} context (${latestSlide.code.length} chars)`);
+      // Try to extract which slide number the user is referring to
+      const slideNumberMatch = content.match(/\bslide\s+(\d+)\b/i);
+      let targetSlide;
+
+      if (slideNumberMatch) {
+        // User explicitly mentioned a slide number (e.g., "edit slide 1")
+        const requestedSlideNumber = parseInt(slideNumberMatch[1], 10);
+        targetSlide = slides.find(s => s.slideNumber === requestedSlideNumber);
+        
+        if (targetSlide) {
+          console.log(`[Workspace] Edit mode: targeting slide ${requestedSlideNumber} (explicitly mentioned)`);
+        } else {
+          console.warn(`[Workspace] Slide ${requestedSlideNumber} not found, falling back to latest slide`);
+          targetSlide = slides[slides.length - 1];
+        }
+      } else {
+        // No specific slide mentioned, use the latest slide
+        targetSlide = slides[slides.length - 1];
+        console.log(`[Workspace] Edit mode: targeting slide ${targetSlide.slideNumber} (latest slide, no specific slide mentioned)`);
+      }
+
+      enhancedPrompt = `[SLIDE CONTEXT FOR EDITING]\nCurrent slide ${targetSlide.slideNumber} code:\n\`\`\`tsx\n${targetSlide.code}\n\`\`\`\n\n[USER REQUEST]\n${content}`;
+      console.log(`[Workspace] Including slide ${targetSlide.slideNumber} context (${targetSlide.code.length} chars)`);
+    } else if (slides.length > 0) {
+      // Not an edit — inject presentation context so the backend knows the next slide number
+      const existingSlideNumbers = slides.map(s => s.slideNumber).sort((a, b) => a - b);
+      const nextSlideNumber = Math.max(...existingSlideNumbers) + 1;
+      enhancedPrompt = `[PRESENTATION CONTEXT]\nThe presentation currently has ${slides.length} slide(s): ${existingSlideNumbers.join(', ')}.\nThe next new slide should be slide number ${nextSlideNumber}.\nDo NOT overwrite or replace existing slides — generate a NEW slide with slideNumber ${nextSlideNumber}.\n\n[USER REQUEST]\n${content}`;
+      console.log(`[Workspace] New slide mode: injected presentation context, next slide number = ${nextSlideNumber}`);
     }
 
     // Send with imageRefs
     if (imageRefs.length > 0) {
       console.log(`[Workspace] Sending message with ${imageRefs.length} image(s)`);
-      send(enhancedPrompt, { imageRefs });
+      send(enhancedPrompt, { imageRefs, displayContent: content });
     } else {
-      send(enhancedPrompt);
+      send(enhancedPrompt, { displayContent: content });
     }
   };
 
@@ -152,7 +178,7 @@ export function Workspace() {
         )}
 
         {/* Canvas */}
-        <div className="flex-1">
+        <div className="flex-1 min-w-[960px] min-h-0 overflow-hidden">
           <CanvasView onCitationClick={handleCitationClick} />
         </div>
 

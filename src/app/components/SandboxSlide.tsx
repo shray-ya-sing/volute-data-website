@@ -138,7 +138,7 @@ export default function App() {
     <div style={{ 
       width: '100%', 
       height: '100vh', 
-      overflow: 'hidden',
+      overflow: 'auto',
       position: 'relative',
       margin: 0,
       padding: 0,
@@ -187,10 +187,10 @@ export default function App() {
             display: none !important;
           }
           .sp-preview-container {
-            overflow: hidden !important;
+            overflow: auto !important;
           }
           .sp-preview-iframe {
-            overflow: hidden !important;
+            overflow: auto !important;
           }
         `}</style>
       </div>
