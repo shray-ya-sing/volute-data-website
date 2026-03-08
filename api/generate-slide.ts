@@ -16,7 +16,7 @@ interface ImageInput {
 
 // ---------------------------------------------------------------------------
 // Template categories — blob files must follow the naming convention:
-//   ${BLOB_BASE_URL}/slide-templates/${category}_1.jpg
+//   ${BLOB_BASE_URL}/slide-templates/${category}_1.jpg  (any image format)
 //   ${BLOB_BASE_URL}/slide-templates/${category}_2.jpg
 //   ${BLOB_BASE_URL}/slide-templates/${category}_3.jpg
 // ---------------------------------------------------------------------------
@@ -36,19 +36,34 @@ export type TemplateCategory =
   | 'market_map'
   | 'process_timeline'
   | 'logo_splash'
-  | 'company_overview'
-  | 'agenda'
-  ;
+  | 'agenda';
 
 interface CachedReferenceImage {
   type: 'base64';
-  media_type: 'image/jpeg';
+  media_type: SupportedMediaType;  // detected from actual bytes, not filename
   data: string;
 }
 
+// Detect actual image format from magic bytes — never trust the file extension.
+// Blob files uploaded as .jpg may actually be WebP, PNG, etc., and the
+// Anthropic API validates the bytes against the declared media_type.
+function detectMediaType(buffer: ArrayBuffer): SupportedMediaType {
+  const b = new Uint8Array(buffer.slice(0, 12));
+  // JPEG: FF D8 FF
+  if (b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) return 'image/jpeg';
+  // PNG: 89 50 4E 47
+  if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47) return 'image/png';
+  // WebP: RIFF????WEBP (bytes 0–3 = RIFF, bytes 8–11 = WEBP)
+  if (b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 &&
+      b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return 'image/webp';
+  // GIF: GIF87a or GIF89a
+  if (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x38) return 'image/gif';
+  console.warn('[generate-slide] ⚠️  Could not detect image type from magic bytes — defaulting to image/jpeg');
+  return 'image/jpeg';
+}
+
 // Module-level cache — persists across requests on a warm Vercel instance.
-// On cold start, images are fetched once from Vercel Blob and cached for the
-// lifetime of that instance. No TTL needed — blob URLs are stable.
+// Cold starts re-fetch from blob once per category, then cache for the instance lifetime.
 const referenceImageCache = new Map<TemplateCategory, CachedReferenceImage[]>();
 
 async function getReferenceImages(category: TemplateCategory): Promise<CachedReferenceImage[]> {
@@ -63,44 +78,56 @@ async function getReferenceImages(category: TemplateCategory): Promise<CachedRef
     return [];
   }
 
-  const urls = [1, 2, 3].map(
-    (n) => `${baseUrl}/slide-templates/${category}_${n}.jpg`,
-  );
+  try { new URL(baseUrl); } catch {
+    console.warn(`[generate-slide] ⚠️  BLOB_BASE_URL is malformed: "${baseUrl}" — skipping`);
+    return [];
+  }
 
+  const urls = [1, 2, 3].map(n => `${baseUrl}/slide-templates/${category}_${n}.jpg`);
   console.log(`[generate-slide] 🖼  Fetching reference images for category: ${category}`);
 
-  const images = await Promise.all(
+  const FETCH_TIMEOUT_MS = 8000;
+
+  const results = await Promise.all(
     urls.map(async (url, i) => {
       try {
-        const res = await fetch(url);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+        const res = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeout);
+
         if (!res.ok) {
           console.warn(`[generate-slide] ⚠️  Reference image ${i + 1} not found (${res.status}): ${url}`);
           return null;
         }
+
         const buffer = await res.arrayBuffer();
+        const media_type = detectMediaType(buffer);  // detect from bytes, not extension
+
         console.log(
           `[generate-slide] 🖼  Loaded reference ${i + 1} for ${category}: ` +
-          `${(buffer.byteLength / 1024).toFixed(1)} KB`,
+          `${(buffer.byteLength / 1024).toFixed(1)} KB — detected as ${media_type}`,
         );
+
         return {
           type: 'base64' as const,
-          media_type: 'image/jpeg' as const,
+          media_type,
           data: Buffer.from(buffer).toString('base64'),
         };
       } catch (err: any) {
-        console.warn(`[generate-slide] ⚠️  Failed to fetch reference image ${i + 1}: ${err.message}`);
+        const reason = err.name === 'AbortError' ? `timeout after ${FETCH_TIMEOUT_MS}ms` : err.message;
+        console.warn(`[generate-slide] ⚠️  Reference image ${i + 1} fetch failed (${reason}): ${url}`);
         return null;
       }
     }),
   );
 
-  const valid = images.filter((img): img is CachedReferenceImage => img !== null);
+  const valid = results.filter((img): img is CachedReferenceImage => img !== null);
   referenceImageCache.set(category, valid);
   console.log(`[generate-slide] 🖼  Cached ${valid.length}/3 reference images for ${category}`);
   return valid;
 }
 
-// Vercel timeout handling - allows up to 5 minutes for generation (requires Pro or higher)
 export const config = {
   maxDuration: 300,
 };
@@ -147,7 +174,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   console.log(`[generate-slide] Generating slide ${slideNumber} with ${images.length} user image(s)${templateCategory ? `, template category: ${templateCategory}` : ''}...`);
 
   try {
-    // Load reference images for new slides when templateCategory is provided
+    // Load reference images when templateCategory is provided (new slides only)
     let referenceImages: CachedReferenceImage[] = [];
     if (templateCategory) {
       referenceImages = await getReferenceImages(templateCategory as TemplateCategory);
@@ -157,7 +184,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 Theme Properties (use these as props — font sizes are NUMBERS, not strings):
 - headingFont: "${theme.headingFont || "'Inter', sans-serif"}" (for titles and headings)
 - bodyFont: "${theme.bodyFont || "'Inter', sans-serif"}" (for body text and paragraphs)
-- accentColors: ${JSON.stringify(theme.accentColors || ["#0d1b2a","#1b263b","#415a77","#778da9","#e0e1dd"] )} (array of accent colors for highlights, buttons, etc.)
+- accentColors: ${JSON.stringify(theme.accentColors || ['#667eea', '#764ba2'])} (array of accent colors for highlights, buttons, etc.)
 - headingTextColor: "${theme.headingTextColor || '#000000'}" (color for heading text)
 - bodyTextColor: "${theme.bodyTextColor || '#333333'}" (color for body text)
 - headingFontSize: ${theme.headingFontSize || 36} (number — base px size for main headings, render as \`\${headingFontSize}px\`)
@@ -234,22 +261,6 @@ ${themePropsDoc}
 - Content area: top: 140px, left: 60px, width: 840px, height: 340px
 - Footer: top: 500px, left: 60px, width: 840px
 
-## Reference Images and Brand Neutrality
-
-When reference images are provided, use them ONLY to understand:
-- Layout structure and element positioning
-- Typography hierarchy and sizing
-- Spacing and density conventions
-- Table and chart formatting patterns
-- Header/footer treatment
-
-IGNORE completely:
-- Any firm logos, wordmarks, or brand marks visible in the images
-- Specific color schemes associated with a particular firm (e.g. Goldman blue, Citi red)
-- Firm names, division labels, or legal disclaimers referencing a specific bank or advisor
-- Any text content in the reference images — numbers, company names, deal names
-
-The generated slide must be fully brand-neutral unless the user explicitly names a firm in their prompt. Use your default color palette if none is provided by the user. 
 ### 4. Typography Scaling (font sizes are numbers)
 \`\`\`tsx
 const h1Size = headingFontSize;           // e.g. 36
@@ -1152,23 +1163,25 @@ Now generate the slide component based on the user's request.`;
       : `Create slide ${slideNumber}:\n${prompt}`;
 
     // Build the content array:
-    // 1. Reference images (design templates, loaded from blob by category)
-    // 2. User-attached images (data sources, style references passed from agent)
+    // 1. Reference images (design templates loaded from blob by category)
+    // 2. User-attached images (data sources or style references from agent)
     // 3. Text prompt
     const userContent: Anthropic.MessageParam['content'] = [];
 
-    // 1. Reference images — prepended so the model sees design context first
+    // 1. Reference images — prepended so model sees design context first
     if (referenceImages.length > 0) {
-      for (let i = 0; i < referenceImages.length; i++) {
-        userContent.push({
-          type: 'image',
-          source: referenceImages[i],
-        });
+      for (const refImg of referenceImages) {
+        userContent.push({ type: 'image', source: refImg });
       }
-      // Bridge instruction so model understands the role of these images
       userContent.push({
         type: 'text',
-        text: `The ${referenceImages.length} image(s) above are reference slides for the "${templateCategory}" slide type. Match their visual design language — layout density, typography hierarchy, color usage, table formatting, header/footer treatment, and spacing — but do NOT copy their content. Use only the structural and aesthetic patterns.\n\n`,
+        text:
+          `The ${referenceImages.length} image(s) above are reference slides for the "${templateCategory}" slide type. ` +
+          `Use them to understand layout structure, element positioning, typography hierarchy, table formatting, ` +
+          `and spacing conventions only. ` +
+          `Ignore all firm-specific elements: logos, brand colors, firm names, wordmarks, division labels, and any text content. ` +
+          `Apply the theme's accentColors for all color decisions — do not extract or copy colors from the reference images. ` +
+          `Do not reproduce any content from the reference images in the generated slide.\n\n`,
       });
       console.log(`[generate-slide] 🖼  Injected ${referenceImages.length} reference image(s) for category: ${templateCategory}`);
     }
@@ -1196,25 +1209,18 @@ Now generate the slide component based on the user's request.`;
 
       userContent.push({
         type: 'image',
-        source: {
-          type: 'base64',
-          media_type: mediaType,
-          data: rawBase64,
-        },
+        source: { type: 'base64', media_type: mediaType, data: rawBase64 },
       });
 
-      console.log(`[generate-slide] Added image ${i + 1}/${images.length} (${mediaType}, ${rawBase64.length} base64 chars)`);
+      console.log(`[generate-slide] Added user image ${i + 1}/${images.length} (${mediaType}, ${rawBase64.length} base64 chars)`);
     }
 
-    userContent.push({
-      type: 'text',
-      text: userPromptText,
-    });
+    // 3. Text prompt
+    userContent.push({ type: 'text', text: userPromptText });
 
     const stream = await anthropic.messages.stream({
-      model: 'claude-opus-4-6',
+      model: 'claude-sonnet-4-6',
       max_tokens: 25000,
-      temperature: 1.0,
       system: [
         {
           type: 'text',
