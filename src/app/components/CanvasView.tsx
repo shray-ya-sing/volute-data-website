@@ -11,16 +11,15 @@ interface CanvasViewProps {
   onCitationClick: (citationId: number) => void;
   /** Fired by each SandboxSlide once its iframe has settled after a render.
    *  Workspace uses this to capture a screenshot and upload it to blob store. */
-  onSlideRendered: (slideNumber: number, version: number) => void;
+  onSlideRendered: (slideNumber: number) => void;
   /** For re-uploading slide code when order changes after a drag */
   presentationId: string | null;
-  onReorderUpload: (slideNumber: number, code: string, version: number) => void;
+  onReorderUpload: (slideNumber: number, code: string) => void;
 }
 
 export function CanvasView({ onCitationClick, onSlideRendered, presentationId, onReorderUpload  }: CanvasViewProps) {
   const dispatch = useAppDispatch();
   const slidesFromStore = useAppSelector((state) => state.slides.slides);
-  const versionHistory = useAppSelector((state) => state.slides.versionHistory);
   const currentSlideId = useAppSelector((state) => state.slides.currentSlideId);
   const slideRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -33,8 +32,7 @@ export function CanvasView({ onCitationClick, onSlideRendered, presentationId, o
   useEffect(() => {
     if (!presentationId || slides.length === 0) return;
     slides.forEach(slide => {
-      const version = (versionHistory[slide.slideNumber]?.length ?? 0) + 1;
-      onReorderUpload(slide.slideNumber, slide.code, version);
+      onReorderUpload(slide.slideNumber, slide.code);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slideOrderKey, presentationId]);
@@ -90,10 +88,6 @@ export function CanvasView({ onCitationClick, onSlideRendered, presentationId, o
             {slides.length > 0 ? (
               <div className="flex flex-col items-center py-8 px-20 gap-8">
                 {slides.map((slide) => {
-                  // Current version = prior snapshots in history + 1
-                  const currentVersion =
-                    (versionHistory[slide.slideNumber]?.length ?? 0) + 1;
-
                   return (
                     <div
                       key={`${slide.id}-${slide.slideNumber}`}
@@ -111,7 +105,7 @@ export function CanvasView({ onCitationClick, onSlideRendered, presentationId, o
                         code={slide.code}
                         slideNumber={slide.slideNumber}
                         onCitationClick={onCitationClick}
-                        onRendered={() => onSlideRendered(slide.slideNumber, currentVersion)}
+                        onRendered={() => onSlideRendered(slide.slideNumber)}
                       />
                     </div>
                   );

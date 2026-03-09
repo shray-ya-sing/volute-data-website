@@ -93,7 +93,7 @@ export function Workspace() {
   // Called by CanvasView once Sandpack has settled after a render.
   // Fetches the PNG from existing render endpoint and uploads it to blob.
 const handleSlideRendered = useCallback(
-  async (slideNumber: number, version: number) => {
+  async (slideNumber: number) => {
     if (!presentationId) return;
 
     const slide = slides.find(s => s.slideNumber === slideNumber);
@@ -103,7 +103,7 @@ const handleSlideRendered = useCallback(
     }
 
     try {
-      console.log(`[Workspace] 📸 Capturing screenshot: slide ${slideNumber} v${version}`);
+      console.log(`[Workspace] 📸 Capturing screenshot: slide ${slideNumber}`);
 
       const renderRes = await fetch('/api/export-png', {
         method: 'POST',
@@ -122,25 +122,36 @@ const handleSlideRendered = useCallback(
       const arrayBuffer = await renderRes.arrayBuffer();
       const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
 
+      // Find current latest image version at this slot so we write above it
+      let nextVersion = 1;
+      const checkRes = await fetch(
+        `/api/upload-slide-image?presentationId=${encodeURIComponent(presentationId)}&slideNumber=${slideNumber}`,
+      );
+      if (checkRes.ok) {
+        const existing = await checkRes.json();
+        nextVersion = (existing.version ?? 0) + 1;
+      }
+      // If 404, no prior image versions at this slot — start at 1
+
       const uploadRes = await fetch('/api/upload-slide-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           presentationId,
           slideNumber,
-          version,
+          version: nextVersion,
           data: base64,
           mediaType: 'image/png',
         }),
       });
 
       if (!uploadRes.ok) {
-        console.warn(`[Workspace] Image upload failed for slide ${slideNumber} v${version}`);
+        console.warn(`[Workspace] Image upload failed for slide ${slideNumber} v${nextVersion}`);
         return;
       }
 
       const { imageUrl } = await uploadRes.json();
-      console.log(`[Workspace] ✅ Screenshot stored: slide ${slideNumber} v${version} → ${imageUrl}`);
+      console.log(`[Workspace] ✅ Screenshot stored: slide ${slideNumber} v${nextVersion} → ${imageUrl}`);
 
     } catch (err) {
       console.warn(`[Workspace] Screenshot pipeline error for slide ${slideNumber}:`, err);
@@ -148,20 +159,31 @@ const handleSlideRendered = useCallback(
   },
   [presentationId, slides],
 );
-  
+
 const handleReorderUpload = useCallback(
-  async (slideNumber: number, code: string, version: number) => {
+  async (slideNumber: number, code: string) => {
     if (!presentationId) return;
     try {
+      // Find the current latest version at this slot so we write above it
+      let nextVersion = 1;
+      const checkRes = await fetch(
+        `/api/upload-code?presentationId=${encodeURIComponent(presentationId)}&slideNumber=${slideNumber}`,
+      );
+      if (checkRes.ok) {
+        const existing = await checkRes.json();
+        nextVersion = (existing.version ?? 0) + 1;
+      }
+      // If 404, no prior versions at this slot — start at 1
+
       const res = await fetch('/api/upload-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ presentationId, slideNumber, version, code }),
+        body: JSON.stringify({ presentationId, slideNumber, version: nextVersion, code }),
       });
       if (!res.ok) {
         console.warn(`[Workspace] Reorder upload failed for slide ${slideNumber}`);
       } else {
-        console.log(`[Workspace] ✅ Reorder upload: slide ${slideNumber} v${version}`);
+        console.log(`[Workspace] ✅ Reorder upload: slide ${slideNumber} v${nextVersion}`);
       }
     } catch (err) {
       console.warn(`[Workspace] Reorder upload error:`, err);
@@ -169,6 +191,7 @@ const handleReorderUpload = useCallback(
   },
   [presentationId],
 );
+
   // ── Send message ────────────────────────────────────────────────────────────
   const handleSendMessage = async (content: string) => {
     const imageRefs = attachments.map((att) => ({
