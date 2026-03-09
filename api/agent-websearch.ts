@@ -96,11 +96,30 @@ function getHistory(sessionId: string): ConversationHistory {
 
 function saveHistory(sessionId: string, history: ConversationHistory): void {
   const maxEntries = MAX_HISTORY_PAIRS * 2;
-  const trimmed =
-    history.length > maxEntries
-      ? history.slice(history.length - maxEntries)
-      : history;
-  conversationStore.set(sessionId, trimmed);
+  
+  if (history.length <= maxEntries) {
+    conversationStore.set(sessionId, history);
+    return;
+  }
+
+  // Trim from the front, but never leave a dangling tool_result without
+  // its preceding tool_use. Walk forward from the trim point until we
+  // find a safe boundary: a 'user' message that contains NO tool_result blocks.
+  let startIdx = history.length - maxEntries;
+
+  while (startIdx < history.length) {
+    const msg = history[startIdx];
+    const hasToolResult =
+      Array.isArray(msg.content) &&
+      msg.content.some((b: any) => b.type === 'tool_result');
+
+    if (msg.role === 'user' && !hasToolResult) {
+      break; // safe starting point — plain user message
+    }
+    startIdx++;
+  }
+
+  conversationStore.set(sessionId, history.slice(startIdx));
 }
 
 // ---------------------------------------------------------------------------
