@@ -36,7 +36,10 @@ export type TemplateCategory =
   | 'market_map'
   | 'process_timeline'
   | 'logo_splash'
-  | 'agenda';
+  | 'agenda'
+  | 'financial_model'
+  | 'wacc_analysis'
+  | 'stock_performance'; 
 
 interface CachedReferenceImage {
   type: 'base64';
