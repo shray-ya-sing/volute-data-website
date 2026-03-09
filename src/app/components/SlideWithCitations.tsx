@@ -5,12 +5,14 @@ interface SlideWithCitationsProps {
   code: string;
   slideNumber: number;
   onCitationClick: (citationId: number) => void;
+  onRendered?: () => void;
 }
 
 export function SlideWithCitations({
   code,
   slideNumber,
   onCitationClick,
+  onRendered,
 }: SlideWithCitationsProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -48,7 +50,11 @@ if (typeof window !== 'undefined') {
 
   return (
     <div ref={containerRef} className="w-full h-full">
-      <SandboxSlide code={codeWithCitationHandlers} slideNumber={slideNumber} />
+      <SandboxSlide
+        code={codeWithCitationHandlers}
+        slideNumber={slideNumber}
+        onRendered={onRendered}
+      />
     </div>
   );
 }

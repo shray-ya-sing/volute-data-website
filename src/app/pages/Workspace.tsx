@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useCallback } from "react";
 import { useLocation } from "react-router";
 import { ChatSidebar } from "../components/ChatSidebar";
 import type { AttachmentPreview } from "../components/ChatSidebar";
@@ -6,10 +6,11 @@ import { CanvasView } from "../components/CanvasView";
 import { SourcePanel } from "../components/SourcePanel";
 import { TopBar } from "../components/TopBar";
 import { useAppSelector, useAppDispatch } from "../store/hooks";
-import { clearAttachments } from "../store/attachmentsSlice";
+import { clearAttachments, clearSlides } from "../store/slidesSlice";
 import { useAgentStream } from "../hooks/useAgentStream";
 import { attachmentPreviewsToApiImages } from "../utils/fileToBase64";
 import { PanelRightOpen, PanelLeftOpen } from "lucide-react";
+import { useState } from "react";
 
 export interface Message {
   id: string;
@@ -24,6 +25,7 @@ export function Workspace() {
   const dispatch = useAppDispatch();
   const initialQuery = location.state?.initialQuery || "";
   const initialAttachments: AttachmentPreview[] = location.state?.initialAttachments || [];
+
   const slides = useAppSelector((state) => state.slides.slides);
   const attachments = useAppSelector((state) => state.attachments.attachments);
   const [sourcesCollapsed, setSourcesCollapsed] = useState(false);
@@ -34,6 +36,7 @@ export function Workspace() {
     isStreaming,
     activeTools,
     sessionId,
+    presentationId,
     sources,
     highlightedSourceId,
     setHighlightedSourceId,
@@ -42,9 +45,9 @@ export function Workspace() {
   } = useAgentStream({
     apiUrl: 'https://www.getvolute.com/api/agent-websearch',
     onSlideGenerated: (slide) => {
-      console.log(`[Workspace] Slide ${slide.slideNumber} ${slide.action}:`, `${slide.code.length} chars`);
-      
-      // Clean up attachments after slide generation
+      console.log(`[Workspace] Slide ${slide.slideNumber} ${slide.action}: ${slide.code.length} chars`);
+
+      // Clean up uploaded reference images after slide is generated
       if (attachments.length > 0) {
         attachments.forEach(async (att) => {
           try {
@@ -66,6 +69,7 @@ export function Workspace() {
     },
   });
 
+  // ── Initial query from Landing page ────────────────────────────────────────
   useEffect(() => {
     if (initialQuery) {
       const sendInitialQuery = async () => {
@@ -85,50 +89,112 @@ export function Workspace() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialQuery]);
 
+  // ── Screenshot capture + image upload ──────────────────────────────────────
+  // Called by CanvasView once Sandpack has settled after a render.
+  // Fetches the PNG from your existing render endpoint and uploads it to blob.
+  const handleSlideRendered = useCallback(
+    async (slideNumber: number, version: number) => {
+      if (!presentationId) {
+        console.warn('[Workspace] onSlideRendered called but no presentationId yet — skipping image upload');
+        return;
+      }
+
+      try {
+        console.log(`[Workspace] 📸 Capturing screenshot: slide ${slideNumber} v${version}`);
+
+        // Call your existing slide-render endpoint
+        const renderRes = await fetch('/api/render-slide', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slideNumber, presentationId }),
+        });
+
+        if (!renderRes.ok) {
+          console.warn(`[Workspace] Render endpoint returned ${renderRes.status} for slide ${slideNumber}`);
+          return;
+        }
+
+        const { imageData, mediaType = 'image/png' } = await renderRes.json();
+
+        if (!imageData) {
+          console.warn(`[Workspace] No imageData returned for slide ${slideNumber}`);
+          return;
+        }
+
+        // Upload to blob store
+        const uploadRes = await fetch('/api/upload-slide-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            presentationId,
+            slideNumber,
+            version,
+            data: imageData,
+            mediaType,
+          }),
+        });
+
+        if (!uploadRes.ok) {
+          const err = await uploadRes.json().catch(() => ({}));
+          console.warn(`[Workspace] Image upload failed for slide ${slideNumber} v${version}:`, err);
+          return;
+        }
+
+        const { imageUrl } = await uploadRes.json();
+        console.log(`[Workspace] ✅ Screenshot stored: slide ${slideNumber} v${version} → ${imageUrl}`);
+
+      } catch (err) {
+        console.warn(`[Workspace] Screenshot pipeline error for slide ${slideNumber}:`, err);
+      }
+    },
+    [presentationId],
+  );
+
+  // ── Send message ────────────────────────────────────────────────────────────
   const handleSendMessage = async (content: string) => {
-    // Get imageRefs from Redux attachments
-    const imageRefs = attachments.map(att => ({
+    const imageRefs = attachments.map((att) => ({
       blobId: att.blobId,
       blobUrl: att.blobUrl,
       mediaType: att.mediaType,
     }));
 
-    const isLikelyEdit = /\b(edit|change|modify|update|adjust|fix|revise|make it|make the|change it|change the)\b/i.test(content);
+    const isLikelyEdit =
+      /\b(edit|change|modify|update|adjust|fix|revise|make it|make the|change it|change the)\b/i.test(content);
     let enhancedPrompt = content;
 
     if (isLikelyEdit && slides.length > 0) {
-      // Try to extract which slide number the user is referring to
       const slideNumberMatch = content.match(/\bslide\s+(\d+)\b/i);
       let targetSlide;
 
       if (slideNumberMatch) {
-        // User explicitly mentioned a slide number (e.g., "edit slide 1")
         const requestedSlideNumber = parseInt(slideNumberMatch[1], 10);
-        targetSlide = slides.find(s => s.slideNumber === requestedSlideNumber);
-        
+        targetSlide = slides.find((s) => s.slideNumber === requestedSlideNumber);
         if (targetSlide) {
-          console.log(`[Workspace] Edit mode: targeting slide ${requestedSlideNumber} (explicitly mentioned)`);
+          console.log(`[Workspace] Edit mode: targeting slide ${requestedSlideNumber} (explicit)`);
         } else {
-          console.warn(`[Workspace] Slide ${requestedSlideNumber} not found, falling back to latest slide`);
+          console.warn(`[Workspace] Slide ${requestedSlideNumber} not found, falling back to latest`);
           targetSlide = slides[slides.length - 1];
         }
       } else {
-        // No specific slide mentioned, use the latest slide
         targetSlide = slides[slides.length - 1];
-        console.log(`[Workspace] Edit mode: targeting slide ${targetSlide.slideNumber} (latest slide, no specific slide mentioned)`);
+        console.log(`[Workspace] Edit mode: targeting slide ${targetSlide.slideNumber} (latest)`);
       }
 
-      enhancedPrompt = `[SLIDE CONTEXT FOR EDITING]\nCurrent slide ${targetSlide.slideNumber} code:\n\`\`\`tsx\n${targetSlide.code}\n\`\`\`\n\n[USER REQUEST]\n${content}`;
+      enhancedPrompt =
+        `[SLIDE CONTEXT FOR EDITING]\nCurrent slide ${targetSlide.slideNumber} code:\n\`\`\`tsx\n${targetSlide.code}\n\`\`\`\n\n` +
+        `[USER REQUEST]\n${content}`;
       console.log(`[Workspace] Including slide ${targetSlide.slideNumber} context (${targetSlide.code.length} chars)`);
     } else if (slides.length > 0) {
-      // Not an edit — inject presentation context so the backend knows the next slide number
-      const existingSlideNumbers = slides.map(s => s.slideNumber).sort((a, b) => a - b);
+      const existingSlideNumbers = slides.map((s) => s.slideNumber).sort((a, b) => a - b);
       const nextSlideNumber = Math.max(...existingSlideNumbers) + 1;
-      enhancedPrompt = `[PRESENTATION CONTEXT]\nThe presentation currently has ${slides.length} slide(s): ${existingSlideNumbers.join(', ')}.\nThe next new slide should be slide number ${nextSlideNumber}.\nDo NOT overwrite or replace existing slides — generate a NEW slide with slideNumber ${nextSlideNumber}.\n\n[USER REQUEST]\n${content}`;
-      console.log(`[Workspace] New slide mode: injected presentation context, next slide number = ${nextSlideNumber}`);
+      enhancedPrompt =
+        `[PRESENTATION CONTEXT]\nThe presentation currently has ${slides.length} slide(s): ${existingSlideNumbers.join(', ')}.\n` +
+        `The next new slide should be slide number ${nextSlideNumber}.\n` +
+        `Do NOT overwrite or replace existing slides — generate a NEW slide with slideNumber ${nextSlideNumber}.\n\n` +
+        `[USER REQUEST]\n${content}`;
+      console.log(`[Workspace] New slide mode: next slide = ${nextSlideNumber}`);
     }
 
-    // Send with imageRefs
     if (imageRefs.length > 0) {
       console.log(`[Workspace] Sending message with ${imageRefs.length} image(s)`);
       send(enhancedPrompt, { imageRefs, displayContent: content });
@@ -137,6 +203,7 @@ export function Workspace() {
     }
   };
 
+  // ── Citation / source interactions ─────────────────────────────────────────
   const handleCitationClick = (citationId: number) => {
     setHighlightedSourceId(citationId);
     setTimeout(() => setHighlightedSourceId(null), 3000);
@@ -147,12 +214,18 @@ export function Workspace() {
     setTimeout(() => setHighlightedSourceId(null), 3000);
   };
 
+  // ── New chat ────────────────────────────────────────────────────────────────
+  const handleNewChat = () => {
+    reset();                    // clears sessionId + presentationId in the hook
+    dispatch(clearSlides());    // clears Redux slide state
+  };
+
   return (
     <div className="h-screen flex flex-col" style={{ backgroundColor: 'var(--volute-bg)' }}>
-      <TopBar onNewChat={reset} isStreaming={isStreaming} />
+      <TopBar onNewChat={handleNewChat} isStreaming={isStreaming} />
 
-      {/* Main content area */}
       <div className="flex-1 flex overflow-x-auto overflow-y-hidden">
+
         {/* Chat sidebar */}
         {chatCollapsed ? (
           <div data-no-print className="flex-shrink-0 border-r border-gray-200 bg-[var(--volute-bg)]">
@@ -171,7 +244,7 @@ export function Workspace() {
               onSendMessage={handleSendMessage}
               isStreaming={isStreaming}
               activeTools={activeTools}
-              onNewChat={reset}
+              onNewChat={handleNewChat}
               onToggleCollapse={() => setChatCollapsed(true)}
             />
           </div>
@@ -179,7 +252,10 @@ export function Workspace() {
 
         {/* Canvas */}
         <div className="flex-1 min-w-[1120px] min-h-0 overflow-hidden">
-          <CanvasView onCitationClick={handleCitationClick} />
+          <CanvasView
+            onCitationClick={handleCitationClick}
+            onSlideRendered={handleSlideRendered}
+          />
         </div>
 
         {/* Source panel */}
@@ -203,6 +279,7 @@ export function Workspace() {
             />
           </div>
         )}
+
       </div>
     </div>
   );

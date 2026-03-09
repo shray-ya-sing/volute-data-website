@@ -1,5 +1,5 @@
-import { Component, ReactNode, useMemo } from "react";
-import { SandpackProvider, SandpackPreview } from "@codesandbox/sandpack-react";
+import { Component, ReactNode, useMemo, useEffect, useRef } from "react";
+import { SandpackProvider, SandpackPreview, useSandpack } from "@codesandbox/sandpack-react";
 import { useAppSelector } from "../store/hooks";
 import { validateSlideCode } from "../utils/validateSlideCode";
 import { repairSlideCode } from "../utils/repairSlideCode";
@@ -9,6 +9,10 @@ const CORE_DEPENDENCIES = {
   "lucide-react": "^0.487.0",
   recharts: "^2.15.2",
 };
+
+// How long to wait after Sandpack signals "running" before calling onRendered.
+// Covers compile + paint for even large slides in cold sandboxes.
+const RENDER_SETTLE_MS = 1500;
 
 // ── Error Boundary ──────────────────────────────────────────────
 interface ErrorBoundaryProps {
@@ -64,13 +68,61 @@ function SlideErrorFallback() {
   );
 }
 
+// ── Render watcher — must live inside SandpackProvider ─────────
+// Watches Sandpack's compilation status and fires onRendered once
+// the iframe has settled after a code change.
+interface RenderWatcherProps {
+  code: string;
+  slideNumber: number;
+  onRendered?: () => void;
+}
+
+function RenderWatcher({ code, slideNumber, onRendered }: RenderWatcherProps) {
+  const { sandpack } = useSandpack();
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const firedRef = useRef(false);
+
+  // Reset the fired flag on every code change so each new version
+  // triggers a fresh onRendered callback
+  useEffect(() => {
+    firedRef.current = false;
+    if (timerRef.current) clearTimeout(timerRef.current);
+  }, [code]);
+
+  useEffect(() => {
+    if (!onRendered || firedRef.current) return;
+
+    // Sandpack status: 'idle' | 'running' | 'timeout' | 'error'
+    // Wait for 'running' (compilation started) then settle for RENDER_SETTLE_MS
+    if (sandpack.status === 'running') {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
+        if (!firedRef.current) {
+          firedRef.current = true;
+          console.log(`[SandboxSlide] Slide ${slideNumber} rendered — firing onRendered`);
+          onRendered();
+        }
+      }, RENDER_SETTLE_MS);
+    }
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [sandpack.status, onRendered, slideNumber]);
+
+  return null;
+}
+
 // ── Main Component ──────────────────────────────────────────────
 interface SandboxSlideProps {
   code: string;
   slideNumber: number;
+  /** Called once the slide has settled in the Sandpack iframe.
+   *  Use this to trigger screenshot capture + blob upload. */
+  onRendered?: () => void;
 }
 
-export function SandboxSlide({ code, slideNumber }: SandboxSlideProps) {
+export function SandboxSlide({ code, slideNumber, onRendered }: SandboxSlideProps) {
   const theme = useAppSelector((state) => state.theme);
 
   // Validate and attempt repair — all details go to console only
@@ -161,10 +213,17 @@ export default function App() {
           }}
           theme="light"
         >
+          {/* RenderWatcher must be inside SandpackProvider to access useSandpack() */}
+          <RenderWatcher
+            code={renderCode}
+            slideNumber={slideNumber}
+            onRendered={onRendered}
+          />
           <SandpackPreview
             showNavigator={false}
             showOpenInCodeSandbox={false}
             showRefreshButton={false}
+            actionsChildren={<div className="text-xs text-gray-500 px-2">Slide Preview</div>}
             style={{ width: "960px", height: "540px" }}
           />
         </SandpackProvider>
@@ -191,6 +250,27 @@ export default function App() {
           }
           .sp-preview-iframe {
             overflow: auto !important;
+          }
+          /* Hide Sandpack branding */
+          .sp-preview-container::before {
+            content: none !important;
+          }
+          /* Custom loading message */
+          .sp-loading {
+            background: white !important;
+          }
+          .sp-loading::after {
+            content: 'Generating Slide...' !important;
+            position: absolute !important;
+            top: 50% !important;
+            left: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            color: #6b7280 !important;
+            font-size: 14px !important;
+          }
+          /* Hide the default loading text/indicator */
+          .sp-loading > * {
+            display: none !important;
           }
         `}</style>
       </div>
