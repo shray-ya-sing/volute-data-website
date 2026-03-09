@@ -183,6 +183,7 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
         const requestBody: any = {
           prompt,
           sessionId: sessionId || undefined,
+          presentationId: pid,
           theme: {
             headingFont: theme.headingFont,
             bodyFont: theme.bodyFont,
