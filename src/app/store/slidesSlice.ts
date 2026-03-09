@@ -177,6 +177,47 @@ export const slidesSlice = createSlice({
     clearVersionHistory: (state) => {
       state.versionHistory = {};
     },
+    reorderSlides: (state, action: PayloadAction<{ fromIndex: number; toIndex: number }>) => {
+      const { fromIndex, toIndex } = action.payload;
+      console.log(`[slidesSlice] reorderSlides: moving slide from index ${fromIndex} to ${toIndex}`);
+      
+      if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || 
+          fromIndex >= state.slides.length || toIndex >= state.slides.length) {
+        return;
+      }
+
+      // First, sort slides by slideNumber to ensure consistent indexing
+      state.slides.sort((a, b) => a.slideNumber - b.slideNumber);
+
+      // Reorder the slides array
+      const [movedSlide] = state.slides.splice(fromIndex, 1);
+      state.slides.splice(toIndex, 0, movedSlide);
+
+      // Snapshot old slideNumber → history mapping keyed by slide id,
+      // so versions travel with the slide rather than staying on the number.
+      const historyById: Record<string, SlideVersion[]> = {};
+      state.slides.forEach((slide) => {
+        if (state.versionHistory[slide.slideNumber]) {
+          historyById[slide.id] = state.versionHistory[slide.slideNumber];
+        }
+      });
+
+      // Reassign slide numbers to match new order
+      state.slides.forEach((slide, index) => {
+        slide.slideNumber = index + 1;
+      });
+
+      // Rebuild versionHistory keyed by new slideNumber using the id-based map
+      const newVersionHistory: Record<number, SlideVersion[]> = {};
+      state.slides.forEach((slide) => {
+        if (historyById[slide.id]) {
+          newVersionHistory[slide.slideNumber] = historyById[slide.id];
+        }
+      });
+      state.versionHistory = newVersionHistory;
+
+      console.log(`[slidesSlice] reorderSlides: new order = [${state.slides.map(s => `${s.slideNumber}(${s.code.slice(0, 20)}...)`).join(', ')}]`);
+    },
   },
 });
 
@@ -192,6 +233,7 @@ export const {
   clearCachedSlides,
   restoreVersion,
   clearVersionHistory,
+  reorderSlides,
 } = slidesSlice.actions;
 
 export default slidesSlice.reducer;

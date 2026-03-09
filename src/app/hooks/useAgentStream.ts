@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { addSlide, updateSlide, setGenerating } from '../store/slidesSlice';
+import { randomUUID } from 'crypto'; // available in modern browsers via globalThis.crypto.randomUUID
 
 // ---------------------------------------------------------------------------
 // Types
@@ -39,6 +40,12 @@ export interface AgentMessage {
   attachments?: any[];
 }
 
+export interface LogoValidationResult {
+  validCount: number;
+  invalidCount: number;
+  result: string;
+}
+
 interface UseAgentStreamOptions {
   apiUrl?: string;
   onSlideGenerated?: (slide: SlideData) => void;
@@ -50,6 +57,18 @@ interface SendOptions {
   imageRefs?: Array<{ blobId: string; blobUrl: string; mediaType: string }>;
   existingCode?: string;
   displayContent?: string;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function mintId(): string {
+  // Use browser crypto if available (always is in modern browsers), fall back to timestamp
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -65,6 +84,7 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
 
   const dispatch = useAppDispatch();
   const slides = useAppSelector((state) => state.slides.slides);
+  const versionHistory = useAppSelector((state) => state.slides.versionHistory);
   const theme = useAppSelector((state) => state.theme);
 
   const [messages, setMessages] = useState<AgentMessage[]>([]);
@@ -72,15 +92,45 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
   const [isToolRunning, setIsToolRunning] = useState(false);
   const [activeTools, setActiveTools] = useState<ToolActivity[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [presentationId, setPresentationId] = useState<string | null>(null);
   const [sources, setSources] = useState<TrackedSource[]>([]);
   const [highlightedSourceId, setHighlightedSourceId] = useState<number | null>(null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const currentAssistantMessageRef = useRef<AgentMessage | null>(null);
 
-  // Keep a ref to slides so the SSE handler always reads the latest value
+  // Keep refs to always read latest values inside SSE callbacks
   const slidesRef = useRef(slides);
   slidesRef.current = slides;
+  const versionHistoryRef = useRef(versionHistory);
+  versionHistoryRef.current = versionHistory;
+  const presentationIdRef = useRef(presentationId);
+  presentationIdRef.current = presentationId;
+
+  // ---------------------------------------------------------------------------
+  // Upload slide code to blob store (fire-and-forget, non-blocking)
+  // ---------------------------------------------------------------------------
+
+  const uploadSlideCode = useCallback(
+    async (slideNumber: number, code: string, version: number, pid: string) => {
+      try {
+        const res = await fetch('/api/upload-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ presentationId: pid, slideNumber, version, code }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          console.warn(`[useAgentStream] Code upload failed for slide ${slideNumber} v${version}:`, err);
+        } else {
+          console.log(`[useAgentStream] ✅ Code uploaded: slide ${slideNumber} v${version}`);
+        }
+      } catch (err) {
+        console.warn(`[useAgentStream] Code upload error for slide ${slideNumber}:`, err);
+      }
+    },
+    [],
+  );
 
   // ---------------------------------------------------------------------------
   // Send a message to the agent
@@ -91,6 +141,15 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
       if (isStreaming) {
         console.warn('[useAgentStream] Already streaming, ignoring send');
         return;
+      }
+
+      // Mint presentationId on first send in this session
+      let pid = presentationIdRef.current;
+      if (!pid) {
+        pid = mintId();
+        setPresentationId(pid);
+        presentationIdRef.current = pid;
+        console.log('[useAgentStream] 🆕 Presentation ID minted:', pid);
       }
 
       // Add user message
@@ -117,7 +176,6 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
       setActiveTools([]);
       dispatch(setGenerating(true));
 
-      // Abort controller for cleanup
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
 
@@ -125,6 +183,7 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
         const requestBody: any = {
           prompt,
           sessionId: sessionId || undefined,
+          presentationId: pid,
           theme: {
             headingFont: theme.headingFont,
             bodyFont: theme.bodyFont,
@@ -137,22 +196,15 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
           },
         };
 
-        if (sendOptions?.images) {
-          requestBody.images = sendOptions.images;
-        }
+        if (sendOptions?.images)    requestBody.images    = sendOptions.images;
+        if (sendOptions?.imageRefs) requestBody.imageRefs = sendOptions.imageRefs;
 
-        if (sendOptions?.imageRefs) {
-          requestBody.imageRefs = sendOptions.imageRefs;
-        }
-
-        // If this is an edit request and we have slides, pass the latest slide code
-        if (sendOptions?.existingCode) {
-          // The backend will handle this in the tool call
-          // We just need to make sure we can identify edit requests
-          console.log('[useAgentStream] Edit mode with existing code');
-        }
-
-        console.log('[useAgentStream] Connecting to agent...', { sessionId, hasImages: !!sendOptions?.images, backgroundColor: theme.slideBackgroundColor });
+        console.log('[useAgentStream] Connecting to agent...', {
+          sessionId,
+          presentationId: pid,
+          hasImages: !!sendOptions?.images,
+          backgroundColor: theme.slideBackgroundColor,
+        });
 
         const response = await fetch(apiUrl, {
           method: 'POST',
@@ -161,19 +213,12 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
           signal: abortController.signal,
         });
 
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        if (!response.body) {
-          throw new Error('No response body');
-        }
+        if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        if (!response.body) throw new Error('No response body');
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
-
-        // Active tool tracking (for this turn)
         const turnTools = new Map<string, ToolActivity>();
 
         while (true) {
@@ -186,10 +231,9 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
 
           for (const line of lines) {
             if (!line.trim() || !line.startsWith('data: ')) continue;
-
             try {
               const eventData = JSON.parse(line.slice(6));
-              await handleSSEEvent(eventData, turnTools);
+              await handleSSEEvent(eventData, turnTools, pid);
             } catch (err) {
               console.error('[useAgentStream] Failed to parse SSE event:', line, err);
             }
@@ -201,11 +245,8 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
         } else {
           console.error('[useAgentStream] Stream error:', err);
           if (onError) onError(err);
-
-          // Update assistant message with error
           if (currentAssistantMessageRef.current) {
-            currentAssistantMessageRef.current.content =
-              '❌ Something went wrong. Please try again.';
+            currentAssistantMessageRef.current.content = '❌ Something went wrong. Please try again.';
             setMessages((prev) => [...prev]);
           }
         }
@@ -218,7 +259,7 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
         currentAssistantMessageRef.current = null;
       }
     },
-    [isStreaming, sessionId, apiUrl, dispatch, onError, onSlideGenerated, theme]
+    [isStreaming, sessionId, apiUrl, dispatch, onError, onSlideGenerated, theme, uploadSlideCode],
   );
 
   // ---------------------------------------------------------------------------
@@ -226,15 +267,15 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
   // ---------------------------------------------------------------------------
 
   const handleSSEEvent = useCallback(
-    async (event: any, turnTools: Map<string, ToolActivity>) => {
+    async (event: any, turnTools: Map<string, ToolActivity>, pid: string) => {
       const { type } = event;
 
       switch (type) {
+
         case 'text_delta': {
-          // Append text to current assistant message
           if (currentAssistantMessageRef.current) {
             currentAssistantMessageRef.current.content += event.delta;
-            setMessages((prev) => [...prev]); // Force re-render
+            setMessages((prev) => [...prev]);
           }
           break;
         }
@@ -246,21 +287,17 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
             input: event.input,
             startTime: Date.now(),
           };
-
-          // Track in turn tools and active tools
           const toolKey = `${event.name}-${Date.now()}`;
           turnTools.set(toolKey, tool);
           setActiveTools((prev) => [...prev, tool]);
           setIsToolRunning(true);
-
           console.log(`[useAgentStream] 🛠️ Tool started: ${event.name}`, event.input);
           break;
         }
 
         case 'tool_result': {
-          // Mark the most recent matching tool as done
           let foundTool: ToolActivity | undefined;
-          for (const [key, tool] of Array.from(turnTools.entries()).reverse()) {
+          for (const [, tool] of Array.from(turnTools.entries()).reverse()) {
             if (tool.name === event.name && tool.status === 'running') {
               tool.status = 'done';
               tool.endTime = Date.now();
@@ -268,33 +305,40 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
               break;
             }
           }
-
-          // Update active tools
           setActiveTools((prev) =>
             prev.map((t) =>
               t.name === event.name && t.status === 'running'
                 ? { ...t, status: 'done', endTime: Date.now() }
-                : t
-            )
+                : t,
+            ),
           );
-
-          // Add to assistant message tool activity
           if (currentAssistantMessageRef.current && foundTool) {
             if (!currentAssistantMessageRef.current.toolActivity) {
               currentAssistantMessageRef.current.toolActivity = [];
             }
             currentAssistantMessageRef.current.toolActivity.push(foundTool);
           }
-
           console.log(`[useAgentStream] ✅ Tool completed: ${event.name}`);
           break;
         }
 
-        case 'slide_generated': {
+        case 'logos_validated': {
+          // Surfaced to UI via activeTools — no Redux state change needed
           console.log(
-            `[useAgentStream] 📥 Raw slide_generated event:`,
-            { slideNumber: event.slideNumber, action: event.action, codeLength: event.code?.length }
+            `[useAgentStream] 🔍 Logos validated: ${event.validCount} valid, ${event.invalidCount} not found`,
           );
+          if (event.invalidCount > 0) {
+            console.warn('[useAgentStream] Invalid logos will be omitted from slide:', event.result);
+          }
+          break;
+        }
+
+        case 'slide_generated': {
+          console.log('[useAgentStream] 📥 Raw slide_generated event:', {
+            slideNumber: event.slideNumber,
+            action: event.action,
+            codeLength: event.code?.length,
+          });
 
           const slideData: SlideData = {
             action: event.action || 'created',
@@ -305,46 +349,52 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
 
           console.log(
             `[useAgentStream] 🎨 Slide ${slideData.action}: #${slideData.slideNumber}`,
-            `${slideData.code.length} chars`
+            `${slideData.code.length} chars`,
           );
 
-          // Update sources if provided
-          if (event.sources && event.sources.length > 0) {
-            setSources(event.sources);
-          }
+          if (event.sources?.length > 0) setSources(event.sources);
 
-          // Store in Redux — use ref to always see the latest slides
+          // ── Dispatch to Redux ─────────────────────────────────────────
           const currentSlides = slidesRef.current;
+          const currentHistory = versionHistoryRef.current;
           const existingSlide = currentSlides.find((s) => s.slideNumber === slideData.slideNumber);
 
+          let finalSlideNumber = slideData.slideNumber;
+          let versionNumber: number;
+
           if (existingSlide && slideData.action === 'edited') {
-            // Explicit edit — update in place
+            // Explicit edit — version is current history length + 1 (the snapshot being pushed)
+            versionNumber = (currentHistory[slideData.slideNumber]?.length ?? 0) + 2;
             dispatch(updateSlide({ id: existingSlide.id, code: slideData.code }));
           } else if (existingSlide && slideData.action === 'created') {
-            // Backend sent a "created" action but a slide with this number already exists.
-            // This is the bug case — auto-assign the next available slide number instead of replacing.
+            // Collision — auto-assign next available number
             const allNumbers = currentSlides.map((s) => s.slideNumber);
-            const nextNumber = Math.max(...allNumbers) + 1;
+            finalSlideNumber = Math.max(...allNumbers) + 1;
             console.warn(
-              `[useAgentStream] Slide #${slideData.slideNumber} already exists but action is 'created'. ` +
-              `Auto-assigning slide number ${nextNumber} to avoid replacement.`
+              `[useAgentStream] Slide #${slideData.slideNumber} exists but action='created'. ` +
+              `Auto-assigning #${finalSlideNumber}.`,
             );
-            slideData.slideNumber = nextNumber;
-            dispatch(addSlide({ slideNumber: nextNumber, code: slideData.code }));
+            slideData.slideNumber = finalSlideNumber;
+            versionNumber = 1;
+            dispatch(addSlide({ slideNumber: finalSlideNumber, code: slideData.code }));
           } else {
-            dispatch(addSlide({ slideNumber: slideData.slideNumber, code: slideData.code }));
+            // Brand new slide
+            versionNumber = 1;
+            dispatch(addSlide({ slideNumber: finalSlideNumber, code: slideData.code }));
           }
 
-          // Add to assistant message
+          // ── Upload code to blob store (non-blocking) ──────────────────
+          uploadSlideCode(finalSlideNumber, slideData.code, versionNumber, pid);
+
+          // ── Update assistant message ──────────────────────────────────
           if (currentAssistantMessageRef.current) {
             if (!currentAssistantMessageRef.current.slides) {
               currentAssistantMessageRef.current.slides = [];
             }
             currentAssistantMessageRef.current.slides.push(slideData);
-            setMessages((prev) => [...prev]); // Force re-render
+            setMessages((prev) => [...prev]);
           }
 
-          // Callback
           if (onSlideGenerated) onSlideGenerated(slideData);
           break;
         }
@@ -362,8 +412,6 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
             setSessionId(event.sessionId);
             console.log('[useAgentStream] Session ID saved:', event.sessionId);
           }
-
-          // Clear active tools
           setIsToolRunning(false);
           setActiveTools([]);
           break;
@@ -373,11 +421,11 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
           console.warn('[useAgentStream] Unknown event type:', type, event);
       }
     },
-    [dispatch, onSlideGenerated]
+    [dispatch, onSlideGenerated, uploadSlideCode],
   );
 
   // ---------------------------------------------------------------------------
-  // Reset conversation
+  // Reset conversation — new chat = new presentationId
   // ---------------------------------------------------------------------------
 
   const reset = useCallback(() => {
@@ -386,17 +434,19 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
     }
     setMessages([]);
     setSessionId(null);
+    setPresentationId(null);          // next send() will mint a fresh one
+    presentationIdRef.current = null;
     setIsStreaming(false);
     setIsToolRunning(false);
     setActiveTools([]);
     setSources([]);
     setHighlightedSourceId(null);
     currentAssistantMessageRef.current = null;
-    console.log('[useAgentStream] Conversation reset');
+    console.log('[useAgentStream] Conversation reset — presentationId cleared');
   }, []);
 
   // ---------------------------------------------------------------------------
-  // Return hook interface
+  // Return
   // ---------------------------------------------------------------------------
 
   return {
@@ -405,6 +455,7 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
     isToolRunning,
     activeTools,
     sessionId,
+    presentationId,
     send,
     reset,
     sources,
