@@ -6,7 +6,7 @@ import { CanvasView } from "../components/CanvasView";
 import { SourcePanel } from "../components/SourcePanel";
 import { TopBar } from "../components/TopBar";
 import { useAppSelector, useAppDispatch } from "../store/hooks";
-import { clearAttachments, clearSlides } from "../store/slidesSlice";
+import { clearSlides } from "../store/slidesSlice";
 import { useAgentStream } from "../hooks/useAgentStream";
 import { attachmentPreviewsToApiImages } from "../utils/fileToBase64";
 import { PanelRightOpen, PanelLeftOpen } from "lucide-react";
@@ -30,6 +30,7 @@ export function Workspace() {
   const attachments = useAppSelector((state) => state.attachments.attachments);
   const [sourcesCollapsed, setSourcesCollapsed] = useState(false);
   const [chatCollapsed, setChatCollapsed] = useState(false);
+
 
   const {
     messages,
@@ -61,7 +62,6 @@ export function Workspace() {
             console.warn(`[Workspace] Failed to delete blob ${att.blobId}:`, err);
           }
         });
-        dispatch(clearAttachments());
       }
     },
     onError: (error) => {
@@ -91,65 +91,84 @@ export function Workspace() {
 
   // ── Screenshot capture + image upload ──────────────────────────────────────
   // Called by CanvasView once Sandpack has settled after a render.
-  // Fetches the PNG from your existing render endpoint and uploads it to blob.
-  const handleSlideRendered = useCallback(
-    async (slideNumber: number, version: number) => {
-      if (!presentationId) {
-        console.warn('[Workspace] onSlideRendered called but no presentationId yet — skipping image upload');
+  // Fetches the PNG from existing render endpoint and uploads it to blob.
+const handleSlideRendered = useCallback(
+  async (slideNumber: number, version: number) => {
+    if (!presentationId) return;
+
+    const slide = slides.find(s => s.slideNumber === slideNumber);
+    if (!slide) {
+      console.warn(`[Workspace] onSlideRendered: slide ${slideNumber} not found in Redux`);
+      return;
+    }
+
+    try {
+      console.log(`[Workspace] 📸 Capturing screenshot: slide ${slideNumber} v${version}`);
+
+      const renderRes = await fetch('/api/export-png', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slides: [{ code: slide.code, slideNumber }],
+        }),
+      });
+
+      if (!renderRes.ok) {
+        console.warn(`[Workspace] export-png returned ${renderRes.status} for slide ${slideNumber}`);
         return;
       }
 
-      try {
-        console.log(`[Workspace] 📸 Capturing screenshot: slide ${slideNumber} v${version}`);
+      // export-png returns raw PNG binary for a single slide — not JSON
+      const arrayBuffer = await renderRes.arrayBuffer();
+      const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
 
-        // Call your existing slide-render endpoint
-        const renderRes = await fetch('/api/render-slide', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ slideNumber, presentationId }),
-        });
+      const uploadRes = await fetch('/api/upload-slide-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          presentationId,
+          slideNumber,
+          version,
+          data: base64,
+          mediaType: 'image/png',
+        }),
+      });
 
-        if (!renderRes.ok) {
-          console.warn(`[Workspace] Render endpoint returned ${renderRes.status} for slide ${slideNumber}`);
-          return;
-        }
-
-        const { imageData, mediaType = 'image/png' } = await renderRes.json();
-
-        if (!imageData) {
-          console.warn(`[Workspace] No imageData returned for slide ${slideNumber}`);
-          return;
-        }
-
-        // Upload to blob store
-        const uploadRes = await fetch('/api/upload-slide-image', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            presentationId,
-            slideNumber,
-            version,
-            data: imageData,
-            mediaType,
-          }),
-        });
-
-        if (!uploadRes.ok) {
-          const err = await uploadRes.json().catch(() => ({}));
-          console.warn(`[Workspace] Image upload failed for slide ${slideNumber} v${version}:`, err);
-          return;
-        }
-
-        const { imageUrl } = await uploadRes.json();
-        console.log(`[Workspace] ✅ Screenshot stored: slide ${slideNumber} v${version} → ${imageUrl}`);
-
-      } catch (err) {
-        console.warn(`[Workspace] Screenshot pipeline error for slide ${slideNumber}:`, err);
+      if (!uploadRes.ok) {
+        console.warn(`[Workspace] Image upload failed for slide ${slideNumber} v${version}`);
+        return;
       }
-    },
-    [presentationId],
-  );
 
+      const { imageUrl } = await uploadRes.json();
+      console.log(`[Workspace] ✅ Screenshot stored: slide ${slideNumber} v${version} → ${imageUrl}`);
+
+    } catch (err) {
+      console.warn(`[Workspace] Screenshot pipeline error for slide ${slideNumber}:`, err);
+    }
+  },
+  [presentationId, slides],
+);
+  
+const handleReorderUpload = useCallback(
+  async (slideNumber: number, code: string, version: number) => {
+    if (!presentationId) return;
+    try {
+      const res = await fetch('/api/upload-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ presentationId, slideNumber, version, code }),
+      });
+      if (!res.ok) {
+        console.warn(`[Workspace] Reorder upload failed for slide ${slideNumber}`);
+      } else {
+        console.log(`[Workspace] ✅ Reorder upload: slide ${slideNumber} v${version}`);
+      }
+    } catch (err) {
+      console.warn(`[Workspace] Reorder upload error:`, err);
+    }
+  },
+  [presentationId],
+);
   // ── Send message ────────────────────────────────────────────────────────────
   const handleSendMessage = async (content: string) => {
     const imageRefs = attachments.map((att) => ({
@@ -158,42 +177,13 @@ export function Workspace() {
       mediaType: att.mediaType,
     }));
 
-    const isLikelyEdit =
-      /\b(edit|change|modify|update|adjust|fix|revise|make it|make the|change it|change the)\b/i.test(content);
     let enhancedPrompt = content;
 
-    if (isLikelyEdit && slides.length > 0) {
-      const slideNumberMatch = content.match(/\bslide\s+(\d+)\b/i);
-      let targetSlide;
-
-      if (slideNumberMatch) {
-        const requestedSlideNumber = parseInt(slideNumberMatch[1], 10);
-        targetSlide = slides.find((s) => s.slideNumber === requestedSlideNumber);
-        if (targetSlide) {
-          console.log(`[Workspace] Edit mode: targeting slide ${requestedSlideNumber} (explicit)`);
-        } else {
-          console.warn(`[Workspace] Slide ${requestedSlideNumber} not found, falling back to latest`);
-          targetSlide = slides[slides.length - 1];
-        }
-      } else {
-        targetSlide = slides[slides.length - 1];
-        console.log(`[Workspace] Edit mode: targeting slide ${targetSlide.slideNumber} (latest)`);
-      }
-
-      enhancedPrompt =
-        `[SLIDE CONTEXT FOR EDITING]\nCurrent slide ${targetSlide.slideNumber} code:\n\`\`\`tsx\n${targetSlide.code}\n\`\`\`\n\n` +
-        `[USER REQUEST]\n${content}`;
-      console.log(`[Workspace] Including slide ${targetSlide.slideNumber} context (${targetSlide.code.length} chars)`);
-    } else if (slides.length > 0) {
-      const existingSlideNumbers = slides.map((s) => s.slideNumber).sort((a, b) => a - b);
-      const nextSlideNumber = Math.max(...existingSlideNumbers) + 1;
-      enhancedPrompt =
-        `[PRESENTATION CONTEXT]\nThe presentation currently has ${slides.length} slide(s): ${existingSlideNumbers.join(', ')}.\n` +
-        `The next new slide should be slide number ${nextSlideNumber}.\n` +
-        `Do NOT overwrite or replace existing slides — generate a NEW slide with slideNumber ${nextSlideNumber}.\n\n` +
-        `[USER REQUEST]\n${content}`;
-      console.log(`[Workspace] New slide mode: next slide = ${nextSlideNumber}`);
-    }
+    const existingSlideNumbers = slides.map((s) => s.slideNumber).sort((a, b) => a - b);
+    const nextSlideNumber = Math.max(...existingSlideNumbers) + 1;
+    enhancedPrompt =
+      `[PRESENTATION CONTEXT]\nThe presentation currently has ${slides.length} slide(s): ${existingSlideNumbers.join(', ')}. A new slide would be of slide number ${nextSlideNumber}:\n` +
+      `[USER REQUEST]\n${content}`;
 
     if (imageRefs.length > 0) {
       console.log(`[Workspace] Sending message with ${imageRefs.length} image(s)`);
@@ -255,6 +245,8 @@ export function Workspace() {
           <CanvasView
             onCitationClick={handleCitationClick}
             onSlideRendered={handleSlideRendered}
+            presentationId={presentationId}
+            onReorderUpload={handleReorderUpload}
           />
         </div>
 
