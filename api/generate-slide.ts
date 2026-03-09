@@ -341,6 +341,12 @@ Position tables absolutely. Use fixed column widths and compact padding for data
 
 Use the following URL pattern to include logos. Replace [TICKER] with the company ticker (ex. NVDA, AAPL, etc.) in all caps and without brackets and use process.env.LOGO_DEV_PUBLIC_KEY exactly as written for the token:
 https://img.logo.dev/ticker/[TICKER]?token=process.env.LOGO_DEV_PUBLIC_KEY
+For private companies, unlisted entities or foreign companies you don't know the ticker of, get the logo using the company name instead of ticker:
+https://img.logo.dev/name/[COMPANY_NAME]?token=process.env.LOGO_DEV_PUBLISHABLE_KEY
+For cryptocurrency symbols, get the logo using the symbol:
+https://img.logo.dev/crypto/[SYMBOL]?token=LOGO_DEV_PUBLISHABLE_KEY
+For foreign listed companies you know the ticker of, use:
+https://img.logo.dev/ticker/[TICKER]].[EXCHANGE CODE]?token=LOGO_DEV_PUBLISHABLE_KEY
 
 ## Common Mistakes to AVOID
 
