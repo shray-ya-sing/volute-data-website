@@ -1,4 +1,4 @@
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useEffect} from "react";
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import { ThemeToolbar } from "./ThemeToolbar";
@@ -12,9 +12,12 @@ interface CanvasViewProps {
   /** Fired by each SandboxSlide once its iframe has settled after a render.
    *  Workspace uses this to capture a screenshot and upload it to blob store. */
   onSlideRendered: (slideNumber: number, version: number) => void;
+  /** For re-uploading slide code when order changes after a drag */
+  presentationId: string | null;
+  onReorderUpload: (slideNumber: number, code: string, version: number) => void;
 }
 
-export function CanvasView({ onCitationClick, onSlideRendered }: CanvasViewProps) {
+export function CanvasView({ onCitationClick, onSlideRendered, presentationId, onReorderUpload  }: CanvasViewProps) {
   const dispatch = useAppDispatch();
   const slidesFromStore = useAppSelector((state) => state.slides.slides);
   const versionHistory = useAppSelector((state) => state.slides.versionHistory);
@@ -24,6 +27,17 @@ export function CanvasView({ onCitationClick, onSlideRendered }: CanvasViewProps
 
   // Sort slides by slideNumber to ensure correct display order
   const slides = [...slidesFromStore].sort((a, b) => a.slideNumber - b.slideNumber);
+
+    // Re-upload all slides to blob whenever the id↔slideNumber mapping changes (i.e. after a reorder)
+  const slideOrderKey = slides.map(s => `${s.id}:${s.slideNumber}`).join(',');
+  useEffect(() => {
+    if (!presentationId || slides.length === 0) return;
+    slides.forEach(slide => {
+      const version = (versionHistory[slide.slideNumber]?.length ?? 0) + 1;
+      onReorderUpload(slide.slideNumber, slide.code, version);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slideOrderKey, presentationId]);
 
   const scrollToSlide = useCallback((slideId: string) => {
     dispatch(setCurrentSlide(slideId));
