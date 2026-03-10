@@ -276,6 +276,18 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
           break;
         }
 
+        case 'error': {
+          console.error('[useAgentStream] ❌ Error from agent:', event.message);
+          if (currentAssistantMessageRef.current) {
+            const errorText = `\n\n⚠️ **Error:** ${event.message || 'An unexpected error occurred.'}`;
+            currentAssistantMessageRef.current.content += errorText;
+            setMessages((prev) => [...prev]);
+          }
+          setIsToolRunning(false);
+          setActiveTools([]);
+          break;
+        }
+
         default:
           console.warn('[useAgentStream] Unknown event type:', type, event);
       }
