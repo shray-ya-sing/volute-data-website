@@ -163,8 +163,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const blob = await put(pathname, code, {
       access: 'public',
       contentType: 'text/plain',
-      // Overwrite if same version already exists (e.g. retry after failure)
-      allowedContentTypes: ['text/plain'],
+      allowOverwrite: true,
     });
 
     console.log(`[upload-code] ✅ Stored at: ${blob.url}`);
@@ -174,8 +173,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       slideNumber: sn,
       version: vn,
       blobUrl: blob.url,
-      codeLength: code.length,
-      uploadedAt: blob.uploadedAt,
+      codeLength: code.length
     });
 
   } catch (err: any) {

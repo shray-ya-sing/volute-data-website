@@ -37,9 +37,9 @@ export type TemplateCategory =
   | 'process_timeline'
   | 'logo_splash'
   | 'agenda'
-  | 'financial_model'
+  | 'competitive_landscape'
   | 'wacc_analysis'
-  | 'stock_performance'; 
+  | 'stock_performance';
 
 interface CachedReferenceImage {
   type: 'base64';
@@ -345,11 +345,11 @@ Position tables absolutely. Use fixed column widths and compact padding for data
 Use the following URL pattern to include logos. Replace [TICKER] with the company ticker (ex. NVDA, AAPL, etc.) in all caps and without brackets and use process.env.LOGO_DEV_PUBLIC_KEY exactly as written for the token:
 https://img.logo.dev/ticker/[TICKER]?token=process.env.LOGO_DEV_PUBLIC_KEY
 For private companies, unlisted entities or foreign companies you don't know the ticker of, get the logo using the company name instead of ticker:
-https://img.logo.dev/name/[COMPANY_NAME]?token=process.env.LOGO_DEV_PUBLISHABLE_KEY
+https://img.logo.dev/name/[COMPANY_NAME]?token=process.env.LOGO_DEV_PUBLIC_KEY
 For cryptocurrency symbols, get the logo using the symbol:
-https://img.logo.dev/crypto/[SYMBOL]?token=LOGO_DEV_PUBLISHABLE_KEY
+https://img.logo.dev/crypto/[SYMBOL]?token=process.env.LOGO_DEV_PUBLIC_KEY
 For foreign listed companies you know the ticker of, use:
-https://img.logo.dev/ticker/[TICKER]].[EXCHANGE CODE]?token=LOGO_DEV_PUBLISHABLE_KEY
+https://img.logo.dev/ticker/[TICKER].[EXCHANGE CODE]?token=process.env.LOGO_DEV_PUBLIC_KEY
 
 ## Common Mistakes to AVOID
 
@@ -358,6 +358,7 @@ https://img.logo.dev/ticker/[TICKER]].[EXCHANGE CODE]?token=LOGO_DEV_PUBLISHABLE
 ❌ Omitting width or height on any absolutely positioned element
 ❌ Exceeding 960px width or 540px height with any element
 ❌ Hardcoding font sizes as strings like '16px' — use \`\${bodyFontSize}px\`
+❌ Placing CSS units inside template literal expressions — \`\${value + 68px}\` is invalid JS; write \`\${value + 68}px\` instead
 ❌ Importing any package other than lucide-react and recharts
 ❌ Including gradients and UI effects that cannot be faithfully rendered in PowerPoint (e.g. drop shadows, glows, blurs) — keep it simple and flat for best results. Slides usually have a flat white/light background, clean shapes, whitespace, bullets, and charts with solid colors and simple axes/labels.
 ✅ Every element: position absolute, explicit top/left/width/height in px

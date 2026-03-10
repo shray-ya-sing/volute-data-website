@@ -3,7 +3,6 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { randomUUID } from 'crypto';
 import * as http from 'http';
 import * as https from 'https';
-import { head } from '@vercel/blob';
 
 // Import the slide generation handler directly — no HTTP call needed
 import generateSlideHandler from './generate-slide.js';
@@ -32,6 +31,7 @@ interface RequestBody {
   presentationId?: string;
   images?: ImageInput[];       // Legacy: direct base64 (kept for backwards compat)
   imageRefs?: BlobImageRef[];  // New: blob references from /api/upload-image
+  theme?: SlideTheme;          // User's presentation theme — forwarded to slide generator
 }
 
 interface SearchResultItem {
@@ -203,7 +203,7 @@ function trackSourcesFromSearchResult(
 ): TrackedSource[] {
   const existing = getSessionSources(sessionId);
   const seen = new Set(existing.map(s => s.url));
-  let nextId = existing.length > 0 ? Math.max(...existing.map(s => s.id)) + 1 : 1;
+  let nextId = existing.length > 0 ? existing.reduce((max, s) => s.id > max ? s.id : max, 0) + 1 : 1;
 
   const sourceRegex =
     /\[Source \d+\]\nTitle: (.+)\n(?:URL: (.+)\n)?Content: ([\s\S]*?)\nRelevance: (.+)%/g;
@@ -290,7 +290,7 @@ async function validateLogos(
       }
 
       try {
-        const res = await fetch(url, { method: 'HEAD' });
+        const res = await fetch(url, { method: 'GET' });
         const valid = res.ok && (res.headers.get('content-type') ?? '').startsWith('image/');
         return { value, type, url: valid ? url : null, valid };
       } catch {
@@ -731,6 +731,9 @@ const tools: Anthropic.Tool[] = [
             'strategic_alternatives',
             'valuation_football_field',
             'competitive_landscape',
+            'financial_model',
+            'wacc_analysis',
+            'stock_performance',
             'agenda',
             'process_timeline',
             'logo_splash',
@@ -815,6 +818,7 @@ async function executeTool(
   input: ToolInput,
   resolvedImages: ImageInput[],  // pre-fetched from blob, injected server-side
   presentationId: string,        // used to fetch existing slide code from blob
+  requestTheme: SlideTheme,      // user's theme forwarded from request body
 ): Promise<string> {
   console.log(`[agent] ⚙️  executeTool: ${name}`, JSON.stringify(input).slice(0, 200));
 
@@ -925,7 +929,7 @@ async function executeTool(
         prompt: finalPrompt,
         slideNumber: input.slideNumber,
         context: input.context,
-        theme: input.theme,
+        theme: requestTheme,
         existingCode,
         images: resolvedImages,
         templateCategory: input.templateCategory as string | undefined,
@@ -942,7 +946,7 @@ async function executeTool(
 
       const baseUrl = process.env.VERCEL_URL
         ? `https://${process.env.VERCEL_URL}`
-        : 'http://localhost:3000';
+        : 'http://localhost:3001';
 
       const results = await Promise.all(
         input.slideNumbers.map(async (num) => {
@@ -1080,6 +1084,7 @@ async function runStreamingAgentLoop(
   isNewSession: boolean,
   resolvedImages: ImageInput[],
   presentationId: string,
+  requestTheme: SlideTheme,
 ): Promise<ConversationHistory> {
   let currentHistory = [...history];
 
@@ -1151,7 +1156,7 @@ async function runStreamingAgentLoop(
           sendSSE(res, { type: 'tool_start', name: toolUse.name, input: toolUse.input });
 
           const t1 = Date.now();
-          const result = await executeTool(toolUse.name, toolUse.input as ToolInput, resolvedImages, presentationId);
+          const result = await executeTool(toolUse.name, toolUse.input as ToolInput, resolvedImages, presentationId, requestTheme);
 
           console.log(
             `[agent] 🛠  ${toolUse.name} completed in ${Date.now() - t1}ms | result: ${result.length} chars`,
@@ -1176,7 +1181,7 @@ async function runStreamingAgentLoop(
               const globalId = newSources[i].id;
               if (localNum !== globalId) {
                 remappedResult = remappedResult.replace(
-                  new RegExp(`\\[Source ${localNum}\\]`, 'g'),
+                  new RegExp(`^\\[Source ${localNum}\\]$`, 'gm'),
                   `[Source ${globalId}]`,
                 );
               }
@@ -1299,7 +1304,7 @@ const SUPPORTED_MEDIA_TYPES: SupportedMediaType[] = [
 ];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  console.log(`[agent] ${req.method} /api/agent`);
+  console.log(`[agent] ${req.method} /api/agent-websearch`);
 
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -1316,6 +1321,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     presentationId: incomingPresentationId,
     images = [],        // legacy direct base64
     imageRefs = [],     // new blob references
+    theme: requestTheme = {},
   } = req.body as RequestBody;
 
   if (!prompt || typeof prompt !== 'string' || prompt.trim() === '') {
@@ -1411,6 +1417,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       isNewSession,
       allImages,          // passed through to executeTool → createOrEditSlide
       incomingPresentationId ?? '',  // used to fetch existing slide code from blob
+      requestTheme,       // forwarded to slide generator for consistent styling
     );
 
     saveHistory(sessionId, updatedHistory);

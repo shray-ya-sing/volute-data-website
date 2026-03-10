@@ -150,7 +150,7 @@ export function ExportButton() {
           const res = await fetch("https://www.getvolute.com/api/generate-slide-json", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ code: slide.code, slideNumber: slide.slideNumber }),
+            body: JSON.stringify({ code: slide.code, slideNumber: slide.slideNumber, theme }),
           });
 
           if (!res.ok) {
@@ -207,7 +207,7 @@ export function ExportButton() {
     } finally {
       setExporting(null);
     }
-  }, [slides, presentationName]);
+  }, [slides, theme, presentationName]);
 
   // ── Dropdown items ──────────────────────────────────────────────────────
   const items: { label: string; handler: () => void }[] = [
