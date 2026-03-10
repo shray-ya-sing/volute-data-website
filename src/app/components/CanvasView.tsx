@@ -23,14 +23,28 @@ export function CanvasView({ onCitationClick, onSlideRendered, presentationId, o
   const currentSlideId = useAppSelector((state) => state.slides.currentSlideId);
   const slideRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const prevSlideOrderKeyRef = useRef<string>('');
 
   // Sort slides by slideNumber to ensure correct display order
   const slides = [...slidesFromStore].sort((a, b) => a.slideNumber - b.slideNumber);
 
-    // Re-upload all slides to blob whenever the id↔slideNumber mapping changes (i.e. after a reorder)
+  // Re-upload slides to blob only when the id↔slideNumber mapping changes due to a reorder,
+  // not when slides are added or removed (those are handled by onSlideRendered).
   const slideOrderKey = slides.map(s => `${s.id}:${s.slideNumber}`).join(',');
   useEffect(() => {
     if (!presentationId || slides.length === 0) return;
+
+    const prevKey = prevSlideOrderKeyRef.current;
+    prevSlideOrderKeyRef.current = slideOrderKey;
+
+    // Compare slide id sets — if they differ, a slide was added/removed, not reordered
+    if (!prevKey) return;
+    const prevIds = prevKey.split(',').map(s => s.split(':')[0]);
+    const currIds = slideOrderKey.split(',').map(s => s.split(':')[0]);
+    const sameSlides =
+      prevIds.length === currIds.length && prevIds.every((id) => currIds.includes(id));
+    if (!sameSlides) return;
+
     slides.forEach(slide => {
       onReorderUpload(slide.slideNumber, slide.code);
     });

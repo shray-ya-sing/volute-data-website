@@ -176,6 +176,13 @@ export function SandboxSlide({ code, slideNumber, onRendered }: SandboxSlideProp
     return <SlideErrorFallback />;
   }
 
+  // Map Redux key `slideBackgroundColor` → `backgroundColor` expected by generated slides
+  const slideTheme = {
+    ...theme,
+    backgroundColor: theme.slideBackgroundColor,
+  };
+  const { slideBackgroundColor: _unused, ...cleanSlideTheme } = slideTheme;
+
   const files = {
     [`/Slide${slideNumber}.tsx`]: {
       code: renderCode,
@@ -183,7 +190,7 @@ export function SandboxSlide({ code, slideNumber, onRendered }: SandboxSlideProp
     "/App.tsx": {
       code: `import Slide from './Slide${slideNumber}';
 
-const theme = ${JSON.stringify(theme, null, 2)};
+const theme = ${JSON.stringify(cleanSlideTheme, null, 2)};
 
 export default function App() {
   return (

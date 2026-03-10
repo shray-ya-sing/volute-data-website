@@ -1,7 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { addSlide, updateSlide, setGenerating } from '../store/slidesSlice';
-import { randomUUID } from 'crypto'; // available in modern browsers via globalThis.crypto.randomUUID
 
 // ---------------------------------------------------------------------------
 // Types
@@ -239,6 +238,16 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
             }
           }
         }
+
+        // Flush any remaining buffered data after the stream closes
+        if (buffer.trim().startsWith('data: ')) {
+          try {
+            const eventData = JSON.parse(buffer.trim().slice(6));
+            await handleSSEEvent(eventData, turnTools, pid);
+          } catch (err) {
+            console.error('[useAgentStream] Failed to parse final SSE event:', buffer, err);
+          }
+        }
       } catch (err: any) {
         if (err.name === 'AbortError') {
           console.log('[useAgentStream] Stream aborted by user');
@@ -362,21 +371,11 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
           let finalSlideNumber = slideData.slideNumber;
           let versionNumber: number;
 
-          if (existingSlide && slideData.action === 'edited') {
-            // Explicit edit — version is current history length + 1 (the snapshot being pushed)
+          if (existingSlide) {
+            // Slide already exists — always update in place regardless of action field,
+            // because the agent sometimes returns action='created' for edits.
             versionNumber = (currentHistory[slideData.slideNumber]?.length ?? 0) + 2;
             dispatch(updateSlide({ id: existingSlide.id, code: slideData.code }));
-          } else if (existingSlide && slideData.action === 'created') {
-            // Collision — auto-assign next available number
-            const allNumbers = currentSlides.map((s) => s.slideNumber);
-            finalSlideNumber = Math.max(...allNumbers) + 1;
-            console.warn(
-              `[useAgentStream] Slide #${slideData.slideNumber} exists but action='created'. ` +
-              `Auto-assigning #${finalSlideNumber}.`,
-            );
-            slideData.slideNumber = finalSlideNumber;
-            versionNumber = 1;
-            dispatch(addSlide({ slideNumber: finalSlideNumber, code: slideData.code }));
           } else {
             // Brand new slide
             versionNumber = 1;

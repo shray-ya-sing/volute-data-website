@@ -146,6 +146,7 @@ export const slidesSlice = createSlice({
     clearSlides: (state) => {
       state.slides = [];
       state.currentSlideId = null;
+      state.versionHistory = {};
     },
     clearCachedSlides: (state) => {
       state.cachedSlides = [];
