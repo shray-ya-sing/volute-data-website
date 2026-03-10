@@ -142,7 +142,7 @@ const handleSlideRendered = useCallback(
     try {
       console.log(`[Workspace] 📸 Capturing screenshot: slide ${slideNumber}`);
 
-      const renderRes = await fetch('/api/export-png', {
+      const renderRes = await fetch('/api/export-jpg', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -185,7 +185,7 @@ const handleSlideRendered = useCallback(
           slideNumber,
           version: nextVersion,
           data: base64,
-          mediaType: 'image/png',
+          mediaType: 'image/jpeg',
         }),
       });
 
