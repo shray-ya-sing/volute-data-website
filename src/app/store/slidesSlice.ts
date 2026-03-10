@@ -84,7 +84,7 @@ export const slidesSlice = createSlice({
 
         // Replace the existing slide
         const newSlide: Slide = {
-          id: `slide-${Date.now()}`,
+          id: `slide-${Date.now()}-${Math.random().toString(36).slice(2)}`,
           slideNumber,
           code,
           timestamp: Date.now(),
@@ -95,7 +95,7 @@ export const slidesSlice = createSlice({
       } else {
         // No existing slide with this number, add new
         const newSlide: Slide = {
-          id: `slide-${Date.now()}`,
+          id: `slide-${Date.now()}-${Math.random().toString(36).slice(2)}`,
           slideNumber,
           code,
           timestamp: Date.now(),
