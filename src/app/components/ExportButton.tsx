@@ -67,12 +67,13 @@ export function ExportButton() {
         downloadBlob(blob, `${safeName(presentationName)}.pdf`);
       } else {
         let msg = `Server returned ${res.status}`;
+        const raw = await res.text();
         try {
-          const body = await res.json();
+          const body = JSON.parse(raw);
           msg = body.error || body.message || msg;
           console.error("[Export] PDF error:", body);
         } catch {
-          console.error("[Export] PDF raw error:", (await res.text()).slice(0, 500));
+          console.error("[Export] PDF raw error:", raw.slice(0, 500));
         }
         setError(msg);
       }
@@ -118,12 +119,13 @@ export function ExportButton() {
         downloadBlob(blob, `${name}${ext}`);
       } else {
         let msg = `Server returned ${res.status}`;
+        const raw = await res.text();
         try {
-          const body = await res.json();
+          const body = JSON.parse(raw);
           msg = body.error || body.message || msg;
           console.error("[Export] PNG error:", body);
         } catch {
-          console.error("[Export] PNG raw error:", (await res.text()).slice(0, 500));
+          console.error("[Export] PNG raw error:", raw.slice(0, 500));
         }
         setError(msg);
       }
@@ -192,12 +194,13 @@ export function ExportButton() {
         downloadBlob(blob, `${safeName(presentationName)}.pptx`);
       } else {
         let msg = `Export server returned ${exportRes.status}`;
+        const raw = await exportRes.text();
         try {
-          const body = await exportRes.json();
+          const body = JSON.parse(raw);
           msg = body.error || body.message || msg;
           console.error("[Export] PPTX error:", body);
         } catch {
-          console.error("[Export] PPTX raw error:", (await exportRes.text()).slice(0, 500));
+          console.error("[Export] PPTX raw error:", raw.slice(0, 500));
         }
         setError(msg);
       }

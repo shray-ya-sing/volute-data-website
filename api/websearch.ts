@@ -1,13 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY || '';
-if (!PERPLEXITY_API_KEY) {
-  throw new Error('PERPLEXITY_API_KEY is not set in environment variables');
-}
-
-console.log('Environment Check:', {
-  hasPerplexity: !!process.env.PERPLEXITY_API_KEY,
-});
+let PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY || '';
 
 interface ArticleResult {
   articleId: string;
@@ -139,6 +132,12 @@ export default async function handler(
 
   if (req.method !== 'POST' && req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Refresh from env in case it was set after module load
+  PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY || '';
+  if (!PERPLEXITY_API_KEY) {
+    return res.status(500).json({ error: 'Search is not configured' });
   }
 
   try {

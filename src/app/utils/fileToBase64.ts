@@ -90,7 +90,7 @@ export function fileToDataUri(file: File): Promise<string> {
  */
 export async function attachmentPreviewsToApiImages(
   attachments: { url: string; type: string }[]
-): Promise<{ data: string }[]> {
+): Promise<{ data: string; mediaType: string }[]> {
   const results = await Promise.all(
     attachments.map(async (att) => {
       let dataUri: string;
@@ -125,7 +125,12 @@ export async function attachmentPreviewsToApiImages(
       return dataUri;
     })
   );
-  return results.map((dataUri) => ({ data: dataUri }));
+  return results.map((dataUri) => {
+    // Extract mediaType from the data URI prefix
+    const mimeMatch = dataUri.match(/^data:([^;]+);base64,/);
+    const mediaType = mimeMatch ? mimeMatch[1] : 'image/png';
+    return { data: dataUri, mediaType };
+  });
 }
 
 /**

@@ -1291,6 +1291,7 @@ async function runStreamingAgentLoop(
   }
 
   console.warn('[agent] ⚠️  Agent loop exited without end_turn');
+  sendSSE(res, { type: 'error', message: 'Agent loop timed out — please retry.' });
   sendSSE(res, { type: 'done', sessionId, isNewSession, historyLength: currentHistory.length });
   return currentHistory;
 }

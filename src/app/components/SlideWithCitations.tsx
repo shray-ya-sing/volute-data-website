@@ -36,7 +36,10 @@ export function SlideWithCitations({
   const codeWithCitationHandlers = code + `\n
 // --- Citation click handler (injected) ---
 if (typeof window !== 'undefined') {
-  document.addEventListener('click', (e) => {
+  if (window.__voluteCitationHandler__) {
+    document.removeEventListener('click', window.__voluteCitationHandler__);
+  }
+  window.__voluteCitationHandler__ = (e) => {
     const badge = e.target.closest('[data-citation]');
     if (badge) {
       const id = parseInt(badge.getAttribute('data-citation'), 10);
@@ -44,7 +47,8 @@ if (typeof window !== 'undefined') {
         window.parent.postMessage({ type: 'citation-click', id }, '*');
       }
     }
-  });
+  };
+  document.addEventListener('click', window.__voluteCitationHandler__);
 }`;
 
   return (
