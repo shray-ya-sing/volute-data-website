@@ -106,30 +106,6 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
   const presentationIdRef = useRef(presentationId);
   presentationIdRef.current = presentationId;
 
-  // ---------------------------------------------------------------------------
-  // Upload slide code to blob store (fire-and-forget, non-blocking)
-  // ---------------------------------------------------------------------------
-
-  const uploadSlideCode = useCallback(
-    async (slideNumber: number, code: string, version: number, pid: string) => {
-      try {
-        const res = await fetch('/api/upload-code', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ presentationId: pid, slideNumber, version, code }),
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          console.warn(`[useAgentStream] Code upload failed for slide ${slideNumber} v${version}:`, err);
-        } else {
-          console.log(`[useAgentStream] ✅ Code uploaded: slide ${slideNumber} v${version}`);
-        }
-      } catch (err) {
-        console.warn(`[useAgentStream] Code upload error for slide ${slideNumber}:`, err);
-      }
-    },
-    [],
-  );
 
   // ---------------------------------------------------------------------------
   // Handle individual SSE events
@@ -289,7 +265,7 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
           console.warn('[useAgentStream] Unknown event type:', type, event);
       }
     },
-    [dispatch, onSlideGenerated, uploadSlideCode],
+    [dispatch, onSlideGenerated],
   );
 
   // ---------------------------------------------------------------------------
@@ -429,7 +405,7 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
         currentAssistantMessageRef.current = null;
       }
     },
-    [isStreaming, sessionId, apiUrl, dispatch, onError, onSlideGenerated, theme, uploadSlideCode, handleSSEEvent],
+    [isStreaming, sessionId, apiUrl, dispatch, onError, onSlideGenerated, theme, handleSSEEvent],
   );
 
   // ---------------------------------------------------------------------------
