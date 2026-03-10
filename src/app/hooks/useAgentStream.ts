@@ -242,9 +242,6 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
             dispatch(addSlide({ slideNumber: finalSlideNumber, code: slideData.code }));
           }
 
-          // ── Upload code to blob store (non-blocking) ──────────────────
-          uploadSlideCode(finalSlideNumber, slideData.code, versionNumber, pid);
-
           // ── Update assistant message ──────────────────────────────────
           if (currentAssistantMessageRef.current) {
             if (!currentAssistantMessageRef.current.slides) {
