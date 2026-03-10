@@ -6,6 +6,7 @@ import * as https from 'https';
 
 // Import the slide generation handler directly — no HTTP call needed
 import generateSlideHandler from './generate-slide.js';
+import { error } from 'console';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -306,10 +307,15 @@ async function validateLogos(
       }
 
       try {
+        console.log(`[agent] Validating logo URL: ${url}`);
         const res = await fetch(url, { method: 'GET' });
+        console.log(`[agent] Logo URL validation result: ${res.status} ${res.statusText}`);
         const valid = res.ok && (res.headers.get('content-type') ?? '').startsWith('image/');
+        console.log(`[agent] Logo URL valid: ${valid} | ${type}: ${value}`);
         return { value, type, url: valid ? url : null, valid };
-      } catch {
+      } catch (error) {
+        console.log(`[agent] Error validating logo URL: ${url}`);
+        console.log(`[agent] Validation error: ${(error as any).message}`);
         return { value, type, url: null, valid: false };
       }
     })
