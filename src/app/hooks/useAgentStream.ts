@@ -132,146 +132,6 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
   );
 
   // ---------------------------------------------------------------------------
-  // Send a message to the agent
-  // ---------------------------------------------------------------------------
-
-  const send = useCallback(
-    async (prompt: string, sendOptions?: SendOptions) => {
-      if (isStreaming) {
-        console.warn('[useAgentStream] Already streaming, ignoring send');
-        return;
-      }
-
-      // Mint presentationId on first send in this session
-      let pid = presentationIdRef.current;
-      if (!pid) {
-        pid = mintId();
-        setPresentationId(pid);
-        presentationIdRef.current = pid;
-        console.log('[useAgentStream] 🆕 Presentation ID minted:', pid);
-      }
-
-      // Add user message
-      const userMessage: AgentMessage = {
-        id: `user-${Date.now()}`,
-        role: 'user',
-        content: sendOptions?.displayContent || prompt,
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, userMessage]);
-
-      // Create assistant message placeholder
-      currentAssistantMessageRef.current = {
-        id: `assistant-${Date.now()}`,
-        role: 'assistant',
-        content: '',
-        timestamp: new Date(),
-        toolActivity: [],
-        slides: [],
-      };
-      setMessages((prev) => [...prev, currentAssistantMessageRef.current!]);
-
-      setIsStreaming(true);
-      setActiveTools([]);
-      dispatch(setGenerating(true));
-
-      const abortController = new AbortController();
-      abortControllerRef.current = abortController;
-
-      try {
-        const requestBody: any = {
-          prompt,
-          sessionId: sessionId || undefined,
-          presentationId: pid,
-          theme: {
-            headingFont: theme.headingFont,
-            bodyFont: theme.bodyFont,
-            accentColors: theme.accentColors,
-            headingTextColor: theme.headingTextColor,
-            bodyTextColor: theme.bodyTextColor,
-            headingFontSize: theme.headingFontSize,
-            bodyFontSize: theme.bodyFontSize,
-            backgroundColor: theme.slideBackgroundColor,
-          },
-        };
-
-        if (sendOptions?.images)    requestBody.images    = sendOptions.images;
-        if (sendOptions?.imageRefs) requestBody.imageRefs = sendOptions.imageRefs;
-
-        console.log('[useAgentStream] Connecting to agent...', {
-          sessionId,
-          presentationId: pid,
-          hasImages: !!sendOptions?.images,
-          backgroundColor: theme.slideBackgroundColor,
-        });
-
-        const response = await fetch(apiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(requestBody),
-          signal: abortController.signal,
-        });
-
-        if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        if (!response.body) throw new Error('No response body');
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-        const turnTools = new Map<string, ToolActivity>();
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            if (!line.trim() || !line.startsWith('data: ')) continue;
-            try {
-              const eventData = JSON.parse(line.slice(6));
-              await handleSSEEvent(eventData, turnTools, pid);
-            } catch (err) {
-              console.error('[useAgentStream] Failed to parse SSE event:', line, err);
-            }
-          }
-        }
-
-        // Flush any remaining buffered data after the stream closes
-        if (buffer.trim().startsWith('data: ')) {
-          try {
-            const eventData = JSON.parse(buffer.trim().slice(6));
-            await handleSSEEvent(eventData, turnTools, pid);
-          } catch (err) {
-            console.error('[useAgentStream] Failed to parse final SSE event:', buffer, err);
-          }
-        }
-      } catch (err: any) {
-        if (err.name === 'AbortError') {
-          console.log('[useAgentStream] Stream aborted by user');
-        } else {
-          console.error('[useAgentStream] Stream error:', err);
-          if (onError) onError(err);
-          if (currentAssistantMessageRef.current) {
-            currentAssistantMessageRef.current.content = '❌ Something went wrong. Please try again.';
-            setMessages((prev) => [...prev]);
-          }
-        }
-      } finally {
-        setIsStreaming(false);
-        setIsToolRunning(false);
-        setActiveTools([]);
-        dispatch(setGenerating(false));
-        abortControllerRef.current = null;
-        currentAssistantMessageRef.current = null;
-      }
-    },
-    [isStreaming, sessionId, apiUrl, dispatch, onError, onSlideGenerated, theme, uploadSlideCode],
-  );
-
-  // ---------------------------------------------------------------------------
   // Handle individual SSE events
   // ---------------------------------------------------------------------------
 
@@ -416,11 +276,163 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
           break;
         }
 
+        case 'error': {
+          console.error('[useAgentStream] ❌ Error from agent:', event.message);
+          if (currentAssistantMessageRef.current) {
+            const errorText = `\n\n⚠️ **Error:** ${event.message || 'An unexpected error occurred.'}`;
+            currentAssistantMessageRef.current.content += errorText;
+            setMessages((prev) => [...prev]);
+          }
+          setIsToolRunning(false);
+          setActiveTools([]);
+          break;
+        }
+
         default:
           console.warn('[useAgentStream] Unknown event type:', type, event);
       }
     },
     [dispatch, onSlideGenerated, uploadSlideCode],
+  );
+
+  // ---------------------------------------------------------------------------
+  // Send a message to the agent
+  // ---------------------------------------------------------------------------
+
+  const send = useCallback(
+    async (prompt: string, sendOptions?: SendOptions) => {
+      if (isStreaming) {
+        console.warn('[useAgentStream] Already streaming, ignoring send');
+        return;
+      }
+
+      // Mint presentationId on first send in this session
+      let pid = presentationIdRef.current;
+      if (!pid) {
+        pid = mintId();
+        setPresentationId(pid);
+        presentationIdRef.current = pid;
+        console.log('[useAgentStream] 🆕 Presentation ID minted:', pid);
+      }
+
+      // Add user message
+      const userMessage: AgentMessage = {
+        id: `user-${Date.now()}`,
+        role: 'user',
+        content: sendOptions?.displayContent || prompt,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, userMessage]);
+
+      // Create assistant message placeholder
+      currentAssistantMessageRef.current = {
+        id: `assistant-${Date.now()}`,
+        role: 'assistant',
+        content: '',
+        timestamp: new Date(),
+        toolActivity: [],
+        slides: [],
+      };
+      setMessages((prev) => [...prev, currentAssistantMessageRef.current!]);
+
+      setIsStreaming(true);
+      setActiveTools([]);
+      dispatch(setGenerating(true));
+
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
+
+      try {
+        const requestBody: any = {
+          prompt,
+          sessionId: sessionId || undefined,
+          presentationId: pid,
+          theme: {
+            headingFont: theme.headingFont,
+            bodyFont: theme.bodyFont,
+            accentColors: theme.accentColors,
+            headingTextColor: theme.headingTextColor,
+            bodyTextColor: theme.bodyTextColor,
+            headingFontSize: theme.headingFontSize,
+            bodyFontSize: theme.bodyFontSize,
+            backgroundColor: theme.slideBackgroundColor,
+          },
+        };
+
+        if (sendOptions?.images)    requestBody.images    = sendOptions.images;
+        if (sendOptions?.imageRefs) requestBody.imageRefs = sendOptions.imageRefs;
+
+        console.log('[useAgentStream] Connecting to agent...', {
+          sessionId,
+          presentationId: pid,
+          hasImages: !!sendOptions?.images,
+          backgroundColor: theme.slideBackgroundColor,
+        });
+
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+          signal: abortController.signal,
+        });
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        if (!response.body) throw new Error('No response body');
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        const turnTools = new Map<string, ToolActivity>();
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (!line.trim() || !line.startsWith('data: ')) continue;
+            try {
+              const eventData = JSON.parse(line.slice(6));
+              await handleSSEEvent(eventData, turnTools, pid);
+            } catch (err) {
+              console.error('[useAgentStream] Failed to parse SSE event:', line, err);
+            }
+          }
+        }
+
+        // Flush any remaining buffered data after the stream closes
+        if (buffer.trim().startsWith('data: ')) {
+          try {
+            const eventData = JSON.parse(buffer.trim().slice(6));
+            await handleSSEEvent(eventData, turnTools, pid);
+          } catch (err) {
+            console.error('[useAgentStream] Failed to parse final SSE event:', buffer, err);
+          }
+        }
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          console.log('[useAgentStream] Stream aborted by user');
+        } else {
+          console.error('[useAgentStream] Stream error:', err);
+          if (onError) onError(err);
+          if (currentAssistantMessageRef.current) {
+            currentAssistantMessageRef.current.content = '❌ Something went wrong. Please try again.';
+            setMessages((prev) => [...prev]);
+          }
+        }
+      } finally {
+        setIsStreaming(false);
+        setIsToolRunning(false);
+        setActiveTools([]);
+        dispatch(setGenerating(false));
+        abortControllerRef.current = null;
+        currentAssistantMessageRef.current = null;
+      }
+    },
+    [isStreaming, sessionId, apiUrl, dispatch, onError, onSlideGenerated, theme, uploadSlideCode, handleSSEEvent],
   );
 
   // ---------------------------------------------------------------------------

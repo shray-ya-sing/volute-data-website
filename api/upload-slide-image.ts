@@ -71,7 +71,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // Filter to only image files (exclude .tsx from the same prefix)
       const imageBlobs = blobs.filter(b =>
-        b.pathname.match(/\.(png|jpg|webp)$/)
+        b.pathname.match(/\.(png|jpg|jpeg|webp)$/i)
       );
 
       if (imageBlobs.length === 0) {
@@ -81,7 +81,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       // Parse version numbers and find the requested or latest
       const versioned = imageBlobs
         .map(b => {
-          const match = b.pathname.match(/_v(\d+)\.(png|jpg|webp)$/);
+          const match = b.pathname.match(/_v(\d+)\.(png|jpg|jpeg|webp)$/i);
           return match ? { blob: b, version: Number(match[1]) } : null;
         })
         .filter(Boolean) as { blob: typeof blobs[0]; version: number }[];

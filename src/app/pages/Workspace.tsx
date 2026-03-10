@@ -103,7 +103,7 @@ export function Workspace() {
   useEffect(() => {
     if (initialQuery) {
       const sendInitialQuery = async () => {
-        let images: { data: string }[] | undefined;
+        let images: { data: string; mediaType?: string }[] | undefined;
         if (initialAttachments.length > 0) {
           try {
             images = await attachmentPreviewsToApiImages(initialAttachments);
@@ -161,7 +161,9 @@ const handleSlideRendered = useCallback(
       // Chunked conversion to avoid RangeError from spreading large Uint8Array
       const bytes = new Uint8Array(arrayBuffer);
       let binary = '';
-      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+      for (let i = 0; i < bytes.length; i += 8192) {
+        binary += String.fromCharCode(...bytes.slice(i, i + 8192));
+      }
       const base64 = btoa(binary);
 
       // Find current latest image version at this slot so we write above it
