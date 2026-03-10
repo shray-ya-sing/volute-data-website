@@ -173,8 +173,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       slideNumber: sn,
       version: vn,
       blobUrl: blob.url,
-      codeLength: code.length,
-      uploadedAt: blob.uploadedAt,
+      codeLength: code.length
     });
 
   } catch (err: any) {

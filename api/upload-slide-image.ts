@@ -210,8 +210,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       version: vn,
       imageUrl: blob.url,
       sizeBytes: imageBuffer.length,
-      mediaType,
-      uploadedAt: blob.uploadedAt,
+      mediaType
     });
 
   } catch (err: any) {
