@@ -938,8 +938,8 @@ async function executeTool(
         return 'Error: create_or_edit_slide requires a "prompt" string parameter.';
       }
 
-      const baseUrl = process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
+      const baseUrl = process.env.PRODUCTION_CUSTOM_BASE_URL
+        ? `https://${process.env.PRODUCTION_CUSTOM_BASE_URL}`
         : 'http://localhost:3001';
 
       // ── Path 1: Edit — fetch the target slide's own code from blob ────────
@@ -1047,8 +1047,8 @@ async function executeTool(
         return 'Error: no presentationId available — cannot read slides.';
       }
 
-      const baseUrl = process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
+      const baseUrl = process.env.PRODUCTION_CUSTOM_BASE_URL
+        ? `https://${process.env.PRODUCTION_CUSTOM_BASE_URL}`
         : 'http://localhost:3001';
 
       const results = await Promise.all(
