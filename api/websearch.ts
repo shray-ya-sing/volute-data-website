@@ -102,7 +102,7 @@ async function perplexitySearch(
           url,
           title: `Result ${index + 1} from ${hostname}`,
           source: hostname,
-          text_preview: answerText.length > 300 ? answerText.slice(0, 300) + '…' : answerText,
+          text_preview: `[${index + 1}] ${url} — ${answerText.length > 200 ? answerText.slice(0, 200) + '…' : answerText}`,
         },
       };
     }

@@ -163,8 +163,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const blob = await put(pathname, code, {
       access: 'public',
       contentType: 'text/plain',
-      // Overwrite if same version already exists (e.g. retry after failure)
-      allowedContentTypes: ['text/plain'],
+      allowOverwrite: true,
     });
 
     console.log(`[upload-code] ✅ Stored at: ${blob.url}`);

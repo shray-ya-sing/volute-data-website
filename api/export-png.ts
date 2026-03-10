@@ -81,6 +81,8 @@ interface ThemeInput {
   bodyTextColor?: string;
   headingFontSize?: number;
   bodyFontSize?: number;
+  backgroundColor?: string;
+  slideBackgroundColor?: string; // Redux key — mapped to backgroundColor
 }
 
 // ---------------------------------------------------------------------------
@@ -97,6 +99,7 @@ function buildHtml(code: string, theme: ThemeInput): string {
     headingFontSize  = 36,
     bodyFontSize     = 14,
   } = theme;
+  const backgroundColor = theme.backgroundColor || theme.slideBackgroundColor || '#ffffff';
 
   const escapedCode = escapeForTemplateLiteral(code);
 
@@ -107,7 +110,7 @@ function buildHtml(code: string, theme: ThemeInput): string {
   <title>Slide</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { width: 960px; height: 540px; overflow: hidden; background: #ffffff; }
+    html, body { width: 960px; height: 540px; overflow: hidden; background: ${backgroundColor}; }
     #root { width: 960px; height: 540px; overflow: hidden; position: relative; }
   </style>
 </head>
@@ -268,6 +271,7 @@ function buildHtml(code: string, theme: ThemeInput): string {
         bodyTextColor:    ${JSON.stringify(bodyTextColor)},
         headingFontSize:  ${headingFontSize},
         bodyFontSize:     ${bodyFontSize},
+        backgroundColor:  ${JSON.stringify(backgroundColor)},
       };
 
       try {

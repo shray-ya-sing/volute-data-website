@@ -199,6 +199,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const blob = await put(pathname, imageBuffer, {
       access: 'public',
       contentType: mediaType,
+      allowOverwrite: true,
     });
 
     console.log(`[upload-slide-image] ✅ Stored at: ${blob.url}`);
