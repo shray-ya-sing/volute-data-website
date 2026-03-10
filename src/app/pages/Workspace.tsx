@@ -122,119 +122,132 @@ export function Workspace() {
   // ── Screenshot capture + image upload ──────────────────────────────────────
   // Called by CanvasView once Sandpack has settled after a render.
   // Fetches the PNG from existing render endpoint and uploads it to blob.
-const handleSlideRendered = useCallback(
-  async (slideNumber: number) => {
-    if (!presentationId) return;
+  const handleSlideRendered = useCallback(
+    async (slideNumber: number) => {
+      if (!presentationId) return;
 
-    const slide = slides.find(s => s.slideNumber === slideNumber);
-    if (!slide) {
-      console.warn(`[Workspace] onSlideRendered: slide ${slideNumber} not found in Redux`);
-      return;
-    }
-
-    // Skip re-upload if slide code hasn't changed since last capture
-    if (capturedSlideCodesRef.current.get(slideNumber) === slide.code) {
-      console.log(`[Workspace] ⏭️ Screenshot skipped (code unchanged): slide ${slideNumber}`);
-      return;
-    }
-    capturedSlideCodesRef.current.set(slideNumber, slide.code);
-
-    try {
-      console.log(`[Workspace] 📸 Capturing screenshot: slide ${slideNumber}`);
-
-      const renderRes = await fetch('/api/export-jpg', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          slides: [{ code: slide.code, slideNumber }],
-          theme,
-        }),
-      });
-
-      if (!renderRes.ok) {
-        console.warn(`[Workspace] export-png returned ${renderRes.status} for slide ${slideNumber}`);
+      const slide = slides.find(s => s.slideNumber === slideNumber);
+      if (!slide) {
+        console.warn(`[Workspace] onSlideRendered: slide ${slideNumber} not found in Redux`);
         return;
       }
 
-      // export-png returns raw PNG binary for a single slide — not JSON
-      const arrayBuffer = await renderRes.arrayBuffer();
-      // Chunked conversion to avoid RangeError from spreading large Uint8Array
-      const bytes = new Uint8Array(arrayBuffer);
-      let binary = '';
-      for (let i = 0; i < bytes.length; i += 8192) {
-        binary += String.fromCharCode(...bytes.slice(i, i + 8192));
-      }
-      const base64 = btoa(binary);
-
-      // Find current latest image version at this slot so we write above it
-      let nextVersion = 1;
-      const checkRes = await fetch(
-        `/api/upload-slide-image?presentationId=${encodeURIComponent(presentationId)}&slideNumber=${slideNumber}`,
-      );
-      if (checkRes.ok) {
-        const existing = await checkRes.json();
-        nextVersion = (existing.version ?? 0) + 1;
-      }
-      // If 404, no prior image versions at this slot — start at 1
-
-      const uploadRes = await fetch('/api/upload-slide-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          presentationId,
-          slideNumber,
-          version: nextVersion,
-          data: base64,
-          mediaType: 'image/jpeg',
-        }),
-      });
-
-      if (!uploadRes.ok) {
-        console.warn(`[Workspace] Image upload failed for slide ${slideNumber} v${nextVersion}`);
+      // Skip re-upload if slide code hasn't changed since last capture
+      if (capturedSlideCodesRef.current.get(slideNumber) === slide.code) {
+        console.log(`[Workspace] ⏭️ Screenshot skipped (code unchanged): slide ${slideNumber}`);
         return;
       }
+      capturedSlideCodesRef.current.set(slideNumber, slide.code);
 
-      const { imageUrl } = await uploadRes.json();
-      console.log(`[Workspace] ✅ Screenshot stored: slide ${slideNumber} v${nextVersion} → ${imageUrl}`);
+      try {
+        console.log(`[Workspace] 📸 Capturing screenshot: slide ${slideNumber}`);
 
-    } catch (err) {
-      console.warn(`[Workspace] Screenshot pipeline error for slide ${slideNumber}:`, err);
-    }
-  },
-  [presentationId, slides, theme],
-);
+        const renderRes = await fetch('/api/export-jpg', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            slides: [{ code: slide.code, slideNumber }],
+            theme,
+          }),
+        });
 
-const handleReorderUpload = useCallback(
-  async (slideNumber: number, code: string) => {
-    if (!presentationId) return;
-    try {
-      // Find the current latest version at this slot so we write above it
-      let nextVersion = 1;
-      const checkRes = await fetch(
-        `/api/upload-code?presentationId=${encodeURIComponent(presentationId)}&slideNumber=${slideNumber}`,
-      );
-      if (checkRes.ok) {
-        const existing = await checkRes.json();
-        nextVersion = (existing.version ?? 0) + 1;
+        if (!renderRes.ok) {
+          console.warn(`[Workspace] export-png returned ${renderRes.status} for slide ${slideNumber}`);
+          return;
+        }
+
+        // export-png returns raw PNG binary for a single slide — not JSON
+        const arrayBuffer = await renderRes.arrayBuffer();
+        // Chunked conversion to avoid RangeError from spreading large Uint8Array
+        const bytes = new Uint8Array(arrayBuffer);
+        let binary = '';
+        for (let i = 0; i < bytes.length; i += 8192) {
+          binary += String.fromCharCode(...bytes.slice(i, i + 8192));
+        }
+        const base64 = btoa(binary);
+
+        // Find current latest image version at this slot so we write above it
+        let nextVersion = 1;
+        const checkRes = await fetch(
+          `/api/upload-slide-image?presentationId=${encodeURIComponent(presentationId)}&slideNumber=${slideNumber}`,
+        );
+        if (checkRes.ok) {
+          const existing = await checkRes.json();
+          nextVersion = (existing.version ?? 0) + 1;
+        }
+        // If 404, no prior image versions at this slot — start at 1
+
+        const uploadRes = await fetch('/api/upload-slide-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            presentationId,
+            slideNumber,
+            version: nextVersion,
+            data: base64,
+            mediaType: 'image/jpeg',
+          }),
+        });
+
+        if (!uploadRes.ok) {
+          console.warn(`[Workspace] Image upload failed for slide ${slideNumber} v${nextVersion}`);
+          return;
+        }
+
+        const { imageUrl } = await uploadRes.json();
+        console.log(`[Workspace] ✅ Screenshot stored: slide ${slideNumber} v${nextVersion} → ${imageUrl}`);
+
+        // Upload slide code to blob store at the same version
+        let nextCodeVersion = 1;
+        const checkCodeRes = await fetch(
+          `/api/upload-code?presentationId=${encodeURIComponent(presentationId)}&slideNumber=${slideNumber}`,
+        );
+        if (checkCodeRes.ok) {
+          const existing = await checkCodeRes.json();
+          nextCodeVersion = (existing.version ?? 0) + 1;
+        }
+
+        const codeRes = await fetch('/api/upload-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ presentationId, slideNumber, version: nextCodeVersion, code: slide.code }),
+        });
+        if (!codeRes.ok) {
+          console.warn(`[Workspace] Code upload failed for slide ${slideNumber} v${nextCodeVersion}`);
+        } else {
+          console.log(`[Workspace] ✅ Code uploaded: slide ${slideNumber} v${nextCodeVersion}`);
+        }
+
+      } catch (err) {
+        console.warn(`[Workspace] Screenshot pipeline error for slide ${slideNumber}:`, err);
       }
-      // If 404, no prior versions at this slot — start at 1
+    },
+    [presentationId, slides, theme],
+  );
 
-      const res = await fetch('/api/upload-code', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ presentationId, slideNumber, version: nextVersion, code }),
-      });
-      if (!res.ok) {
-        console.warn(`[Workspace] Reorder upload failed for slide ${slideNumber}`);
-      } else {
-        console.log(`[Workspace] ✅ Reorder upload: slide ${slideNumber} v${nextVersion}`);
+// ── Slide reordering changes: THIS IS JUST A SHELL AND DOESN'T ACTUALLY DO ANYTHING, KEPT IN FOR BACKWARDS COMPATIBILITY, NEEDS TO BE REMOVED LATER ──────────────────────────────────────
+
+  const handleReorderUpload = useCallback(
+    async (slideNumber: number) => {
+      if (!presentationId) return;
+      try {
+        // Find the current latest version at this slot so we write above it
+        let nextVersion = 1;
+        const checkRes = await fetch(
+          `/api/upload-code?presentationId=${encodeURIComponent(presentationId)}&slideNumber=${slideNumber}`,
+        );
+        if (checkRes.ok) {
+          const existing = await checkRes.json();
+          nextVersion = (existing.version ?? 0) + 1;
+        }
+        // If 404, no prior versions at this slot — start at 1
+
+      } catch (err) {
+        console.warn(`[Workspace] Reorder upload error:`, err);
       }
-    } catch (err) {
-      console.warn(`[Workspace] Reorder upload error:`, err);
-    }
-  },
-  [presentationId],
-);
+    },
+    [presentationId],
+  );
 
   // ── Send message ────────────────────────────────────────────────────────────
   const handleSendMessage = async (content: string) => {
