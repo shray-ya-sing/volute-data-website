@@ -1,5 +1,4 @@
 requests>=2.31.0
-
 # Text-based vector search using Voyage Finance-2 and Pinecone
 
 # Core dependencies
