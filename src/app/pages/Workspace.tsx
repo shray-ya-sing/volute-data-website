@@ -198,24 +198,15 @@ export function Workspace() {
         console.log(`[Workspace] ✅ Screenshot stored: slide ${slideNumber} v${nextVersion} → ${imageUrl}`);
 
         // Upload slide code to blob store at the same version
-        let nextCodeVersion = 1;
-        const checkCodeRes = await fetch(
-          `/api/upload-code?presentationId=${encodeURIComponent(presentationId)}&slideNumber=${slideNumber}`,
-        );
-        if (checkCodeRes.ok) {
-          const existing = await checkCodeRes.json();
-          nextCodeVersion = (existing.version ?? 0) + 1;
-        }
-
         const codeRes = await fetch('/api/upload-code', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ presentationId, slideNumber, version: nextCodeVersion, code: slide.code }),
+          body: JSON.stringify({ presentationId, slideNumber, version: nextVersion, code: slide.code }),
         });
         if (!codeRes.ok) {
-          console.warn(`[Workspace] Code upload failed for slide ${slideNumber} v${nextCodeVersion}`);
+          console.warn(`[Workspace] Code upload failed for slide ${slideNumber} v${nextVersion}`);
         } else {
-          console.log(`[Workspace] ✅ Code uploaded: slide ${slideNumber} v${nextCodeVersion}`);
+          console.log(`[Workspace] ✅ Code uploaded: slide ${slideNumber} v${nextVersion}`);
         }
 
       } catch (err) {
