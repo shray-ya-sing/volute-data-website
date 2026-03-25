@@ -38,6 +38,8 @@ let analyzeHandler: any;
 let generateSlideHandler: any;
 let pdfHandler: any;
 let agentHandler: any;
+let exportPptxCodeHandler: any;
+let exportPptxGenjsHandler: any;
 
 async function loadHandlers() {
   const extractModule = await import('../api/cron/extract-prospectus.js');
@@ -65,6 +67,12 @@ async function loadHandlers() {
 
   const agentModule = await import('../api/agent.ts');
   agentHandler = agentModule.default;
+
+  const exportPptxCodeModule = await import('../api/export-pptx-code.ts');
+  exportPptxCodeHandler = exportPptxCodeModule.default;
+
+  const exportPptxGenjsModule = await import('../api/export-pptx-genjs.ts');
+  exportPptxGenjsHandler = exportPptxGenjsModule.default;
 }
 
 // Helper to send JSON response
@@ -539,6 +547,93 @@ const server = createServer((req, res) => {
     }
   });
 }
+  else if (pathname === '/api/export-pptx-genjs' && req.method === 'POST') {
+    let body = Buffer.alloc(0);
+    req.on('data', (chunk: Buffer) => { body = Buffer.concat([body, chunk]); });
+    req.on('end', async () => {
+      const mockReq: any = {
+        query: parsedUrl.query || {},
+        headers: req.headers,
+        method: req.method,
+        url: req.url,
+        body: body.length ? JSON.parse(body.toString()) : {},
+      };
+
+      const mockRes: any = {
+        statusCode: 200,
+        _headers: {} as Record<string, string>,
+        status: (code: number) => {
+          mockRes.statusCode = code;
+          return mockRes;
+        },
+        setHeader: (name: string, value: string) => {
+          mockRes._headers[name] = value;
+          res.setHeader(name, value);
+        },
+        json: (data: any) => {
+          sendJSON(res, mockRes.statusCode || 200, data);
+        },
+        send: (data: Buffer) => {
+          res.writeHead(mockRes.statusCode || 200, mockRes._headers);
+          res.end(data);
+        },
+        end: () => {
+          res.end();
+        },
+      };
+
+      try {
+        await exportPptxGenjsHandler(mockReq, mockRes);
+      } catch (error: any) {
+        console.error('Error in export-pptx-genjs:', error);
+        sendJSON(res, 500, { error: error.message });
+      }
+    });
+  }
+  else if (pathname === '/api/export-pptx-code' && req.method === 'POST') {
+    let body = Buffer.alloc(0);
+    req.on('data', (chunk: Buffer) => { body = Buffer.concat([body, chunk]); });
+    req.on('end', async () => {
+      const mockReq: any = {
+        query: parsedUrl.query || {},
+        headers: req.headers,
+        method: req.method,
+        url: req.url,
+        body: body.length ? JSON.parse(body.toString()) : {},
+      };
+
+      const mockRes: any = {
+        statusCode: 200,
+        _headers: {} as Record<string, string>,
+        status: (code: number) => {
+          mockRes.statusCode = code;
+          return mockRes;
+        },
+        setHeader: (name: string, value: string) => {
+          mockRes._headers[name] = value;
+          res.setHeader(name, value);
+        },
+        json: (data: any) => {
+          sendJSON(res, mockRes.statusCode || 200, data);
+        },
+        // PPTX responses come back as raw Buffers via res.send()
+        send: (data: Buffer) => {
+          res.writeHead(mockRes.statusCode || 200, mockRes._headers);
+          res.end(data);
+        },
+        end: () => {
+          res.end();
+        },
+      };
+
+      try {
+        await exportPptxCodeHandler(mockReq, mockRes);
+      } catch (error: any) {
+        console.error('Error in export-pptx-code:', error);
+        sendJSON(res, 500, { error: error.message });
+      }
+    });
+  }
   else {
     sendJSON(res, 404, { error: 'Not found' });
   }
@@ -562,6 +657,8 @@ loadHandlers().then(() => {
     console.log(`  POST http://localhost:${PORT}/api/generate-slide`);
     console.log(`  POST http://localhost:${PORT}/api/pdf`);
     console.log(`  POST http://localhost:${PORT}/api/agent`);
+    console.log(`  POST http://localhost:${PORT}/api/export-pptx-code`);
+    console.log(`  POST http://localhost:${PORT}/api/export-pptx-genjs`);
     console.log();
     console.log('To test integration:');
     console.log('  1. Keep this server running');
