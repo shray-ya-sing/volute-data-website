@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { ArrowRight, Paperclip, X } from "lucide-react";
 import { fileToDataUri } from "../utils/fileToBase64";
 
@@ -229,9 +229,9 @@ export function Landing() {
       <footer className="v-footer">
         <span className="v-footer-copy">© 2026 Volute</span>
         <div className="v-footer-links">
-          <a href="#">Privacy</a>
-          <a href="#">Terms</a>
-          <a href="#">Contact</a>
+          <Link to="/privacy">Privacy</Link>
+          <Link to="/terms">Terms</Link>
+          <a href="mailto:contact@getvolute.com">Contact</a>
         </div>
       </footer>
     </div>
