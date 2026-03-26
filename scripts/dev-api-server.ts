@@ -40,7 +40,7 @@ let pdfHandler: any;
 let agentHandler: any;
 let exportPptxCodeHandler: any;
 let exportPptxGenjsHandler: any;
-
+let dataSearchHandler: any;
 async function loadHandlers() {
   const extractModule = await import('../api/cron/extract-prospectus.js');
   extractProspectusHandler = extractModule.default;
@@ -73,6 +73,9 @@ async function loadHandlers() {
 
   const exportPptxGenjsModule = await import('../api/export-pptx-genjs.ts');
   exportPptxGenjsHandler = exportPptxGenjsModule.default;
+
+  const dataSearchModule = await import('../api/data-search.ts');
+  dataSearchHandler = dataSearchModule.default;
 }
 
 // Helper to send JSON response
@@ -633,7 +636,80 @@ const server = createServer((req, res) => {
         sendJSON(res, 500, { error: error.message });
       }
     });
-  }
+  } else if (pathname === '/api/data-search' && req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => { body += chunk; });
+      req.on('end', async () => {
+        const mockReq: any = {
+          query: parsedUrl.query || {},
+          headers: req.headers,
+          method: req.method,
+          url: req.url,
+          body: body ? JSON.parse(body) : {},
+        };
+
+        const mockRes: any = {
+          statusCode: 200,
+
+          status(code: number) {
+            this.statusCode = code;
+            return this;
+          },
+
+          setHeader(name: string, value: string) {
+            try {
+              if (!res.headersSent) res.setHeader(name, value);
+            } catch (e: any) {
+              console.warn(`[dev-server] setHeader("${name}") skipped: ${e.message}`);
+            }
+          },
+
+          flushHeaders() {
+            try {
+              if (!res.headersSent) res.flushHeaders();
+            } catch (e: any) {
+              console.warn(`[dev-server] flushHeaders() skipped: ${e.message}`);
+            }
+          },
+
+          write(chunk: string | Buffer) {
+            try {
+              return res.write(chunk);
+            } catch (e: any) {
+              console.error(`[dev-server] write() error: ${e.message}`);
+              return false;
+            }
+          },
+
+          json(data: any) {
+            sendJSON(res, this.statusCode || 200, data);
+          },
+
+          end() {
+            try {
+              res.end();
+            } catch (e: any) {
+              console.warn(`[dev-server] end() skipped: ${e.message}`);
+            }
+          },
+        };
+
+        try {
+          await dataSearchHandler(mockReq, mockRes);
+        } catch (error: any) {
+          console.error('[dev-server] Error in data-search:', error);
+          if (!res.headersSent) {
+            sendJSON(res, 500, { error: error.message });
+          } else {
+            try {
+              res.write(`data: ${JSON.stringify({ type: 'error', message: error.message })}\n\n`);
+            } finally {
+              res.end();
+            }
+          }
+        }
+      });
+    }
   else {
     sendJSON(res, 404, { error: 'Not found' });
   }
@@ -659,6 +735,7 @@ loadHandlers().then(() => {
     console.log(`  POST http://localhost:${PORT}/api/agent`);
     console.log(`  POST http://localhost:${PORT}/api/export-pptx-code`);
     console.log(`  POST http://localhost:${PORT}/api/export-pptx-genjs`);
+    console.log(`  POST http://localhost:${PORT}/api/data-search`);
     console.log();
     console.log('To test integration:');
     console.log('  1. Keep this server running');
