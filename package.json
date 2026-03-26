@@ -4,7 +4,6 @@
       "private": true,
       "type": "module",
       "dependencies": {
-            "@anthropic-ai/claude-agent-sdk": "^0.2.83",
             "@anthropic-ai/sdk": "^0.71.2",
             "@babel/parser": "^7.29.0",
             "@babel/traverse": "^7.29.0",
