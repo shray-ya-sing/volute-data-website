@@ -1,12 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { randomUUID } from 'crypto';
-import * as http from 'http';
-import * as https from 'https';
 
 // Import the slide generation handler directly — no HTTP call needed
 import generateSlideHandler from './generate-slide.js';
-import { error } from 'console';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -19,10 +16,9 @@ interface ImageInput {
   mediaType?: SupportedMediaType;
 }
 
-// blobId → { url, mediaType } looked up at request time from Vercel Blob
 interface BlobImageRef {
-  blobId: string;   // UUID returned by /api/upload-image
-  blobUrl: string;  // Full Vercel Blob URL — used to fetch bytes
+  blobId: string;
+  blobUrl: string;
   mediaType: SupportedMediaType;
 }
 
@@ -30,24 +26,9 @@ interface RequestBody {
   prompt: string;
   sessionId?: string;
   presentationId?: string;
-  images?: ImageInput[];       // Legacy: direct base64 (kept for backwards compat)
-  imageRefs?: BlobImageRef[];  // New: blob references from /api/upload-image
-  theme?: SlideTheme;          // User's presentation theme — forwarded to slide generator
-}
-
-interface SearchResultItem {
-  score: number;
-  metadata?: {
-    url?: string;
-    title?: string;
-    text_preview?: string;
-  };
-  url?: string;
-  title?: string;
-}
-
-interface SearchApiResponse {
-  results?: SearchResultItem[];
+  images?: ImageInput[];
+  imageRefs?: BlobImageRef[];
+  theme?: SlideTheme;
 }
 
 interface SlideTheme {
@@ -66,9 +47,15 @@ interface CreateOrEditSlideInput {
   slideNumber?: number;
   context?: string;
   theme?: SlideTheme;
-  existingCode?: string;  // fetched from blob by executeTool, never from LLM
-  images?: ImageInput[];  // resolved images to forward to generate-slide
+  existingCode?: string;
+  images?: ImageInput[];
   templateCategory?: string;
+}
+
+interface SlideDataPoint {
+  label: string;
+  value: string;
+  sourceUrls: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -98,15 +85,12 @@ function getHistory(sessionId: string): ConversationHistory {
 
 function saveHistory(sessionId: string, history: ConversationHistory): void {
   const maxEntries = MAX_HISTORY_PAIRS * 2;
-  
+
   if (history.length <= maxEntries) {
     conversationStore.set(sessionId, history);
     return;
   }
 
-  // Trim from the front, but never leave a dangling tool_result without
-  // its preceding tool_use. Walk forward from the trim point until we
-  // find a safe boundary: a 'user' message that contains NO tool_result blocks.
   let startIdx = history.length - maxEntries;
 
   while (startIdx < history.length) {
@@ -116,12 +100,32 @@ function saveHistory(sessionId: string, history: ConversationHistory): void {
       msg.content.some((b: any) => b.type === 'tool_result');
 
     if (msg.role === 'user' && !hasToolResult) {
-      break; // safe starting point — plain user message
+      break;
     }
     startIdx++;
   }
 
   conversationStore.set(sessionId, history.slice(startIdx));
+}
+
+// ---------------------------------------------------------------------------
+// Slide data points store
+// ---------------------------------------------------------------------------
+
+const sessionDataPointsStore = new Map<string, Map<number, SlideDataPoint[]>>();
+
+function storeDataPointsForSlide(
+  sessionId: string,
+  slideNumber: number,
+  dataPoints: SlideDataPoint[],
+): void {
+  if (!sessionDataPointsStore.has(sessionId)) {
+    sessionDataPointsStore.set(sessionId, new Map());
+  }
+  sessionDataPointsStore.get(sessionId)!.set(slideNumber, dataPoints);
+  console.log(
+    `[agent] 📊 Stored ${dataPoints.length} datapoints for slide ${slideNumber} in session ${sessionId}`,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -143,8 +147,6 @@ function sendSSE(res: VercelResponse, payload: Record<string, unknown>): void {
 
 // ---------------------------------------------------------------------------
 // Blob image resolution
-// Fetches image bytes from Vercel Blob by URL and returns base64 ImageInput[]
-// The LLM never sees or handles blob URLs or base64 — this runs server-side only.
 // ---------------------------------------------------------------------------
 
 async function resolveImageRefs(imageRefs: BlobImageRef[]): Promise<ImageInput[]> {
@@ -157,9 +159,7 @@ async function resolveImageRefs(imageRefs: BlobImageRef[]): Promise<ImageInput[]
       const response = await fetch(ref.blobUrl);
 
       if (!response.ok) {
-        throw new Error(
-          `Failed to fetch blob image ${ref.blobId}: HTTP ${response.status}`,
-        );
+        throw new Error(`Failed to fetch blob image ${ref.blobId}: HTTP ${response.status}`);
       }
 
       const arrayBuffer = await response.arrayBuffer();
@@ -170,10 +170,7 @@ async function resolveImageRefs(imageRefs: BlobImageRef[]): Promise<ImageInput[]
         `${(arrayBuffer.byteLength / 1024).toFixed(1)} KB`,
       );
 
-      return {
-        data: base64,
-        mediaType: ref.mediaType,
-      } as ImageInput;
+      return { data: base64, mediaType: ref.mediaType } as ImageInput;
     }),
   );
 
@@ -181,112 +178,114 @@ async function resolveImageRefs(imageRefs: BlobImageRef[]): Promise<ImageInput[]
 }
 
 // ---------------------------------------------------------------------------
-// Source tracking
+// data-search caller
+// Calls /api/data-search server-to-server, consumes the SSE stream, and
+// returns the final plain-text search result to the LLM.
 // ---------------------------------------------------------------------------
 
-interface TrackedSource {
-  id: number;
-  title: string;
-  url: string;
-  relevance: string;
-  textPreview: string;
-}
+async function callDataSearch(query: string): Promise<string> {
+  const baseUrl = process.env.PRODUCTION_CUSTOM_BASE_URL
+    ? `https://${process.env.PRODUCTION_CUSTOM_BASE_URL}`
+    : 'http://localhost:3001';
 
-const sessionSourcesStore = new Map<string, TrackedSource[]>();
+  const endpoint = `${baseUrl}/api/data-search`;
 
-function getSessionSources(sessionId: string): TrackedSource[] {
-  return sessionSourcesStore.get(sessionId) ?? [];
-}
+  console.log(`[agent] 🔍 callDataSearch → "${query.slice(0, 120)}" | endpoint: ${endpoint}`);
+  const t0 = Date.now();
 
-function trackSourcesFromSearchResult(
-  sessionId: string,
-  searchResultText: string,
-): TrackedSource[] {
-  const existing = getSessionSources(sessionId);
-  const seen = new Set(existing.map(s => s.url));
-  let nextId = existing.length > 0 ? existing.reduce((max, s) => s.id > max ? s.id : max, 0) + 1 : 1;
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query }),
+  });
 
-  const sourceRegex =
-    /\[Source \d+\]\nTitle: (.+)\n(?:URL: (.+)\n)?Content: ([\s\S]*?)\nRelevance: (.+)%/g;
-  let match;
-
-  while ((match = sourceRegex.exec(searchResultText)) !== null) {
-    const url = match[2]?.trim() ?? '';
-    const title = match[1]?.trim() ?? 'Untitled';
-
-    if (!url || seen.has(url)) continue;
-
-    seen.add(url);
-    existing.push({
-      id: nextId++,
-      title,
-      url,
-      relevance: match[4].trim(),
-      textPreview: match[3].trim().slice(0, 300),
-    });
+  if (!response.ok) {
+    const errText = await response.text().catch(() => '');
+    console.error(`[agent] 🔍 data-search HTTP error ${response.status}: ${errText.slice(0, 200)}`);
+    return `Error fetching data: HTTP ${response.status}`;
   }
 
-  sessionSourcesStore.set(sessionId, existing);
-  return existing;
+  if (!response.body) {
+    return 'Error fetching data: no response body';
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let searchResult = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() ?? '';
+
+      for (const line of lines) {
+        if (!line.trim() || !line.startsWith('data: ')) continue;
+
+        let event: any;
+        try {
+          event = JSON.parse(line.slice(6));
+        } catch {
+          continue;
+        }
+
+        if (event.type === 'search_result' && typeof event.text === 'string') {
+          searchResult = event.text;
+          console.log(
+            `[agent] 🔍 data-search received search_result: ${searchResult.length} chars`,
+          );
+        }
+
+        if (event.type === 'done') {
+          console.log(`[agent] 🔍 data-search stream done in ${Date.now() - t0}ms`);
+          break;
+        }
+
+        if (event.type === 'error') {
+          console.error(`[agent] 🔍 data-search error event: ${event.message}`);
+          if (!searchResult) searchResult = `Error from data search: ${event.message}`;
+        }
+      }
+    }
+
+    // Flush remaining buffer
+    if (buffer.trim().startsWith('data: ')) {
+      try {
+        const event = JSON.parse(buffer.trim().slice(6));
+        if (event.type === 'search_result' && typeof event.text === 'string') {
+          searchResult = event.text;
+        }
+      } catch {
+        // ignore malformed trailing data
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+
+  if (!searchResult) {
+    console.warn(`[agent] 🔍 data-search returned no search_result after ${Date.now() - t0}ms`);
+    return 'No results found for that query.';
+  }
+
+  console.log(
+    `[agent] 🔍 data-search complete in ${Date.now() - t0}ms | ` +
+    `result: ${searchResult.length} chars`,
+  );
+
+  return searchResult;
 }
 
 // ---------------------------------------------------------------------------
-// Search URL
+// Logo URL validation
 // ---------------------------------------------------------------------------
-
-function getSearchUrl(): { protocol: 'http' | 'https'; hostname: string; port: number | null; path: string } {
-  if (process.env.SEARCH_API_URL) {
-    const u = new URL(process.env.SEARCH_API_URL);
-    return {
-      protocol: u.protocol === 'https:' ? 'https' : 'http',
-      hostname: u.hostname,
-      port: u.port ? parseInt(u.port) : null,
-      path: u.pathname,
-    };
-  }
-
-  if (process.env.VERCEL) {
-    return {
-      protocol: 'https',
-      hostname: 'www.getvolute.com',
-      port: null,
-      path: '/api/websearch',
-    };
-  }
-
-  return {
-    protocol: 'http',
-    hostname: 'localhost',
-    port: 3001,
-    path: '/api/websearch',
-  };
-}
-
-function getDatabaseSearchUrl() {
-  if (process.env.DATABASE_API_URL) {
-    const u = new URL(process.env.DATABASE_API_URL);
-    return {
-      protocol: u.protocol === 'https:' ? 'https' : 'http',
-      hostname: u.hostname,
-      port: u.port ? parseInt(u.port) : null,
-      path: u.pathname,
-    };
-  }
-
-  if (process.env.VERCEL) {
-    return { protocol: 'https' as const, hostname: 'www.getvolute.com', port: null, path: '/api/search' };
-  }
-
-  return { protocol: 'http' as const, hostname: 'localhost', port: 3001, path: '/api/search' };
-}
-
-// ---------------------------------------------------------------------------
-// Logo URL Validation tool
-// ---------------------------------------------------------------------------
-
 
 async function validateLogos(
-  logos: Array<{ type: 'ticker' | 'name' | 'crypto' | 'foreign'; value: string; exchangeCode?: string }>
+  logos: Array<{ type: 'ticker' | 'name' | 'crypto' | 'foreign'; value: string; exchangeCode?: string }>,
 ): Promise<string> {
   const apiKey = process.env.LOGO_DEV_PUBLIC_KEY ?? '';
 
@@ -302,277 +301,36 @@ async function validateLogos(
       } else if (type === 'crypto') {
         url = `https://img.logo.dev/crypto/${value.toUpperCase()}?token=${apiKey}`;
       } else {
-        // foreign
         url = `https://img.logo.dev/ticker/${value.toUpperCase()}.${(exchangeCode ?? '').toUpperCase()}?token=${apiKey}`;
       }
 
       try {
         console.log(`[agent] Validating logo URL: ${url}`);
         const res = await fetch(url, { method: 'GET' });
-        console.log(`[agent] Logo URL validation result: ${res.status} ${res.statusText}`);
         const valid = res.ok && (res.headers.get('content-type') ?? '').startsWith('image/');
         console.log(`[agent] Logo URL valid: ${valid} | ${type}: ${value}`);
         return { value, type, url: valid ? url : null, valid };
       } catch (error) {
-        console.log(`[agent] Error validating logo URL: ${url}`);
-        console.log(`[agent] Validation error: ${(error as any).message}`);
+        console.log(`[agent] Error validating logo URL: ${url} — ${(error as any).message}`);
         return { value, type, url: null, valid: false };
       }
-    })
+    }),
   );
 
-  const valid = results.filter(r => r.valid);
-  const invalid = results.filter(r => !r.valid);
+  const valid = results.filter((r) => r.valid);
+  const invalid = results.filter((r) => !r.valid);
 
   const lines = [
     `Validated ${results.length} logo(s): ${valid.length} found, ${invalid.length} not found.`,
-    ...valid.map(r => `✓ ${r.value} → ${r.url}`),
-    ...invalid.map(r => `✗ ${r.value} (${r.type}) — not found, omit from slide`),
+    ...valid.map((r) => `✓ ${r.value} → ${r.url}`),
+    ...invalid.map((r) => `✗ ${r.value} (${r.type}) — not found, omit from slide`),
   ];
 
   return lines.join('\n');
 }
 
-
 // ---------------------------------------------------------------------------
-// Vector search tool
-// ---------------------------------------------------------------------------
-
-
-async function databaseSearch(query: string): Promise<string> {
-  const target = getDatabaseSearchUrl();
-  const fullUrl = `${target.protocol}://${target.hostname}${target.port ? ':' + target.port : ''}${target.path}`;
-  console.log(`[agent] 🔍 databaseSearch → "${query}" | endpoint: ${fullUrl}`);
-  const t0 = Date.now();
-
-  return new Promise((resolve) => {
-    const bodyStr = JSON.stringify({ query, topK: 10, useReranking: true });
-    const byteLen = Buffer.byteLength(bodyStr, 'utf8');
-
-    const requestOptions: http.RequestOptions = {
-      hostname: target.hostname,
-      port: target.port ?? (target.protocol === 'https' ? 443 : 80),
-      path: target.path,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': byteLen,
-      },
-    };
-
-    const transport = target.protocol === 'https' ? https : http;
-
-    const req = transport.request(requestOptions, (httpRes) => {
-      const status = httpRes.statusCode ?? 0;
-
-      if ([301, 302, 307, 308].includes(status)) {
-        const location = httpRes.headers['location'];
-        httpRes.resume();
-        if (!location) {
-          resolve('Error searching database: redirect with no Location header');
-          return;
-        }
-        followRedirect(location, bodyStr, byteLen, t0, query, 0).then(resolve);
-        return;
-      }
-
-      let data = '';
-      httpRes.setEncoding('utf8');
-      httpRes.on('data', (chunk) => { data += chunk; });
-      httpRes.on('end', () => {
-        resolve(parseSearchResponse(data, status, t0, query));
-      });
-    });
-
-    req.on('error', (err: any) => {
-      console.error(`[agent] 🔍 request error: ${err.message}`);
-      resolve(`Error searching database: ${err.message}`);
-    });
-
-    req.write(bodyStr, 'utf8');
-    req.end();
-  });
-}
-
-
-// ---------------------------------------------------------------------------
-// Vector search tool
-// ---------------------------------------------------------------------------
-
-async function vectorSearch(query: string): Promise<string> {
-  const target = getSearchUrl();
-  const fullUrl = `${target.protocol}://${target.hostname}${target.port ? ':' + target.port : ''}${target.path}`;
-  console.log(`[agent] 🔍 vectorSearch → "${query}" | endpoint: ${fullUrl}`);
-  const t0 = Date.now();
-
-  return new Promise((resolve) => {
-    const bodyStr = JSON.stringify({ query, topK: 10, useReranking: true });
-    const byteLen = Buffer.byteLength(bodyStr, 'utf8');
-
-    const requestOptions: http.RequestOptions = {
-      hostname: target.hostname,
-      port: target.port ?? (target.protocol === 'https' ? 443 : 80),
-      path: target.path,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': byteLen,
-      },
-    };
-
-    const transport = target.protocol === 'https' ? https : http;
-
-    const req = transport.request(requestOptions, (httpRes) => {
-      const status = httpRes.statusCode ?? 0;
-
-      if ([301, 302, 307, 308].includes(status)) {
-        const location = httpRes.headers['location'];
-        httpRes.resume();
-        if (!location) {
-          resolve('Error searching database: redirect with no Location header');
-          return;
-        }
-        followRedirect(location, bodyStr, byteLen, t0, query, 0).then(resolve);
-        return;
-      }
-
-      let data = '';
-      httpRes.setEncoding('utf8');
-      httpRes.on('data', (chunk) => { data += chunk; });
-      httpRes.on('end', () => {
-        resolve(parseSearchResponse(data, status, t0, query));
-      });
-    });
-
-    req.on('error', (err: any) => {
-      console.error(`[agent] 🔍 request error: ${err.message}`);
-      resolve(`Error searching database: ${err.message}`);
-    });
-
-    req.write(bodyStr, 'utf8');
-    req.end();
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Redirect follower
-// ---------------------------------------------------------------------------
-
-function followRedirect(
-  location: string,
-  bodyStr: string,
-  byteLen: number,
-  t0: number,
-  query: string,
-  depth: number,
-): Promise<string> {
-  const MAX_REDIRECTS = 5;
-
-  if (depth >= MAX_REDIRECTS) {
-    return Promise.resolve(`Error searching database: too many redirects (${MAX_REDIRECTS})`);
-  }
-
-  return new Promise((resolve) => {
-    let targetUrl: URL;
-    try {
-      targetUrl = new URL(location);
-    } catch {
-      targetUrl = new URL(location, `https://www.getvolute.com`);
-    }
-
-    const proto = targetUrl.protocol === 'https:' ? 'https' : 'http';
-    const transport = proto === 'https' ? https : http;
-
-    const req = transport.request(
-      {
-        hostname: targetUrl.hostname,
-        port: targetUrl.port || (proto === 'https' ? 443 : 80),
-        path: targetUrl.pathname + targetUrl.search,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': byteLen,
-        },
-      },
-      (httpRes) => {
-        const status = httpRes.statusCode ?? 0;
-
-        if ([301, 302, 307, 308].includes(status)) {
-          const nextLocation = httpRes.headers['location'];
-          httpRes.resume();
-          if (!nextLocation) {
-            resolve('Error searching database: redirect with no Location header');
-            return;
-          }
-          followRedirect(nextLocation, bodyStr, byteLen, t0, query, depth + 1).then(resolve);
-          return;
-        }
-
-        let data = '';
-        httpRes.setEncoding('utf8');
-        httpRes.on('data', (chunk) => { data += chunk; });
-        httpRes.on('end', () => {
-          resolve(parseSearchResponse(data, status, t0, query));
-        });
-      },
-    );
-
-    req.on('error', (err: any) => {
-      console.error(`[agent] 🔍 redirect request error: ${err.message}`);
-      resolve(`Error searching database: ${err.message}`);
-    });
-
-    req.write(bodyStr, 'utf8');
-    req.end();
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Parse search API JSON response
-// ---------------------------------------------------------------------------
-
-function parseSearchResponse(data: string, status: number, t0: number, query: string): string {
-  try {
-    if (status !== 200) {
-      console.error(`[agent] 🔍 Search API error ${status}: ${data.slice(0, 300)}`);
-      return `Error searching database: HTTP ${status}`;
-    }
-
-    const result = JSON.parse(data) as SearchApiResponse;
-    const results = result.results ?? [];
-
-    console.log(`[agent] 🔍 vectorSearch ← ${results.length} results in ${Date.now() - t0}ms`);
-
-    if (results.length === 0) return 'No results found for that query.';
-
-    const formatted = results
-      .map((item, idx) => {
-        const title   = item.metadata?.title        ?? item.title ?? 'Untitled';
-        const url     = item.metadata?.url          ?? item.url   ?? '';
-        const preview = item.metadata?.text_preview ?? '';
-        const score   = ((item.score ?? 0) * 100).toFixed(1);
-
-        return [
-          `[Source ${idx + 1}]`,
-          `Title: ${title}`,
-          url ? `URL: ${url}` : null,
-          `Content: ${preview}`,
-          `Relevance: ${score}%`,
-          '---',
-        ]
-          .filter(Boolean)
-          .join('\n');
-      })
-      .join('\n\n');
-
-    return `Found ${results.length} relevant sources:\n\n${formatted}`;
-  } catch (parseErr: any) {
-    return `Error parsing search response: ${parseErr.message}`;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Slide generation/editing
+// Slide generation / editing
 // ---------------------------------------------------------------------------
 
 async function createOrEditSlide(input: CreateOrEditSlideInput): Promise<string> {
@@ -587,8 +345,10 @@ async function createOrEditSlide(input: CreateOrEditSlideInput): Promise<string>
 
   let fullPrompt = input.prompt;
   if (isEdit && input.existingCode) {
-    // Minify the code for the prompt to reduce input tokens
-    const compactCode = input.existingCode?.replace(/\/\/.*$/gm, '').replace(/\n\s*\n/g, '\n').trim();
+    const compactCode = input.existingCode
+      .replace(/\/\/.*$/gm, '')
+      .replace(/\n\s*\n/g, '\n')
+      .trim();
 
     fullPrompt =
       `EDIT THE FOLLOWING EXISTING SLIDE CODE. Apply the requested changes while preserving ` +
@@ -607,8 +367,7 @@ async function createOrEditSlide(input: CreateOrEditSlideInput): Promise<string>
         slideNumber: input.slideNumber ?? 1,
         context: input.context ?? '',
         theme: input.theme ?? {},
-        images: input.images ?? [],  // ← blob-resolved images forwarded here
-        // Only pass templateCategory for new slides — edits derive style from existingCode
+        images: input.images ?? [],
         ...(input.templateCategory && !isEdit ? { templateCategory: input.templateCategory } : {}),
       },
     } as any;
@@ -644,13 +403,15 @@ async function createOrEditSlide(input: CreateOrEditSlideInput): Promise<string>
           `tokens: ${data.usage?.input_tokens ?? '?'}in / ${data.usage?.output_tokens ?? '?'}out`,
         );
 
-        resolve(JSON.stringify({
-          success: true,
-          action: isEdit ? 'edited' : 'created',
-          code: data.code,
-          slideNumber: data.slideNumber,
-          codeLength: data.code?.length ?? 0,
-        }));
+        resolve(
+          JSON.stringify({
+            success: true,
+            action: isEdit ? 'edited' : 'created',
+            code: data.code,
+            slideNumber: data.slideNumber,
+            codeLength: data.code?.length ?? 0,
+          }),
+        );
       },
 
       end() {},
@@ -669,21 +430,26 @@ async function createOrEditSlide(input: CreateOrEditSlideInput): Promise<string>
 
 const tools: Anthropic.Tool[] = [
   {
-    name: 'vector_search',
+    name: 'data_search',
     description:
-      'Search the Volute IPO and SPAC news and financial data database as well as the web ' +
-      'Returns relevant articles, filings, and research findings. ' +
-      'Use this tool to gather data before performing any financial analysis ' +
-      'or building any deliverable. Call it multiple times with different ' +
-      'queries to build a complete picture.',
+      'Search for financial data, company information, market metrics, and news. ' +
+      'Calls a dedicated research agent that queries SEC filings, proprietary IPO/SPAC databases, ' +
+      'and the broader web. ' +
+      'Write a highly specific natural language query — name the companies, metrics, time periods, ' +
+      'and context you need (e.g. "Q4 2024 total fundraising and deal count for Blackstone, KKR, ' +
+      'and Apollo — full year and quarterly breakdown"). ' +
+      'Call multiple times with different focused queries to build a complete picture. ' +
+      'The result will contain data values and source URLs — extract both when calling ' +
+      'register_slide_data_points.',
     input_schema: {
       type: 'object' as const,
       properties: {
         query: {
           type: 'string',
           description:
-            'A precise search query to find relevant financial information, ' +
-            'company data, market trends, or news.',
+            'A specific natural language description of the data you need. ' +
+            'Include company names, metric names, time periods, and any relevant context. ' +
+            'The more specific the better.',
         },
       },
       required: ['query'],
@@ -708,7 +474,9 @@ const tools: Anthropic.Tool[] = [
               type: {
                 type: 'string',
                 enum: ['ticker', 'name', 'crypto', 'foreign'],
-                description: '`ticker` = US listed, `name` = private/unknown ticker, `crypto` = crypto symbol, `foreign` = non-US listed with known ticker',
+                description:
+                  '`ticker` = US listed, `name` = private/unknown ticker, ' +
+                  '`crypto` = crypto symbol, `foreign` = non-US listed with known ticker',
               },
               value: {
                 type: 'string',
@@ -724,6 +492,58 @@ const tools: Anthropic.Tool[] = [
         },
       },
       required: ['logos'],
+    },
+  },
+  {
+    name: 'register_slide_data_points',
+    description:
+      'Register data points for a slide that you are about to create. Call this BEFORE calling create_or_edit_slide. ' +
+      'This allows the frontend to track which data points are on each slide and verify them against sources. ' +
+      'Extract all quantitative data from your search results and identify the source URLs that support each data point. ' +
+      'For each metric, figure, or statistic that will appear on the slide, create a data point entry with: ' +
+      '1. A clear label (e.g., "Q4 2024 Total Fundraising", "Average EV/EBITDA Multiple", "Number of Funds Closed") ' +
+      '2. The exact value (e.g., "$1.2T", "12.3x", "5,234") ' +
+      '3. The source URLs from your data_search results that contain this data point.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        slideNumber: {
+          type: 'number',
+          description:
+            'The slide number this data will be on (must match the slideNumber you will pass to create_or_edit_slide).',
+        },
+        dataPoints: {
+          type: 'array',
+          description:
+            'Array of data points that will appear on the slide. Include every metric, number, statistic, or financial figure.',
+          items: {
+            type: 'object',
+            properties: {
+              label: {
+                type: 'string',
+                description:
+                  'Human-readable label for the data point (e.g., "Total Fundraising Q4 2024", ' +
+                  '"EBITDA Margin", "Deal Count"). Make labels specific and include context like time periods.',
+              },
+              value: {
+                type: 'string',
+                description:
+                  'The exact value as it will appear on the slide (e.g., "$3.1B", "42%", "12.3x", "5,234"). ' +
+                  'Include currency symbols, percentages, and formatting.',
+              },
+              sourceUrls: {
+                type: 'array',
+                items: { type: 'string' },
+                description:
+                  'Array of source URLs from your data_search results that support this data point. ' +
+                  'If a datapoint comes from multiple sources, include all relevant URLs.',
+              },
+            },
+            required: ['label', 'value', 'sourceUrls'],
+          },
+        },
+      },
+      required: ['slideNumber', 'dataPoints'],
     },
   },
   {
@@ -752,16 +572,16 @@ const tools: Anthropic.Tool[] = [
             '"precedent transactions table", "WACC analysis"). ' +
             'Do NOT include layout instructions, column counts, styling, colors, font sizes, ' +
             'spacing, or design language — the generator determines all visual design from its ' +
-            'own reference images and template library. Only include a specific design instruction ' +
-            'if the user explicitly requested it.\n' +
-            'For EDITING: Describe only what to change (e.g. "change the bar chart to a line chart", ' +
-            '"update the revenue figure to $2.4B", "add a footer with the source URL"). ' +
+            'own reference images and template library.\n' +
+            'For EDITING: Describe only what to change. ' +
             'Do NOT include the existing code — it is fetched automatically using slideNumber.' +
-            'For logos: include validated logo.dev URLs inline as "Logo: <url>" next to the relevant company name.',       
+            'For logos: include validated logo.dev URLs inline as "Logo: <url>" next to the relevant company name.',
         },
         slideNumber: {
           type: 'number',
-          description: 'Slide number of the target slide to be edited/created in the deck. Affects the component export name. Respect the existing slides and your conversation history so new slides don\'t override old slides',
+          description:
+            'Slide number of the target slide to be edited/created in the deck. ' +
+            'Respect the existing slides and your conversation history so new slides don\'t override old slides.',
         },
         context: {
           type: 'string',
@@ -787,18 +607,15 @@ const tools: Anthropic.Tool[] = [
           description:
             'Slide numbers OTHER THAN the target slideNumber to fetch and pass to the generator. ' +
             'Always slides besides the one being created or edited — never include the target slideNumber here. ' +
-            'Fetched and appended to the generator prompt whenever this param is provided, ' +
-            'regardless of whether the target slide exists.\n' +
+            'Fetched and appended to the generator prompt whenever this param is provided.\n' +
             'In your prompt param, explicitly instruct the generator what to do with each reference slide. ' +
-            'Their full code will be appended automatically — you do not need to describe their contents.\n' +
+            'Their full code will be appended automatically.\n' +
             'WHEN TO USE:\n' +
-            '• "Create slide 5 in the same format as slide 2" → slideNumber: 5, referenceSlideNumbers: [2], prompt includes: "replicate the layout of slide 2 with this new data"\n' +
-            '• "Edit slide 3 to incorporate data from slides 1 and 2" → slideNumber: 3, referenceSlideNumbers: [1, 2], prompt includes: "pull the revenue figures from slide 1 and comps from slide 2"\n' +
-            '• "Summarise slides 3 and 4 into a new exec summary at slide 6" → slideNumber: 6, referenceSlideNumbers: [3, 4], prompt includes: "synthesise the data from slides 3 and 4"\n' +
+            '• "Create slide 5 in the same format as slide 2" → slideNumber: 5, referenceSlideNumbers: [2]\n' +
+            '• "Edit slide 3 to incorporate data from slides 1 and 2" → slideNumber: 3, referenceSlideNumbers: [1, 2]\n' +
             'WHEN NOT TO USE:\n' +
             '• Brand new slide with no relation to any existing slide\n' +
-            '• Simple single-slide edit where no other slide is needed\n' +
-            'NOTE: When referenceSlideNumbers is provided, omit templateCategory if the user wants to reference existing layouts. Pass templateCategory AS WELL if the reference slides are only for info/data but the generator has to compose the layout and elements.',
+            '• Simple single-slide edit where no other slide is needed',
         },
         templateCategory: {
           type: 'string',
@@ -823,13 +640,13 @@ const tools: Anthropic.Tool[] = [
             'market_map',
           ],
           description:
-            'Visual category for a NEW slide created from scratch. Loads 3 reference design images ' +
+            'Visual category for a NEW slide created from scratch. Loads reference design images ' +
             'controlling layout, typography, and style.\n' +
             'WHEN TO USE:\n' +
-            '• "Create a precedent transactions slide" — no existing slide to base it on → "precedent_transactions"\n' +
-            '• "Build a company overview for Acme Corp" — first time, novel layout → "company_overview"\n' +
+            '• "Create a precedent transactions slide" — no existing slide to base it on\n' +
+            '• "Build a company overview for Acme Corp" — first time, novel layout\n' +
             'WHEN NOT TO USE — omit entirely:\n' +
-            '• referenceSlideNumbers gives design template\n' +
+            '• referenceSlideNumbers gives the design template\n' +
             '• User attached their own reference image\n' +
             '• Editing an existing slide in place\n' +
             'Choose the closest matching category:\n' +
@@ -857,8 +674,9 @@ const tools: Anthropic.Tool[] = [
     name: 'read_slide',
     description:
       'Fetches the current code of one or more existing slides from the blob store. ' +
-      'Use when you need to read or reason about slide content NOT AVAILABLE IN YOUR CONVERSATION HISTORY— for example to answer questions, ' +
-      'write summaries, or analyse assumptions — without immediately generating a new slide.\n' +
+      'Use when you need to read or reason about slide content NOT AVAILABLE IN YOUR CONVERSATION HISTORY — ' +
+      'for example to answer questions, write summaries, or analyse assumptions — ' +
+      'without immediately generating a new slide.\n' +
       'Do NOT use before create_or_edit_slide — slide code is fetched automatically there via ' +
       'slideNumber (edit) and referenceSlideNumbers (references).',
     input_schema: {
@@ -872,15 +690,11 @@ const tools: Anthropic.Tool[] = [
       },
       required: ['slideNumbers'],
     },
-    cache_control: { type: 'ephemeral' },
   },
 ];
 
 // ---------------------------------------------------------------------------
-// Tool executor
-// imageRefs are passed in from the outer request scope — the LLM never
-// touches them. They are resolved to base64 here and injected into the
-// create_or_edit_slide call transparently.
+// Tool input type
 // ---------------------------------------------------------------------------
 
 interface ToolInput {
@@ -893,52 +707,71 @@ interface ToolInput {
   theme?: SlideTheme;
   templateCategory?: string;
   logos?: Array<{ type: 'ticker' | 'name' | 'crypto' | 'foreign'; value: string; exchangeCode?: string }>;
+  dataPoints?: SlideDataPoint[];
   [key: string]: unknown;
 }
+
+// ---------------------------------------------------------------------------
+// Tool executor
+// ---------------------------------------------------------------------------
 
 async function executeTool(
   name: string,
   input: ToolInput,
-  resolvedImages: ImageInput[],  // pre-fetched from blob, injected server-side
-  presentationId: string,        // used to fetch existing slide code from blob
-  requestTheme: SlideTheme,      // user's theme forwarded from request body
+  resolvedImages: ImageInput[],
+  presentationId: string,
+  requestTheme: SlideTheme,
+  sessionId: string,
+  res: VercelResponse,
 ): Promise<string> {
   console.log(`[agent] ⚙️  executeTool: ${name}`, JSON.stringify(input).slice(0, 200));
 
   switch (name) {
-    case 'vector_search': {
+
+    // ── data_search ────────────────────────────────────────────────────────
+    case 'data_search': {
       if (!input.query || typeof input.query !== 'string') {
-        return 'Error: vector_search requires a "query" string parameter.';
+        return 'Error: data_search requires a "query" string parameter.';
       }
-      const [webRes, dbRes] = await Promise.all([
-        vectorSearch(input.query),
-        databaseSearch(input.query),
-      ]);
-      
-      // Merge into a single "Found N relevant sources:" block
-      // so the agent loop's startsWith('Found ') check still fires
-      const webBlock = webRes.startsWith('Found ') ? webRes : '';
-      const dbBlock = dbRes.startsWith('Found ') ? dbRes : '';
-
-      const blocks = [webBlock, dbBlock].filter(Boolean);
-      if (blocks.length === 0) return 'No results found for that query.';
-
-      let combined = blocks.join('\n\n');
-
-      // Strip the "Found N relevant sources:\n\n" header from each block
-      combined = combined
-        .replace(/^Found \d+ relevant sources:\n\n/, '')
-        .replace(/\n\nFound \d+ relevant sources:\n\n/, '\n\n');
-
-      // Renumber sequentially
-      let sourceIndex = 1;
-      combined = combined.replace(/\[Source \d+\]/g, () => `[Source ${sourceIndex++}]`);
-      const totalCount = sourceIndex - 1;  // sourceIndex ends at totalCount + 1
-
-      return `Found ${totalCount} relevant sources:\n\n${combined}`;
-      
+      return callDataSearch(input.query);
     }
 
+    // ── register_slide_data_points ─────────────────────────────────────────
+    case 'register_slide_data_points': {
+      if (!input.slideNumber || !Array.isArray(input.dataPoints)) {
+        return 'Error: register_slide_data_points requires slideNumber and dataPoints array.';
+      }
+
+      const dataPoints = input.dataPoints as SlideDataPoint[];
+
+      console.log(
+        `[agent] 📊 Registering ${dataPoints.length} data points for slide ${input.slideNumber}`,
+      );
+
+      storeDataPointsForSlide(sessionId, input.slideNumber, dataPoints);
+
+      sendSSE(res, {
+        type: 'slide_data_points',
+        slideNumber: input.slideNumber,
+        dataPoints,
+      });
+
+      console.log(
+        `[agent] 📊 Emitted slide_data_points event for slide ${input.slideNumber} ` +
+        `with ${dataPoints.length} datapoints`,
+      );
+
+      return JSON.stringify({
+        success: true,
+        slideNumber: input.slideNumber,
+        dataPointCount: dataPoints.length,
+        message:
+          `Successfully registered ${dataPoints.length} data points for slide ${input.slideNumber}. ` +
+          `The frontend has been notified and will track these when the slide is generated.`,
+      });
+    }
+
+    // ── create_or_edit_slide ───────────────────────────────────────────────
     case 'create_or_edit_slide': {
       if (!input.prompt || typeof input.prompt !== 'string') {
         return 'Error: create_or_edit_slide requires a "prompt" string parameter.';
@@ -948,8 +781,7 @@ async function executeTool(
         ? `https://${process.env.PRODUCTION_CUSTOM_BASE_URL}`
         : 'http://localhost:3001';
 
-      // ── Path 1: Edit — fetch the target slide's own code from blob ────────
-      // Triggered when slideNumber refers to an existing slide (404 = new slide).
+      // ── Fetch existing code for edit path ────────────────────────────────
       let existingCode: string | undefined;
       if (input.slideNumber && presentationId) {
         try {
@@ -961,101 +793,94 @@ async function executeTool(
             if (codeData.code) {
               console.log(
                 `[agent] 📄 Fetched existing code for slide ${input.slideNumber} ` +
-                `(${codeData.code!.length} chars BEFORE MINIFYING)`,
-              );              
+                `(${codeData.code.length} chars BEFORE MINIFYING)`,
+              );
               existingCode = (codeData.code as string)
-                                  .replace(/\/\/.*$/gm, '')
-                                  .replace(/\n\s*\n/g, '\n')
-                                  .trim();
+                .replace(/\/\/.*$/gm, '')
+                .replace(/\n\s*\n/g, '\n')
+                .trim();
               console.log(
                 `[agent] 📄 Minified existing code for slide ${input.slideNumber} ` +
-                `(${existingCode!.length} chars AFTER MINIFYING) — treating as edit`,
+                `(${existingCode.length} chars AFTER MINIFYING) — treating as edit`,
               );
             }
           } else if (codeRes.status !== 404) {
-            console.warn(`[agent] ⚠️  upload-code GET returned ${codeRes.status} for slide ${input.slideNumber}`);
+            console.warn(
+              `[agent] Non-404 error fetching existing code for slide ${input.slideNumber}: ` +
+              `HTTP ${codeRes.status}`,
+            );
           }
         } catch (err: any) {
-          console.warn(`[agent] ⚠️  Failed to fetch code for slide ${input.slideNumber}:`, err.message);
+          console.warn(
+            `[agent] Exception fetching existing code for slide ${input.slideNumber}: ${err.message}`,
+          );
         }
       }
 
-      // ── Path 2: Reference slides — fetch code for non-target slides ───────
-      // Runs whenever referenceSlideNumbers is provided — independently of
-      // path 1. These are always slides OTHER than the target. Their code is
-      // appended to the prompt labelled by slide number only; the agent's
-      // prompt param carries all instructions on what to do with each one.
-      let referenceCodes: Array<{ slideNumber: number; code: string }> = [];
-      if (
-        Array.isArray(input.referenceSlideNumbers) &&
-        input.referenceSlideNumbers.length > 0 &&
-        presentationId
-      ) {
-        const fetches = await Promise.all(
-          input.referenceSlideNumbers.map(async (refNum) => {
+      // ── Fetch reference slides ────────────────────────────────────────────
+      let referenceContext = '';
+      if (Array.isArray(input.referenceSlideNumbers) && input.referenceSlideNumbers.length > 0) {
+        console.log(
+          `[agent] 📚 Fetching ${input.referenceSlideNumbers.length} reference slides: ` +
+          `[${input.referenceSlideNumbers.join(', ')}]`,
+        );
+        const refCodes = await Promise.all(
+          input.referenceSlideNumbers.map(async (num) => {
             try {
-              const codeRes = await fetch(
-                `${baseUrl}/api/upload-code?presentationId=${encodeURIComponent(presentationId)}&slideNumber=${refNum}`,
+              const refRes = await fetch(
+                `${baseUrl}/api/upload-code?presentationId=${encodeURIComponent(presentationId)}&slideNumber=${num}`,
               );
-              if (codeRes.ok) {
-                const codeData = await codeRes.json();
-                if (codeData.code) {
-                  console.log(`[agent] 📄 Fetched reference slide ${refNum} (${codeData.code.length} chars BEFORE MINIFYING)`);
-                  const refMinifiedCode = (codeData.code as string)
-                                  .replace(/\/\/.*$/gm, '')
-                                  .replace(/\n\s*\n/g, '\n')
-                                  .trim();
-                  console.log(`[agent] 📄 Minified reference slide ${refNum} (${refMinifiedCode.length} chars AFTER MINIFYING)`);
-                  return { slideNumber: refNum, code: refMinifiedCode };
+              if (refRes.ok) {
+                const refData = await refRes.json();
+                if (refData.code) {
+                  const minified = (refData.code as string)
+                    .replace(/\/\/.*$/gm, '')
+                    .replace(/\n\s*\n/g, '\n')
+                    .trim();
+                  console.log(`[agent] 📚 Reference slide ${num}: ${minified.length} chars (minified)`);
+                  return `## Reference Slide ${num}:\n\`\`\`tsx\n${minified}\n\`\`\``;
                 }
-              } else {
-                console.warn(`[agent] ⚠️  Reference slide ${refNum} not found in blob (${codeRes.status})`);
               }
+              console.warn(`[agent] Reference slide ${num} not found (404)`);
+              return null;
             } catch (err: any) {
-              console.warn(`[agent] ⚠️  Failed to fetch reference slide ${refNum}:`, err.message);
+              console.warn(`[agent] Error fetching reference slide ${num}: ${err.message}`);
+              return null;
             }
-            return null;
           }),
         );
-        referenceCodes = fetches.filter((f): f is { slideNumber: number; code: string } => f !== null);
-      }
 
-      // ── Build final prompt ────────────────────────────────────────────────
-      // Agent's prompt param carries all instructions about what to do with
-      // each reference slide. Just append the code blocks labelled by their
-      // slide numbers — no hardcoded instructions here.
-      let finalPrompt = input.prompt;
-      if (referenceCodes.length > 0) {
-        const refBlocks = referenceCodes
-          .map(({ slideNumber: refNum, code }) =>
-            `## Code of slide ${refNum}:\n\`\`\`tsx\n${code}\n\`\`\``,
-          )
-          .join('\n\n');
-        finalPrompt = `${input.prompt}\n\n${refBlocks}`;
+        const validRefs = refCodes.filter(Boolean);
+        if (validRefs.length > 0) {
+          referenceContext = '\n\n' + validRefs.join('\n\n');
+        }
       }
 
       return createOrEditSlide({
-        prompt: finalPrompt,
+        prompt: input.prompt + referenceContext,
         slideNumber: input.slideNumber,
         context: input.context,
-        theme: requestTheme,
+        theme: input.theme ?? requestTheme,
         existingCode,
         images: resolvedImages,
-        templateCategory: input.templateCategory as string | undefined,
+        templateCategory: input.templateCategory,
       });
     }
 
+    // ── read_slide ─────────────────────────────────────────────────────────
     case 'read_slide': {
       if (!Array.isArray(input.slideNumbers) || input.slideNumbers.length === 0) {
         return 'Error: read_slide requires a non-empty "slideNumbers" array.';
-      }
-      if (!presentationId) {
-        return 'Error: no presentationId available — cannot read slides.';
       }
 
       const baseUrl = process.env.PRODUCTION_CUSTOM_BASE_URL
         ? `https://${process.env.PRODUCTION_CUSTOM_BASE_URL}`
         : 'http://localhost:3001';
+
+      console.log(
+        `[agent] 📖 read_slide: fetching ${input.slideNumbers.length} slides: ` +
+        `[${input.slideNumbers.join(', ')}]`,
+      );
 
       const results = await Promise.all(
         input.slideNumbers.map(async (num) => {
@@ -1066,7 +891,6 @@ async function executeTool(
             if (codeRes.ok) {
               const codeData = await codeRes.json();
               if (codeData.code) {
-                // Minify: strip comments and blank lines to reduce tokens
                 const minified = (codeData.code as string)
                   .replace(/\/\/.*$/gm, '')
                   .replace(/\n\s*\n/g, '\n')
@@ -1085,6 +909,7 @@ async function executeTool(
       return results.join('\n\n');
     }
 
+    // ── validate_logos ─────────────────────────────────────────────────────
     case 'validate_logos': {
       if (!Array.isArray(input.logos) || input.logos.length === 0) {
         return 'Error: validate_logos requires a non-empty "logos" array.';
@@ -1122,15 +947,25 @@ NEVER RECOMMEND OR ASK FOR DATA FROM ANY VENDOR LIKE CAPIQ, BLOOMBERG, FACTSET. 
 
 ## Tools
 
-### vector_search
+### data_search
 - Call before answering any question about a company, deal, market, or financial topic.
-- Use multiple targeted queries to build a complete picture.
-- Cite sources by title or URL when referencing data.
+- Write a highly specific natural language query naming the companies, metrics, and time periods you need (e.g. "Q4 2024 total fundraising and deal count for Blackstone, KKR, and Apollo — full year and quarterly breakdown").
+- Call multiple times with different focused queries to build a complete picture across different topics.
+- The result contains data values AND source URLs. Read both carefully.
+- IMPORTANT: Extract and note the source URLs returned — you will need them for register_slide_data_points.
+
+### register_slide_data_points
+- Call this BEFORE create_or_edit_slide whenever you are creating a new slide with quantitative data.
+- Extract every metric, number, statistic, or financial figure that will appear on the slide.
+- For each data point provide:
+  1. A clear, specific label (e.g., "Q4 2024 Total Fundraising", "Average EV/EBITDA Multiple")
+  2. The exact value as it will appear (e.g., "$1.2T", "12.3x", "42%")
+  3. The source URLs from your data_search results that support this data point
+- After calling this tool, proceed immediately to create_or_edit_slide with the same slideNumber.
 
 ### create_or_edit_slide
 - Use when the user asks for a slide, chart, table, or visual.
 - The slide generator has NO access to conversation history or search results. Include ALL data — every number, metric, label, and company name — directly in the prompt.
-- Annotate data points with citations: "Revenue $3.1B [cite:1]", using source numbers from vector_search results.
 - For edits: pass slideNumber only — existing code is fetched automatically. Describe only what to change in the prompt.
 - For new slides referencing existing slides: pass referenceSlideNumbers (the non-target slides) and instruct the generator in your prompt what to do with each one. Omit templateCategory.
 - For new slides from scratch: pass templateCategory. Omit referenceSlideNumbers.
@@ -1139,7 +974,7 @@ NEVER RECOMMEND OR ASK FOR DATA FROM ANY VENDOR LIKE CAPIQ, BLOOMBERG, FACTSET. 
 - Any images the user attached are forwarded directly to the slide generator — it will see them. Do not attempt to describe or re-encode image data in your prompt.
 
 ### read_slide
-- Use when the user asks you to reason about, summarise, or answer questions based on existing slide content AND THE SLIDE CODE ARE NOT AVAILABLE IN YOUR CONVERSATION HISTORY.
+- Use when the user asks you to reason about, summarise, or answer questions based on existing slide content AND THE SLIDE CODE IS NOT AVAILABLE IN YOUR CONVERSATION HISTORY.
 - Examples: "explain the assumptions in slide 2", "write a paragraph summary of slides 1 and 3", "what football field range does slide 4 show".
 - Returns minified code for each requested slide — read it to extract data, structure, and values.
 - Do NOT use before create_or_edit_slide — that tool handles its own fetching automatically.
@@ -1157,10 +992,10 @@ Your prompt must contain ALL the data the slide needs (every number, name, label
 Do NOT include any of the following in your prompt:
 - Layout instructions (column counts, widths, positions, spacing, padding, margins)
 - Styling instructions (colors, font sizes, font weights, border styles, background colors)
-- Element-level instructions (how to format a callout box, how to style a header, what a section divider should look like)
-- Design language instructions (e.g. "clean professional", "navy accent color scheme", "white background dark text")
+- Element-level instructions (how to format a callout box, how to style a header)
+- Design language instructions (e.g. "clean professional", "navy accent color scheme")
 
-The slide generator has its own library of layout examples and — when no user reference image is present — receives reference design images for the slide type you select. It uses those to determine all visual design decisions. Overriding them with layout or styling instructions in your prompt produces worse output, not better. Trust the generator to handle design.
+The slide generator has its own library of layout examples and receives reference design images for the slide type you select. It uses those to determine all visual design decisions. Trust the generator to handle design.
 
 The only exception is if the user explicitly requests a specific design choice (e.g. "use a red header", "make it a three-column layout"). In that case, relay only that specific user instruction — nothing more.
 
@@ -1172,10 +1007,12 @@ The only exception is if the user explicitly requests a specific design choice (
 - User wants similar style/colors but novel layout → set templateCategory as normal. Do not pass referenceSlideNumbers.
 
 ### Workflow for data-driven slides
-1. Search for data with vector_search.
-2. Call validate_logos before create_or_edit_slide whenever logos are needed. Only pass URLs confirmed valid.
-3. Call create_or_edit_slide with all data embedded in the prompt and templateCategory set.
-4. Wait for user feedback before any follow-up edits.
+1. Call data_search with a specific natural language query. Note all data values AND source URLs in the result.
+2. Call additional data_search queries if you need data on different topics or companies.
+3. Call validate_logos before create_or_edit_slide whenever logos are needed. Only pass URLs confirmed valid.
+4. Call register_slide_data_points with every metric/figure that will appear on the slide, including the source URLs that support each one.
+5. Call create_or_edit_slide with all data embedded in the prompt and templateCategory set.
+6. Wait for user feedback before any follow-up edits.
 
 ## Images
 When the user attaches an image, assess its intent:
@@ -1239,20 +1076,20 @@ async function runStreamingAgentLoop(
 
     currentHistory.push({ role: 'assistant', content: message.content });
 
-    // End turn
+    // ── End turn ────────────────────────────────────────────────────────────
     if (message.stop_reason === 'end_turn') {
       console.log(`[agent] ✅ end_turn after ${iteration + 1} iteration(s)`);
       sendSSE(res, { type: 'done', sessionId, isNewSession, historyLength: currentHistory.length });
       return currentHistory;
     }
 
-    // Tool use
+    // ── Tool use ────────────────────────────────────────────────────────────
     if (message.stop_reason === 'tool_use') {
       const toolUseBlocks = message.content.filter(
         (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use',
       );
 
-      console.log(`[agent] 🛠  tool_use: [${toolUseBlocks.map(b => b.name).join(', ')}]`);
+      console.log(`[agent] 🛠  tool_use: [${toolUseBlocks.map((b) => b.name).join(', ')}]`);
 
       if (toolUseBlocks.length === 0) {
         console.warn('[agent] stop_reason=tool_use but no tool_use blocks — breaking');
@@ -1266,36 +1103,40 @@ async function runStreamingAgentLoop(
           sendSSE(res, { type: 'tool_start', name: toolUse.name, input: toolUse.input });
 
           const t1 = Date.now();
-          const result = await executeTool(toolUse.name, toolUse.input as ToolInput, resolvedImages, presentationId, requestTheme);
+          const result = await executeTool(
+            toolUse.name,
+            toolUse.input as ToolInput,
+            resolvedImages,
+            presentationId,
+            requestTheme,
+            sessionId,
+            res,
+          );
 
           console.log(
             `[agent] 🛠  ${toolUse.name} completed in ${Date.now() - t1}ms | result: ${result.length} chars`,
           );
 
-          // ── Vector search: remap source IDs + emit sources ────────────
-          if (toolUse.name === 'vector_search' && result.startsWith('Found ')) {
-              const allSources = trackSourcesFromSearchResult(sessionId, result);
-              sendSSE(res, { type: 'sources_updated', sources: allSources });
+          // ── data_search ──────────────────────────────────────────────────
+          if (toolUse.name === 'data_search') {
+            sendSSE(res, {
+              type: 'tool_result',
+              name: toolUse.name,
+              preview: result.slice(0, 150) + (result.length > 150 ? '…' : ''),
+            });
 
-              // No remapping needed — executeTool already renumbered sequentially
-              sendSSE(res, {
-                type: 'tool_result',
-                name: toolUse.name,
-                preview: result.slice(0, 150) + (result.length > 150 ? '…' : ''),
-              });
+            return {
+              type: 'tool_result' as const,
+              tool_use_id: toolUse.id,
+              content: result,
+            };
+          }
 
-              return {
-                type: 'tool_result' as const,
-                tool_use_id: toolUse.id,
-                content: result,
-              };
-            }
-
-          // ── Logo validation: emit per-logo outcomes to frontend ───────
+          // ── validate_logos ───────────────────────────────────────────────
           if (toolUse.name === 'validate_logos') {
             const lines = result.split('\n');
-            const valid   = lines.filter(l => l.startsWith('✓')).length;
-            const invalid = lines.filter(l => l.startsWith('✗')).length;
+            const valid   = lines.filter((l) => l.startsWith('✓')).length;
+            const invalid = lines.filter((l) => l.startsWith('✗')).length;
 
             sendSSE(res, {
               type: 'logos_validated',
@@ -1317,19 +1158,41 @@ async function runStreamingAgentLoop(
             };
           }
 
-          // ── Slide tool: emit code + sources to frontend ───────────────
+          // ── register_slide_data_points ───────────────────────────────────
+          // SSE slide_data_points is already emitted inside executeTool.
+          if (toolUse.name === 'register_slide_data_points') {
+            try {
+              const parsed = JSON.parse(result);
+              sendSSE(res, {
+                type: 'tool_result',
+                name: toolUse.name,
+                preview: `Registered ${parsed.dataPointCount ?? 0} datapoints for slide ${parsed.slideNumber}`,
+              });
+            } catch {
+              sendSSE(res, {
+                type: 'tool_result',
+                name: toolUse.name,
+                preview: result.slice(0, 150) + (result.length > 150 ? '…' : ''),
+              });
+            }
+
+            return {
+              type: 'tool_result' as const,
+              tool_use_id: toolUse.id,
+              content: result,
+            };
+          }
+
+          // ── create_or_edit_slide ─────────────────────────────────────────
           if (toolUse.name === 'create_or_edit_slide') {
             try {
               const parsed = JSON.parse(result);
               if (parsed.success && parsed.code) {
-                const allSources = getSessionSources(sessionId);
-
                 sendSSE(res, {
                   type: 'slide_generated',
                   action: parsed.action ?? 'created',
                   code: parsed.code,
                   slideNumber: parsed.slideNumber ?? 1,
-                  sources: allSources,
                 });
 
                 const summary = JSON.stringify({
@@ -1337,8 +1200,7 @@ async function runStreamingAgentLoop(
                   action: parsed.action,
                   slideNumber: parsed.slideNumber,
                   codeLength: parsed.codeLength,
-                  sourceCount: allSources.length,
-                  message: `Slide ${parsed.slideNumber} ${parsed.action} successfully (${parsed.codeLength} chars) with ${allSources.length} tracked sources.`,
+                  message: `Slide ${parsed.slideNumber} ${parsed.action} successfully (${parsed.codeLength} chars).`,
                 });
 
                 sendSSE(res, {
@@ -1354,11 +1216,11 @@ async function runStreamingAgentLoop(
                 };
               }
             } catch {
-              // fall through to generic result
+              // fall through to generic
             }
           }
 
-          // ── Generic fallback ──────────────────────────────────────────
+          // ── Generic fallback ─────────────────────────────────────────────
           sendSSE(res, {
             type: 'tool_result',
             name: toolUse.name,
@@ -1398,133 +1260,78 @@ const SUPPORTED_MEDIA_TYPES: SupportedMediaType[] = [
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   console.log(`[agent] ${req.method} /api/agent-websearch`);
 
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const {
-    prompt,
-    sessionId: incomingSessionId,
-    presentationId: incomingPresentationId,
-    images = [],        // legacy direct base64
-    imageRefs = [],     // new blob references
-    theme: requestTheme = {},
-  } = req.body as RequestBody;
-
-  if (!prompt || typeof prompt !== 'string' || prompt.trim() === '') {
-    return res.status(400).json({ error: '`prompt` is required and must be a non-empty string.' });
-  }
-
-  if (!Array.isArray(images)) {
-    return res.status(400).json({ error: '`images` must be an array.' });
-  }
-
-  if (!Array.isArray(imageRefs)) {
-    return res.status(400).json({ error: '`imageRefs` must be an array.' });
-  }
-
-  const sessionId = incomingSessionId ?? randomUUID();
-  const isNewSession = !incomingSessionId || !conversationStore.has(incomingSessionId);
-
-  console.log(
-    `[agent] Session: ${sessionId} (${isNewSession ? 'NEW' : 'existing'}) | ` +
-    `prompt: ${prompt.length} chars | directImages: ${images.length} | blobRefs: ${imageRefs.length}`,
-  );
-
-  // SSE stream
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-
-  if (typeof (res as any).flushHeaders === 'function') {
-    (res as any).flushHeaders();
-  }
-
   try {
+    const body = req.body as RequestBody;
+    const { prompt, sessionId: clientSessionId, presentationId, images, imageRefs, theme } = body;
+
+    if (!prompt || typeof prompt !== 'string') {
+      return res.status(400).json({ error: 'Missing or invalid prompt' });
+    }
+
+    // ── Session management ──────────────────────────────────────────────────
+    const sessionId = clientSessionId || randomUUID();
+    const isNewSession = !clientSessionId;
     const history = getHistory(sessionId);
-    const userContent: Anthropic.MessageParam['content'] = [];
 
-    // ── 1. Resolve blob image refs → base64 (server-side, LLM never sees URLs) ──
-    const blobImages = await resolveImageRefs(imageRefs);
+    console.log(
+      `[agent] Session: ${sessionId} | new: ${isNewSession} | history: ${history.length} msgs | ` +
+      `presentation: ${presentationId ?? 'none'}`,
+    );
 
-    // ── 2. Merge blob images + legacy direct images ────────────────────────────
-    // All images are made available to the agent's vision AND forwarded to the
-    // slide generator via executeTool. The LLM only sees them as vision context.
-    const allImages: ImageInput[] = [...blobImages, ...images];
+    // ── Image resolution ────────────────────────────────────────────────────
+    let resolvedImages: ImageInput[] = [];
 
-    // ── 3. Build user message content (vision + text) ─────────────────────────
-    for (let i = 0; i < allImages.length; i++) {
-      const img = allImages[i];
-      let rawBase64 = img.data;
-      let detectedMediaType: SupportedMediaType | undefined;
-
-      const dataUriMatch = rawBase64.match(/^data:([^;]+);base64,(.+)$/s);
-      if (dataUriMatch) {
-        detectedMediaType = dataUriMatch[1] as SupportedMediaType;
-        rawBase64 = dataUriMatch[2];
-      }
-
-      const mediaType: SupportedMediaType = img.mediaType ?? detectedMediaType ?? 'image/png';
-
-      if (!SUPPORTED_MEDIA_TYPES.includes(mediaType)) {
-        sendSSE(res, {
-          type: 'error',
-          message: `Unsupported media type "${mediaType}" for image at index ${i}.`,
-        });
-        return res.end();
-      }
-
-      console.log(`[agent] Image ${i + 1}/${allImages.length}: ${mediaType} | ${rawBase64.length} base64 chars`);
-
-      userContent.push({
-        type: 'image',
-        source: { type: 'base64', media_type: mediaType, data: rawBase64 },
+    if (imageRefs && imageRefs.length > 0) {
+      console.log(`[agent] Resolving ${imageRefs.length} blob image refs...`);
+      resolvedImages = await resolveImageRefs(imageRefs);
+    } else if (images && images.length > 0) {
+      console.log(`[agent] Using ${images.length} legacy base64 images`);
+      resolvedImages = images.map((img) => {
+        if (!img.data) throw new Error('Image data missing in legacy images array');
+        if (img.mediaType && !SUPPORTED_MEDIA_TYPES.includes(img.mediaType)) {
+          throw new Error(`Unsupported media type: ${img.mediaType}`);
+        }
+        return { data: img.data, mediaType: img.mediaType ?? 'image/jpeg' };
       });
     }
 
-    // ── 4. Inject a note for the agent when images are present ────────────────
-    // The agent knows images exist and should reference them in slide prompts,
-    // without needing to handle the data itself.
-    let promptText = prompt.trim();
-    if (allImages.length > 0) {
-      promptText =
-        `[${allImages.length} image${allImages.length > 1 ? 's' : ''} attached — ` +
-        `they will be automatically forwarded to the slide generator when you call create_or_edit_slide]\n\n` +
-        promptText;
-    }
+    // ── SSE setup ───────────────────────────────────────────────────────────
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
 
-    userContent.push({ type: 'text', text: promptText });
-    history.push({ role: 'user', content: userContent });
+    // ── Add user message ────────────────────────────────────────────────────
+    history.push({ role: 'user', content: prompt });
 
-    // ── 5. Run agent loop, passing resolved images for tool injection ──────────
+    console.log(`[agent] 🚀 Starting agent loop with prompt: "${prompt.slice(0, 100)}..."`);
+
+    // ── Run agent loop ──────────────────────────────────────────────────────
     const updatedHistory = await runStreamingAgentLoop(
       history,
       res,
       sessionId,
       isNewSession,
-      allImages,          // passed through to executeTool → createOrEditSlide
-      incomingPresentationId ?? '',  // used to fetch existing slide code from blob
-      requestTheme,       // forwarded to slide generator for consistent styling
+      resolvedImages,
+      presentationId ?? '',
+      theme ?? {},
     );
 
+    // ── Persist history ─────────────────────────────────────────────────────
     saveHistory(sessionId, updatedHistory);
     console.log(
-      `[agent] ✅ Request complete | session: ${sessionId} | history: ${updatedHistory.length} msgs`,
+      `[agent] ✅ Conversation saved | session: ${sessionId} | messages: ${updatedHistory.length}`,
     );
 
-    return res.end();
-
-  } catch (error: unknown) {
-    const err = error as Error & { status?: number };
-    console.error('[agent] ❌ Unhandled error:', err.message);
-    console.error('[agent] Stack:', err.stack);
-
-    sendSSE(res, { type: 'error', message: err.message ?? 'An unexpected error occurred.' });
-    return res.end();
+    res.end();
+  } catch (err: any) {
+    console.error('[agent] ❌ Handler exception:', err.message);
+    sendSSE(res, { type: 'error', message: err.message ?? 'Internal server error' });
+    sendSSE(res, { type: 'done', sessionId: '', isNewSession: false, historyLength: 0 });
+    res.end();
   }
 }
