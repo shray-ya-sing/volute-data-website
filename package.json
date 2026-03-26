@@ -4,7 +4,7 @@
       "private": true,
       "type": "module",
       "dependencies": {
-            "@ai-sdk/anthropic": "^1.0.11",
+            "@anthropic-ai/claude-agent-sdk": "^0.2.83",
             "@anthropic-ai/sdk": "^0.71.2",
             "@babel/parser": "^7.29.0",
             "@babel/traverse": "^7.29.0",
@@ -48,7 +48,6 @@
             "@types/dompurify": "^3.2.0",
             "@vercel/blob": "^2.3.1",
             "@vercel/sandbox": "^1.4.0",
-            "ai": "^4.0.62",
             "class-variance-authority": "^0.7.1",
             "clsx": "*",
             "cmdk": "^1.1.1",
@@ -88,8 +87,7 @@
             "tailwind-merge": "*",
             "tw-animate-css": "^1.3.8",
             "vaul": "^1.1.2",
-            "ws": "^8.18.0",
-            "zod": "^3.24.1"
+            "ws": "^8.18.0"
       },
       "devDependencies": {
             "@testing-library/jest-dom": "^6.9.1",
