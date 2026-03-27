@@ -349,6 +349,33 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
           signal: abortController.signal,
         });
 
+        // ── Check for credits exhausted error (400) ──────────────────────────────
+        if (response.status === 400) {
+          const clonedResponse = response.clone();
+          const errorText = await clonedResponse.text();
+          
+          // Check if it's the Anthropic credits error
+          if (errorText.includes('credit balance is too low') || 
+              errorText.includes('invalid_request_error')) {
+            console.error('[useAgentStream] ⚠️ Credits exhausted - showing maintenance message');
+            
+            // Show friendly maintenance message instead of error
+            if (currentAssistantMessageRef.current) {
+              currentAssistantMessageRef.current.content = 'Sorry, Volute is temporarily unavailable due to maintenance. Please check back later.';
+              setMessages((prev) => [...prev]);
+            }
+            
+            // Clean up and exit
+            setIsStreaming(false);
+            setIsToolRunning(false);
+            setActiveTools([]);
+            dispatch(setGenerating(false));
+            abortControllerRef.current = null;
+            currentAssistantMessageRef.current = null;
+            return;
+          }
+        }
+
         if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         if (!response.body) throw new Error('No response body');
 
