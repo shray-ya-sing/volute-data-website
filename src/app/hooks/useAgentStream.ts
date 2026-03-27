@@ -69,7 +69,6 @@ interface SendOptions {
 // ---------------------------------------------------------------------------
 
 function mintId(): string {
-  // Use browser crypto if available (always is in modern browsers), fall back to timestamp
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
   }
@@ -93,9 +92,10 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
   const theme = useAppSelector((state) => state.theme);
 
   // Detect if running in Figma Make preview
-  const isFigmaPreview = typeof window !== 'undefined' && 
-    (window.location.hostname.includes('figma.site') || 
-     window.location.hostname.includes('makeproxy'));
+  const isFigmaPreview =
+    typeof window !== 'undefined' &&
+    (window.location.hostname.includes('figma.site') ||
+      window.location.hostname.includes('makeproxy'));
 
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -116,7 +116,6 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
   versionHistoryRef.current = versionHistory;
   const presentationIdRef = useRef(presentationId);
   presentationIdRef.current = presentationId;
-
 
   // ---------------------------------------------------------------------------
   // Handle individual SSE events
@@ -179,7 +178,6 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
         }
 
         case 'logos_validated': {
-          // Surfaced to UI via activeTools — no Redux state change needed
           console.log(
             `[useAgentStream] 🔍 Logos validated: ${event.validCount} valid, ${event.invalidCount} not found`,
           );
@@ -189,6 +187,47 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
           break;
         }
 
+        // ── slide_data_points ────────────────────────────────────────────────
+        // Emitted by the backend when the agent calls register_slide_data_points.
+        // Arrives BEFORE slide_generated, so the Redux reducer buffers these in
+        // pendingDataPoints and drains them once the slide lands via addSlide /
+        // updateSlide — no data is lost regardless of event ordering.
+        case 'slide_data_points': {
+          const { slideNumber, dataPoints } = event;
+
+          if (!slideNumber || !Array.isArray(dataPoints)) {
+            console.warn(
+              '[useAgentStream] ⚠️ slide_data_points event missing slideNumber or dataPoints:',
+              event,
+            );
+            break;
+          }
+
+          console.log(
+            `[useAgentStream] 📊 Slide data points received: slide #${slideNumber},`,
+            `${dataPoints.length} points`,
+          );
+
+          // Assign stable IDs here so the verification system can reference
+          // individual data points without needing them from the backend.
+          const dataPointsWithIds = dataPoints.map((dp: any, index: number) => ({
+            id: `dp-${slideNumber}-${index}-${Date.now()}`,
+            label: dp.label,
+            value: dp.value,
+            sourceUrls: dp.sourceUrls ?? [],
+            verifications: [],
+          }));
+
+          dispatch(
+            setSlideDataPoints({
+              slideNumber,
+              dataPoints: dataPointsWithIds,
+            }),
+          );
+          break;
+        }
+
+        // ── slide_generated ──────────────────────────────────────────────────
         case 'slide_generated': {
           console.log('[useAgentStream] 📥 Raw slide_generated event:', {
             slideNumber: event.slideNumber,
@@ -210,26 +249,24 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
 
           if (event.sources?.length > 0) setSources(event.sources);
 
-          // ── Dispatch to Redux ─────────────────────────────────────────
+          // ── Dispatch to Redux ─────────────────────────────────────────────
+          // addSlide / updateSlide will automatically drain any pending data
+          // points that arrived earlier via slide_data_points.
           const currentSlides = slidesRef.current;
           const currentHistory = versionHistoryRef.current;
-          const existingSlide = currentSlides.find((s) => s.slideNumber === slideData.slideNumber);
-
-          let finalSlideNumber = slideData.slideNumber;
-          let versionNumber: number;
+          const existingSlide = currentSlides.find(
+            (s) => s.slideNumber === slideData.slideNumber,
+          );
 
           if (existingSlide) {
-            // Slide already exists — always update in place regardless of action field,
+            // Slide already exists — update in place regardless of action field,
             // because the agent sometimes returns action='created' for edits.
-            versionNumber = (currentHistory[slideData.slideNumber]?.length ?? 0) + 2;
             dispatch(updateSlide({ id: existingSlide.id, code: slideData.code }));
           } else {
-            // Brand new slide
-            versionNumber = 1;
-            dispatch(addSlide({ slideNumber: finalSlideNumber, code: slideData.code }));
+            dispatch(addSlide({ slideNumber: slideData.slideNumber, code: slideData.code }));
           }
 
-          // ── Update assistant message ──────────────────────────────────
+          // ── Update assistant message ──────────────────────────────────────
           if (currentAssistantMessageRef.current) {
             if (!currentAssistantMessageRef.current.slides) {
               currentAssistantMessageRef.current.slides = [];
@@ -239,34 +276,6 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
           }
 
           if (onSlideGenerated) onSlideGenerated(slideData);
-          break;
-        }
-
-        case 'slide_data_points': {
-          // ✅ PRODUCTION DATA FLOW: This is where REAL data points arrive from the backend
-          // The backend emits this event after the agent calls register_slide_data_points
-          // This should NEVER be overridden by mock data in production
-          console.log('[useAgentStream] 📊 Slide data points registered:', {
-            slideNumber: event.slideNumber,
-            dataPointCount: event.dataPoints?.length,
-          });
-          
-          // Store data points in Redux for the data view components
-          // Backend doesn't send IDs, so generate them here
-          if (event.dataPoints && Array.isArray(event.dataPoints)) {
-            const dataPointsWithIds = event.dataPoints.map((dp: any, index: number) => ({
-              id: `dp-${event.slideNumber}-${index}-${Date.now()}`,
-              label: dp.label,
-              value: dp.value,
-              sourceUrls: dp.sourceUrls || [],
-              verifications: [], // Will be populated by verification system
-            }));
-
-            dispatch(setSlideDataPoints({
-              slideNumber: event.slideNumber,
-              dataPoints: dataPointsWithIds,
-            }));
-          }
           break;
         }
 
@@ -381,21 +390,21 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
           backgroundColor: theme.slideBackgroundColor,
         });
 
-        // ── Use mock data in Figma Make preview ────────────────────────────────
+        // ── Use mock data in Figma Make preview ──────────────────────────────
         if (isFigmaPreview && ENABLE_MOCK_AGENT) {
           console.log('[useAgentStream] 🎭 Using mock data (Figma preview mode)');
           const turnTools = new Map<string, ToolActivity>();
-          
+
           await mockAgentStream(
             prompt,
             (event) => handleSSEEvent(event, turnTools, pid),
-            150 // delay in ms between events
+            150,
           );
-          
+
           return;
         }
 
-        // ── Real API call ────────────────────────────────────────────────────────
+        // ── Real API call ────────────────────────────────────────────────────
         const response = await fetch(apiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -446,7 +455,8 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
           console.error('[useAgentStream] Stream error:', err);
           if (onError) onError(err);
           if (currentAssistantMessageRef.current) {
-            currentAssistantMessageRef.current.content = '❌ Something went wrong. Please try again.';
+            currentAssistantMessageRef.current.content =
+              '❌ Something went wrong. Please try again.';
             setMessages((prev) => [...prev]);
           }
         }
@@ -472,7 +482,7 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
     }
     setMessages([]);
     setSessionId(null);
-    setPresentationId(null);          // next send() will mint a fresh one
+    setPresentationId(null);
     presentationIdRef.current = null;
     setIsStreaming(false);
     setIsToolRunning(false);
