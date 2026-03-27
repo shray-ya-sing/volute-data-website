@@ -1,4 +1,5 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import { SlideDataPoint, VerificationResult } from "../types/slideData";
 
 export interface SlideVersion {
   code: string;
@@ -11,6 +12,7 @@ export interface Slide {
   slideNumber: number;
   code: string;
   timestamp: number;
+  dataPoints?: SlideDataPoint[];  // ✨ Add dataPoints field
 }
 
 export interface SlidesState {
@@ -84,7 +86,7 @@ export const slidesSlice = createSlice({
 
         // Replace the existing slide
         const newSlide: Slide = {
-          id: `slide-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          id: `slide-${Date.now()}`,
           slideNumber,
           code,
           timestamp: Date.now(),
@@ -95,7 +97,7 @@ export const slidesSlice = createSlice({
       } else {
         // No existing slide with this number, add new
         const newSlide: Slide = {
-          id: `slide-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          id: `slide-${Date.now()}`,
           slideNumber,
           code,
           timestamp: Date.now(),
@@ -146,7 +148,6 @@ export const slidesSlice = createSlice({
     clearSlides: (state) => {
       state.slides = [];
       state.currentSlideId = null;
-      state.versionHistory = {};
     },
     clearCachedSlides: (state) => {
       state.cachedSlides = [];
@@ -219,6 +220,35 @@ export const slidesSlice = createSlice({
 
       console.log(`[slidesSlice] reorderSlides: new order = [${state.slides.map(s => `${s.slideNumber}(${s.code.slice(0, 20)}...)`).join(', ')}]`);
     },
+    setSlideDataPoints: (
+      state,
+      action: PayloadAction<{ slideNumber: number; dataPoints: SlideDataPoint[] }>
+    ) => {
+      const { slideNumber, dataPoints } = action.payload;
+      const slide = state.slides.find((s) => s.slideNumber === slideNumber);
+      if (slide) {
+        slide.dataPoints = dataPoints;
+        console.log(`[slidesSlice] setSlideDataPoints: added ${dataPoints.length} datapoints to slide #${slideNumber}`);
+      }
+    },
+    updateDataPointVerifications: (
+      state,
+      action: PayloadAction<{
+        slideId: string;
+        dataPointId: string;
+        verifications: VerificationResult[];
+      }>
+    ) => {
+      const { slideId, dataPointId, verifications } = action.payload;
+      const slide = state.slides.find((s) => s.id === slideId);
+      if (slide?.dataPoints) {
+        const dataPoint = slide.dataPoints.find((dp) => dp.id === dataPointId);
+        if (dataPoint) {
+          dataPoint.verifications = verifications;
+          console.log(`[slidesSlice] updateDataPointVerifications: updated verifications for datapoint ${dataPointId}`);
+        }
+      }
+    },
   },
 });
 
@@ -235,6 +265,8 @@ export const {
   restoreVersion,
   clearVersionHistory,
   reorderSlides,
+  setSlideDataPoints,
+  updateDataPointVerifications,
 } = slidesSlice.actions;
 
 export default slidesSlice.reducer;

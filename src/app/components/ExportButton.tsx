@@ -67,13 +67,12 @@ export function ExportButton() {
         downloadBlob(blob, `${safeName(presentationName)}.pdf`);
       } else {
         let msg = `Server returned ${res.status}`;
-        const raw = await res.text();
         try {
-          const body = JSON.parse(raw);
+          const body = await res.json();
           msg = body.error || body.message || msg;
           console.error("[Export] PDF error:", body);
         } catch {
-          console.error("[Export] PDF raw error:", raw.slice(0, 500));
+          console.error("[Export] PDF raw error:", (await res.text()).slice(0, 500));
         }
         setError(msg);
       }
@@ -119,13 +118,12 @@ export function ExportButton() {
         downloadBlob(blob, `${name}${ext}`);
       } else {
         let msg = `Server returned ${res.status}`;
-        const raw = await res.text();
         try {
-          const body = JSON.parse(raw);
+          const body = await res.json();
           msg = body.error || body.message || msg;
           console.error("[Export] PNG error:", body);
         } catch {
-          console.error("[Export] PNG raw error:", raw.slice(0, 500));
+          console.error("[Export] PNG raw error:", (await res.text()).slice(0, 500));
         }
         setError(msg);
       }
@@ -152,7 +150,7 @@ export function ExportButton() {
           const res = await fetch("https://www.getvolute.com/api/generate-slide-json", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ code: slide.code, slideNumber: slide.slideNumber, theme }),
+            body: JSON.stringify({ code: slide.code, slideNumber: slide.slideNumber }),
           });
 
           if (!res.ok) {
@@ -194,13 +192,12 @@ export function ExportButton() {
         downloadBlob(blob, `${safeName(presentationName)}.pptx`);
       } else {
         let msg = `Export server returned ${exportRes.status}`;
-        const raw = await exportRes.text();
         try {
-          const body = JSON.parse(raw);
+          const body = await exportRes.json();
           msg = body.error || body.message || msg;
           console.error("[Export] PPTX error:", body);
         } catch {
-          console.error("[Export] PPTX raw error:", raw.slice(0, 500));
+          console.error("[Export] PPTX raw error:", (await exportRes.text()).slice(0, 500));
         }
         setError(msg);
       }
@@ -210,7 +207,7 @@ export function ExportButton() {
     } finally {
       setExporting(null);
     }
-  }, [slides, theme, presentationName]);
+  }, [slides, presentationName]);
 
   // ── Dropdown items ──────────────────────────────────────────────────────
   const items: { label: string; handler: () => void }[] = [

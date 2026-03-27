@@ -1,6 +1,12 @@
 import { useState, useRef, useCallback } from 'react';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
-import { addSlide, updateSlide, setGenerating } from '../store/slidesSlice';
+import { addSlide, updateSlide, setGenerating, setSlideDataPoints } from '../store/slidesSlice';
+import { ENABLE_MOCK_AGENT } from '../config/features';
+
+// ⚠️ DEVELOPMENT/PREVIEW ONLY: Mock agent for testing without backend
+// This import is ONLY used in Figma Make preview mode (auto-detected by hostname)
+// It is NEVER used in production deployments
+import { mockAgentStream } from '../utils/mockAgentData';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -85,6 +91,11 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
   const slides = useAppSelector((state) => state.slides.slides);
   const versionHistory = useAppSelector((state) => state.slides.versionHistory);
   const theme = useAppSelector((state) => state.theme);
+
+  // Detect if running in Figma Make preview
+  const isFigmaPreview = typeof window !== 'undefined' && 
+    (window.location.hostname.includes('figma.site') || 
+     window.location.hostname.includes('makeproxy'));
 
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -231,6 +242,34 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
           break;
         }
 
+        case 'slide_data_points': {
+          // ✅ PRODUCTION DATA FLOW: This is where REAL data points arrive from the backend
+          // The backend emits this event after the agent calls register_slide_data_points
+          // This should NEVER be overridden by mock data in production
+          console.log('[useAgentStream] 📊 Slide data points registered:', {
+            slideNumber: event.slideNumber,
+            dataPointCount: event.dataPoints?.length,
+          });
+          
+          // Store data points in Redux for the data view components
+          // Backend doesn't send IDs, so generate them here
+          if (event.dataPoints && Array.isArray(event.dataPoints)) {
+            const dataPointsWithIds = event.dataPoints.map((dp: any, index: number) => ({
+              id: `dp-${event.slideNumber}-${index}-${Date.now()}`,
+              label: dp.label,
+              value: dp.value,
+              sourceUrls: dp.sourceUrls || [],
+              verifications: [], // Will be populated by verification system
+            }));
+
+            dispatch(setSlideDataPoints({
+              slideNumber: event.slideNumber,
+              dataPoints: dataPointsWithIds,
+            }));
+          }
+          break;
+        }
+
         case 'sources_updated': {
           if (event.sources && Array.isArray(event.sources)) {
             setSources(event.sources);
@@ -342,6 +381,21 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
           backgroundColor: theme.slideBackgroundColor,
         });
 
+        // ── Use mock data in Figma Make preview ────────────────────────────────
+        if (isFigmaPreview && ENABLE_MOCK_AGENT) {
+          console.log('[useAgentStream] 🎭 Using mock data (Figma preview mode)');
+          const turnTools = new Map<string, ToolActivity>();
+          
+          await mockAgentStream(
+            prompt,
+            (event) => handleSSEEvent(event, turnTools, pid),
+            150 // delay in ms between events
+          );
+          
+          return;
+        }
+
+        // ── Real API call ────────────────────────────────────────────────────────
         const response = await fetch(apiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -405,7 +459,7 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
         currentAssistantMessageRef.current = null;
       }
     },
-    [isStreaming, sessionId, apiUrl, dispatch, onError, onSlideGenerated, theme, handleSSEEvent],
+    [isStreaming, sessionId, apiUrl, dispatch, onError, theme, handleSSEEvent, isFigmaPreview],
   );
 
   // ---------------------------------------------------------------------------

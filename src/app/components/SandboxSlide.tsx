@@ -1,5 +1,5 @@
-import { Component, ReactNode, useMemo, useEffect, useRef } from "react";
-import { SandpackProvider, SandpackPreview, useSandpack } from "@codesandbox/sandpack-react";
+import { Component, ReactNode, useMemo } from "react";
+import { SandpackProvider, SandpackPreview } from "@codesandbox/sandpack-react";
 import { useAppSelector } from "../store/hooks";
 import { validateSlideCode } from "../utils/validateSlideCode";
 import { repairSlideCode } from "../utils/repairSlideCode";
@@ -9,10 +9,6 @@ const CORE_DEPENDENCIES = {
   "lucide-react": "^0.487.0",
   recharts: "^2.15.2",
 };
-
-// How long to wait after Sandpack signals "running" before calling onRendered.
-// Covers compile + paint for even large slides in cold sandboxes.
-const RENDER_SETTLE_MS = 1500;
 
 // ── Error Boundary ──────────────────────────────────────────────
 interface ErrorBoundaryProps {
@@ -68,61 +64,13 @@ function SlideErrorFallback() {
   );
 }
 
-// ── Render watcher — must live inside SandpackProvider ─────────
-// Watches Sandpack's compilation status and fires onRendered once
-// the iframe has settled after a code change.
-interface RenderWatcherProps {
-  code: string;
-  slideNumber: number;
-  onRendered?: () => void;
-}
-
-function RenderWatcher({ code, slideNumber, onRendered }: RenderWatcherProps) {
-  const { sandpack } = useSandpack();
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const firedRef = useRef(false);
-
-  // Reset the fired flag on every code change so each new version
-  // triggers a fresh onRendered callback
-  useEffect(() => {
-    firedRef.current = false;
-    if (timerRef.current) clearTimeout(timerRef.current);
-  }, [code]);
-
-  useEffect(() => {
-    if (!onRendered || firedRef.current) return;
-
-    // Sandpack status: 'idle' | 'running' | 'timeout' | 'error'
-    // Wait for 'running' (compilation started) then settle for RENDER_SETTLE_MS
-    if (sandpack.status === 'running') {
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => {
-        if (!firedRef.current) {
-          firedRef.current = true;
-          console.log(`[SandboxSlide] Slide ${slideNumber} rendered — firing onRendered`);
-          onRendered();
-        }
-      }, RENDER_SETTLE_MS);
-    }
-
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, [sandpack.status, onRendered, slideNumber]);
-
-  return null;
-}
-
 // ── Main Component ──────────────────────────────────────────────
 interface SandboxSlideProps {
   code: string;
   slideNumber: number;
-  /** Called once the slide has settled in the Sandpack iframe.
-   *  Use this to trigger screenshot capture + blob upload. */
-  onRendered?: () => void;
 }
 
-export function SandboxSlide({ code, slideNumber, onRendered }: SandboxSlideProps) {
+export function SandboxSlide({ code, slideNumber }: SandboxSlideProps) {
   const theme = useAppSelector((state) => state.theme);
 
   // Validate and attempt repair — all details go to console only
@@ -176,13 +124,6 @@ export function SandboxSlide({ code, slideNumber, onRendered }: SandboxSlideProp
     return <SlideErrorFallback />;
   }
 
-  // Map Redux key `slideBackgroundColor` → `backgroundColor` expected by generated slides
-  const slideTheme = {
-    ...theme,
-    backgroundColor: theme.slideBackgroundColor,
-  };
-  const { slideBackgroundColor: _unused, ...cleanSlideTheme } = slideTheme;
-
   const files = {
     [`/Slide${slideNumber}.tsx`]: {
       code: renderCode,
@@ -190,7 +131,7 @@ export function SandboxSlide({ code, slideNumber, onRendered }: SandboxSlideProp
     "/App.tsx": {
       code: `import Slide from './Slide${slideNumber}';
 
-const theme = ${JSON.stringify(cleanSlideTheme, null, 2)};
+const theme = ${JSON.stringify(theme, null, 2)};
 
 export default function App() {
   return (
@@ -220,12 +161,6 @@ export default function App() {
           }}
           theme="light"
         >
-          {/* RenderWatcher must be inside SandpackProvider to access useSandpack() */}
-          <RenderWatcher
-            code={renderCode}
-            slideNumber={slideNumber}
-            onRendered={onRendered}
-          />
           <SandpackPreview
             showNavigator={false}
             showOpenInCodeSandbox={false}
