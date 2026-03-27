@@ -93,7 +93,7 @@ export function Landing() {
         <div className="v-center">
           {/* Hero */}
           <p className="v-eyebrow">
-            Private Markets
+            Beta Version Preview
           </p>
           <h1 className="v-headline">
             Research at the
