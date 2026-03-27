@@ -25,6 +25,7 @@ export interface SlideDataPoint {
   label: string;           // e.g., "Revenue (FY 2024)"
   value: string;           // e.g., "$3.1B"
   sourceUrls: string[];    // Original source URLs from agent
+  screenshots?: Record<string, string>;  // URL -> screenshot data URL mapping
   verifications: VerificationResult[];  // Verification results
   position?: { x: number; y: number }; // Optional: position on slide
 }

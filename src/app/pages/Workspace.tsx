@@ -1,11 +1,3 @@
-import { useEffect, useCallback, useRef, useState } from "react";
-import { useLocation } from "react-router";
-import { ChatSidebar } from "../components/ChatSidebar";
-import type { AttachmentPreview } from "../components/ChatSidebar";
-import { CanvasView } from "../components/CanvasView";
-import { TopBar } from "../components/TopBar";
-import { SlideDataModal } from "../components/SlideDataModal";
-import { ErrorBoundary } from "../components/ErrorBoundary";
 import { useAppSelector, useAppDispatch } from "../store/hooks";
 import { clearSlides, clearCachedSlides, setSlideDataPoints } from "../store/slidesSlice";
 import { clearAttachments } from "../store/attachmentsSlice";
@@ -13,7 +5,9 @@ import { useAgentStream, type SlideData } from "../hooks/useAgentStream";
 import { attachmentPreviewsToApiImages } from "../utils/fileToBase64";
 import { generateMockDataPoints } from "../utils/mockDataPoints";
 import { SlideDataPoint } from "../types/slideData";
-import { PanelLeftOpen } from "lucide-react";
+import { RateLimitModal } from "../components/RateLimitModal";
+import { getTimeUntilReset } from "../utils/anonymousRateLimit";
+import { CreditsErrorModal } from "../components/CreditsErrorModal";
 
 export interface Message {
   id: string;
@@ -83,6 +77,10 @@ export function Workspace() {
     setHighlightedSourceId,
     send,
     reset,
+    rateLimitError,
+    clearRateLimitError,
+    creditsError,
+    clearCreditsError,
   } = useAgentStream({
     apiUrl: 'https://www.getvolute.com/api/agent-websearch',
     onSlideGenerated,
@@ -373,6 +371,20 @@ export function Workspace() {
           onClose={() => setDataModalSlideId(null)}
         />
       </ErrorBoundary>
+
+      {/* Rate Limit Modal */}
+      <RateLimitModal
+        isOpen={rateLimitError !== null}
+        onClose={clearRateLimitError}
+        message={rateLimitError?.message || ''}
+        resetTime={rateLimitError ? getTimeUntilReset() : ''}
+      />
+
+      {/* Credits Error Modal */}
+      <CreditsErrorModal
+        isOpen={creditsError}
+        onClose={clearCreditsError}
+      />
     </div>
   );
 }
