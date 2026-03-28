@@ -4,6 +4,7 @@ import { HTML5Backend } from "react-dnd-html5-backend";
 import { ThemeToolbar } from "./ThemeToolbar";
 import { SlideWithCitations } from "./SlideWithCitations";
 import { DraggableThumbnail } from "./DraggableThumbnail";
+import { SlideDataViewButton } from "./SlideDataViewButton";
 import { useAppSelector, useAppDispatch } from "../store/hooks";
 import { setCurrentSlide, reorderSlides } from "../store/slidesSlice";
 
@@ -15,9 +16,17 @@ interface CanvasViewProps {
   /** For re-uploading slide code when order changes after a drag */
   presentationId: string | null;
   onReorderUpload: (slideNumber: number, code: string) => void;
+  /** Handler for viewing slide data points */
+  onSlideDataView: (slideId: string) => void;
 }
 
-export function CanvasView({ onCitationClick, onSlideRendered, presentationId, onReorderUpload  }: CanvasViewProps) {
+export function CanvasView({ 
+  onCitationClick, 
+  onSlideRendered, 
+  presentationId, 
+  onReorderUpload,
+  onSlideDataView 
+}: CanvasViewProps) {
   const dispatch = useAppDispatch();
   const slidesFromStore = useAppSelector((state) => state.slides.slides);
   const currentSlideId = useAppSelector((state) => state.slides.currentSlideId);
@@ -105,21 +114,31 @@ export function CanvasView({ onCitationClick, onSlideRendered, presentationId, o
                   return (
                     <div
                       key={`${slide.id}-${slide.slideNumber}`}
-                      ref={(el) => { slideRefs.current[slide.id] = el; }}
-                      onClick={() => dispatch(setCurrentSlide(slide.id))}
-                      className={`bg-white rounded-lg shadow-xl border-2 overflow-hidden cursor-pointer transition-colors flex-shrink-0 ${
-                        slide.id === currentSlideId
-                          ? "border-blue-500"
-                          : "border-gray-200 hover:border-blue-300"
-                      }`}
-                      style={{ width: "960px", height: "540px" }}
-                      data-slide-canvas
+                      className="relative"
                     >
-                      <SlideWithCitations
-                        code={slide.code}
-                        slideNumber={slide.slideNumber}
-                        onCitationClick={onCitationClick}
-                        onRendered={() => onSlideRendered(slide.slideNumber)}
+                      <div
+                        ref={(el) => { slideRefs.current[slide.id] = el; }}
+                        onClick={() => dispatch(setCurrentSlide(slide.id))}
+                        className={`bg-white rounded-lg shadow-xl border-2 overflow-hidden cursor-pointer transition-colors flex-shrink-0 ${
+                          slide.id === currentSlideId
+                            ? "border-blue-500"
+                            : "border-gray-200 hover:border-blue-300"
+                        }`}
+                        style={{ width: "960px", height: "540px" }}
+                        data-slide-canvas
+                      >
+                        <SlideWithCitations
+                          code={slide.code}
+                          slideNumber={slide.slideNumber}
+                          onCitationClick={onCitationClick}
+                          onRendered={() => onSlideRendered(slide.slideNumber)}
+                        />
+                      </div>
+                      
+                      {/* Data View Button Overlay */}
+                      <SlideDataViewButton
+                        slideId={slide.id}
+                        onSlideDataView={onSlideDataView}
                       />
                     </div>
                   );

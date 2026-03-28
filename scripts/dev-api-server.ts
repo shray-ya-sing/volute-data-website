@@ -40,7 +40,8 @@ let pdfHandler: any;
 let agentHandler: any;
 let exportPptxCodeHandler: any;
 let exportPptxGenjsHandler: any;
-
+let dataSearchHandler: any;
+let agentWebsearchHandler: any;
 async function loadHandlers() {
   const extractModule = await import('../api/cron/extract-prospectus.js');
   extractProspectusHandler = extractModule.default;
@@ -73,6 +74,12 @@ async function loadHandlers() {
 
   const exportPptxGenjsModule = await import('../api/export-pptx-genjs.ts');
   exportPptxGenjsHandler = exportPptxGenjsModule.default;
+
+  const dataSearchModule = await import('../api/data-search.ts');
+  dataSearchHandler = dataSearchModule.default;
+
+  const agentWebsearchModule = await import('../api/agent-websearch.ts');
+  agentWebsearchHandler = agentWebsearchModule.default;
 }
 
 // Helper to send JSON response
@@ -80,7 +87,7 @@ function sendJSON(res: any, statusCode: number, data: any) {
   res.writeHead(statusCode, {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS, POST, PUT, DELETE',
     'Access-Control-Allow-Headers': 'Content-Type',
   });
   res.end(JSON.stringify(data));
@@ -546,7 +553,96 @@ const server = createServer((req, res) => {
       }
     }
   });
-}
+} else if (pathname === '/api/agent-websearch' && req.method === 'POST') {
+  let body = '';
+  req.on('data', chunk => { body += chunk; });
+  req.on('end', async () => {
+    const mockReq: any = {
+      query: parsedUrl.query || {},
+      headers: req.headers,
+      method: req.method,
+      url: req.url,
+      body: body ? JSON.parse(body) : {},
+    };
+
+    const mockRes: any = {
+      statusCode: 200,
+
+      status(code: number) {
+        this.statusCode = code;
+        return this;
+      },
+
+      setHeader(name: string, value: string) {
+        // Only set headers while the socket is still open and headers
+        // haven't been sent yet — SSE keeps the connection alive so
+        // we guard against the "headers already sent" error.
+        try {
+          if (!res.headersSent) {
+            res.setHeader(name, value);
+          }
+        } catch (e: any) {
+          console.warn(`[dev-server] setHeader("${name}") skipped: ${e.message}`);
+        }
+      },
+
+      // SSE needs this — flush headers so the client sees the stream open
+      flushHeaders() {
+        try {
+          if (!res.headersSent) {
+            res.flushHeaders();
+          }
+        } catch (e: any) {
+          console.warn(`[dev-server] flushHeaders() skipped: ${e.message}`);
+        }
+      },
+
+      // Core SSE method — each "data: …\n\n" line is written here
+      write(chunk: string | Buffer) {
+        try {
+          const ok = res.write(chunk);
+          if (!ok) {
+            // Back-pressure: wait for drain before writing more
+            console.warn('[dev-server] write() back-pressure detected');
+          }
+          return ok;
+        } catch (e: any) {
+          console.error(`[dev-server] write() error: ${e.message}`);
+          return false;
+        }
+      },
+
+      json(data: any) {
+        sendJSON(res, this.statusCode || 200, data);
+      },
+
+      end() {
+        try {
+          res.end();
+        } catch (e: any) {
+          console.warn(`[dev-server] end() skipped: ${e.message}`);
+        }
+      },
+    };
+
+    try {
+      await agentWebsearchHandler(mockReq, mockRes);
+    } catch (error: any) {
+      console.error('[dev-server] Error in agent:', error);
+      // Only send JSON error if we haven't already started streaming
+      if (!res.headersSent) {
+        sendJSON(res, 500, { error: error.message });
+      } else {
+        // Stream already open — write an SSE error event then close
+        try {
+          res.write(`data: ${JSON.stringify({ type: 'error', message: error.message })}\n\n`);
+        } finally {
+          res.end();
+        }
+      }
+    }
+  });
+} 
   else if (pathname === '/api/export-pptx-genjs' && req.method === 'POST') {
     let body = Buffer.alloc(0);
     req.on('data', (chunk: Buffer) => { body = Buffer.concat([body, chunk]); });
@@ -633,7 +729,80 @@ const server = createServer((req, res) => {
         sendJSON(res, 500, { error: error.message });
       }
     });
-  }
+  } else if (pathname === '/api/data-search' && req.method === 'POST') {
+      let body = '';
+      req.on('data', chunk => { body += chunk; });
+      req.on('end', async () => {
+        const mockReq: any = {
+          query: parsedUrl.query || {},
+          headers: req.headers,
+          method: req.method,
+          url: req.url,
+          body: body ? JSON.parse(body) : {},
+        };
+
+        const mockRes: any = {
+          statusCode: 200,
+
+          status(code: number) {
+            this.statusCode = code;
+            return this;
+          },
+
+          setHeader(name: string, value: string) {
+            try {
+              if (!res.headersSent) res.setHeader(name, value);
+            } catch (e: any) {
+              console.warn(`[dev-server] setHeader("${name}") skipped: ${e.message}`);
+            }
+          },
+
+          flushHeaders() {
+            try {
+              if (!res.headersSent) res.flushHeaders();
+            } catch (e: any) {
+              console.warn(`[dev-server] flushHeaders() skipped: ${e.message}`);
+            }
+          },
+
+          write(chunk: string | Buffer) {
+            try {
+              return res.write(chunk);
+            } catch (e: any) {
+              console.error(`[dev-server] write() error: ${e.message}`);
+              return false;
+            }
+          },
+
+          json(data: any) {
+            sendJSON(res, this.statusCode || 200, data);
+          },
+
+          end() {
+            try {
+              res.end();
+            } catch (e: any) {
+              console.warn(`[dev-server] end() skipped: ${e.message}`);
+            }
+          },
+        };
+
+        try {
+          await dataSearchHandler(mockReq, mockRes);
+        } catch (error: any) {
+          console.error('[dev-server] Error in data-search:', error);
+          if (!res.headersSent) {
+            sendJSON(res, 500, { error: error.message });
+          } else {
+            try {
+              res.write(`data: ${JSON.stringify({ type: 'error', message: error.message })}\n\n`);
+            } finally {
+              res.end();
+            }
+          }
+        }
+      });
+    }
   else {
     sendJSON(res, 404, { error: 'Not found' });
   }
@@ -659,6 +828,8 @@ loadHandlers().then(() => {
     console.log(`  POST http://localhost:${PORT}/api/agent`);
     console.log(`  POST http://localhost:${PORT}/api/export-pptx-code`);
     console.log(`  POST http://localhost:${PORT}/api/export-pptx-genjs`);
+    console.log(`  POST http://localhost:${PORT}/api/data-search`);
+    console.log(`  POST http://localhost:${PORT}/api/agent-websearch`);
     console.log();
     console.log('To test integration:');
     console.log('  1. Keep this server running');

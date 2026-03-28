@@ -1,17 +1,13 @@
-import { useEffect, useCallback, useRef } from "react";
-import { useLocation } from "react-router";
-import { ChatSidebar } from "../components/ChatSidebar";
-import type { AttachmentPreview } from "../components/ChatSidebar";
-import { CanvasView } from "../components/CanvasView";
-import { SourcePanel } from "../components/SourcePanel";
-import { TopBar } from "../components/TopBar";
 import { useAppSelector, useAppDispatch } from "../store/hooks";
-import { clearSlides, clearCachedSlides } from "../store/slidesSlice";
+import { clearSlides, clearCachedSlides, setSlideDataPoints } from "../store/slidesSlice";
 import { clearAttachments } from "../store/attachmentsSlice";
 import { useAgentStream, type SlideData } from "../hooks/useAgentStream";
 import { attachmentPreviewsToApiImages } from "../utils/fileToBase64";
-import { PanelRightOpen, PanelLeftOpen } from "lucide-react";
-import { useState } from "react";
+import { generateMockDataPoints } from "../utils/mockDataPoints";
+import { SlideDataPoint } from "../types/slideData";
+import { RateLimitModal } from "../components/RateLimitModal";
+import { getTimeUntilReset } from "../utils/anonymousRateLimit";
+import { CreditsErrorModal } from "../components/CreditsErrorModal";
 
 export interface Message {
   id: string;
@@ -30,8 +26,12 @@ export function Workspace() {
   const slides = useAppSelector((state) => state.slides.slides);
   const attachments = useAppSelector((state) => state.attachments.attachments);
   const theme = useAppSelector((state) => state.theme);
-  const [sourcesCollapsed, setSourcesCollapsed] = useState(false);
   const [chatCollapsed, setChatCollapsed] = useState(false);
+
+  // Data modal state
+  const [dataModalSlideId, setDataModalSlideId] = useState<string | null>(null);
+  
+  const dataModalSlide = slides.find(s => s.id === dataModalSlideId) || null;
 
   // Tracks whether attachment cleanup has already run for the current agent turn
   const attachmentCleanedRef = useRef(false);
@@ -77,6 +77,10 @@ export function Workspace() {
     setHighlightedSourceId,
     send,
     reset,
+    rateLimitError,
+    clearRateLimitError,
+    creditsError,
+    clearCreditsError,
   } = useAgentStream({
     apiUrl: 'https://www.getvolute.com/api/agent-websearch',
     onSlideGenerated,
@@ -284,12 +288,20 @@ export function Workspace() {
   const handleCitationClick = useCallback((citationId: number) => {
     setHighlightedSourceId(citationId);
     setTimeout(() => setHighlightedSourceId(null), 3000);
-  }, []);
+  }, [setHighlightedSourceId]);
 
   const handleSourceClick = useCallback((source: { id: number; url: string }) => {
     setHighlightedSourceId(source.id);
     setTimeout(() => setHighlightedSourceId(null), 3000);
-  }, []);
+  }, [setHighlightedSourceId]);
+
+  // ── Data view handlers ─────────────────────────────────────────────────────
+  const handleSlideDataView = (slideId: string) => {
+    // Simply open the data modal - do NOT auto-generate mock data
+    // Real data points come from the backend via the 'slide_data_points' SSE event
+    // which is handled in useAgentStream.ts and stored in Redux
+    setDataModalSlideId(slideId);
+  };
 
   // ── New chat ────────────────────────────────────────────────────────────────
   const handleNewChat = () => {
@@ -304,67 +316,75 @@ export function Workspace() {
 
   return (
     <div className="h-screen flex flex-col" style={{ backgroundColor: 'var(--volute-bg)' }}>
-      <TopBar onNewChat={handleNewChat} isStreaming={isStreaming} />
+      <ErrorBoundary>
+        <TopBar onNewChat={handleNewChat} isStreaming={isStreaming} />
+      </ErrorBoundary>
 
       <div className="flex-1 flex overflow-x-auto overflow-y-hidden">
 
         {/* Chat sidebar */}
-        {chatCollapsed ? (
-          <div data-no-print className="flex-shrink-0 border-r border-gray-200 bg-[var(--volute-bg)]">
-            <button
-              onClick={() => setChatCollapsed(false)}
-              className="p-2 m-2 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
-              title="Expand chat panel"
-            >
-              <PanelLeftOpen className="size-4" />
-            </button>
-          </div>
-        ) : (
-          <div data-no-print className="w-[400px] flex-shrink-0">
-            <ChatSidebar
-              messages={messages}
-              onSendMessage={handleSendMessage}
-              isStreaming={isStreaming}
-              activeTools={activeTools}
-              onNewChat={handleNewChat}
-              onToggleCollapse={() => setChatCollapsed(true)}
-            />
-          </div>
-        )}
+        <ErrorBoundary>
+          {chatCollapsed ? (
+            <div data-no-print className="flex-shrink-0 border-r border-gray-200 bg-[var(--volute-bg)]">
+              <button
+                onClick={() => setChatCollapsed(false)}
+                className="p-2 m-2 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                title="Expand chat panel"
+              >
+                <PanelLeftOpen className="size-4" />
+              </button>
+            </div>
+          ) : (
+            <div data-no-print className="w-[400px] flex-shrink-0">
+              <ChatSidebar
+                messages={messages}
+                onSendMessage={handleSendMessage}
+                isStreaming={isStreaming}
+                activeTools={activeTools}
+                onNewChat={handleNewChat}
+                onToggleCollapse={() => setChatCollapsed(true)}
+              />
+            </div>
+          )}
+        </ErrorBoundary>
 
         {/* Canvas */}
         <div className="flex-1 min-w-[1120px] min-h-0 overflow-hidden">
-          <CanvasView
-            onCitationClick={handleCitationClick}
-            onSlideRendered={handleSlideRendered}
-            presentationId={presentationId}
-            onReorderUpload={handleReorderUpload}
-          />
+          <ErrorBoundary>
+            <CanvasView
+              onCitationClick={handleCitationClick}
+              onSlideRendered={handleSlideRendered}
+              presentationId={presentationId}
+              onReorderUpload={handleReorderUpload}
+              onSlideDataView={handleSlideDataView}
+            />
+          </ErrorBoundary>
         </div>
 
-        {/* Source panel */}
-        {sourcesCollapsed ? (
-          <div data-no-print className="flex-shrink-0 border-l border-gray-200 bg-[var(--volute-bg)]">
-            <button
-              onClick={() => setSourcesCollapsed(false)}
-              className="p-2 m-2 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
-              title="Expand sources panel"
-            >
-              <PanelRightOpen className="size-4" />
-            </button>
-          </div>
-        ) : (
-          <div data-no-print className="w-[300px] flex-shrink-0 border-l border-gray-200 bg-[var(--volute-bg)]">
-            <SourcePanel
-              sources={sources}
-              highlightedSourceId={highlightedSourceId}
-              onSourceClick={handleSourceClick}
-              onToggleCollapse={() => setSourcesCollapsed(true)}
-            />
-          </div>
-        )}
-
       </div>
+
+      {/* Data Modal */}
+      <ErrorBoundary>
+        <SlideDataModal
+          slide={dataModalSlide}
+          isOpen={dataModalSlideId !== null}
+          onClose={() => setDataModalSlideId(null)}
+        />
+      </ErrorBoundary>
+
+      {/* Rate Limit Modal */}
+      <RateLimitModal
+        isOpen={rateLimitError !== null}
+        onClose={clearRateLimitError}
+        message={rateLimitError?.message || ''}
+        resetTime={rateLimitError ? getTimeUntilReset() : ''}
+      />
+
+      {/* Credits Error Modal */}
+      <CreditsErrorModal
+        isOpen={creditsError}
+        onClose={clearCreditsError}
+      />
     </div>
   );
 }
