@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate, Link } from "react-router";
+import { useNavigate } from "react-router";
 import { ArrowRight, Paperclip, X } from "lucide-react";
 import { fileToDataUri } from "../utils/fileToBase64";
 
@@ -12,9 +12,9 @@ export function Landing() {
   const navigate = useNavigate();
 
   const samplePrompts = [
-    "Make a slide on global PE Fundraising trends by strategy",
-    "Make a precedent transactions slide on 2025 industrials buyouts and add slides with financial profiles of all targets",
-    "Make a precedent transactions slide with 2024-2025 US Mid Market PE Software Buyouts with EV/EBITDA comps",
+    "2024 Global PE fundraising trends by strategy",
+    "2025 Industrials Buyouts with financial profiles",
+    "US Mid-Market PE Software EV/EBITDA comps",
   ];
 
   const handleSubmit = async (promptText?: string) => {
@@ -96,9 +96,9 @@ export function Landing() {
             Beta Version Preview
           </p>
           <h1 className="v-headline">
-            Financial AI that
+            Research at the
             <br />
-            <em>gets the numbers right</em>
+            speed of <em>thought</em>
           </h1>
           <p className="v-subhead">
             Describe the analysis you need. Volute aggregates
@@ -229,9 +229,9 @@ export function Landing() {
       <footer className="v-footer">
         <span className="v-footer-copy">© 2026 Volute</span>
         <div className="v-footer-links">
-          <Link to="/privacy">Privacy</Link>
-          <Link to="/terms">Terms</Link>
-          <a href="mailto:contact@getvolute.com">Contact</a>
+          <a href="#">Privacy</a>
+          <a href="#">Terms</a>
+          <a href="#">Contact</a>
         </div>
       </footer>
     </div>
