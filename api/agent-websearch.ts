@@ -86,7 +86,7 @@ interface SlideDataPoint {
 // Vercel config
 // ---------------------------------------------------------------------------
 
-export const config = { maxDuration: 300 };
+export const config = { maxDuration: 800 };
 
 // ---------------------------------------------------------------------------
 // Anthropic client

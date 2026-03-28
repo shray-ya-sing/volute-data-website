@@ -9,6 +9,12 @@
     }
   ],
   "functions": {
+    "api/data-search.ts": {
+      "maxDuration": 800
+    },
+    "api/agent-websearch.ts": {
+      "maxDuration": 800
+    },
     "api/pdf.ts": {
       "memory": 1024,
       "maxDuration": 120,

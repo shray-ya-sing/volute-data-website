@@ -93,6 +93,10 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
   const dispatch = useAppDispatch();
   const theme = useAppSelector((state) => state.theme);
 
+  // Add state
+  const [rateLimitError, setRateLimitError] = useState<{ message: string } | null>(null);
+  const [creditsError, setCreditsError] = useState(false);
+
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isToolRunning, setIsToolRunning] = useState(false);
@@ -324,6 +328,13 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
         return;
       }
 
+      const rateCheck = checkRateLimit();
+        if (!rateCheck.allowed) {
+          setRateLimitError({ message: rateCheck.message || '' });
+          return;
+        }
+        recordRequest();
+
       // Mint presentationId on first send in this session
       let pid = presentationIdRef.current;
       if (!pid) {
@@ -396,24 +407,12 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
 
         // ── Check for credits exhausted error (400) ──────────────────────────────
         if (response.status === 400) {
-          const clonedResponse = response.clone();
-          const errorText = await clonedResponse.text();
-
+          const errorText = await response.clone().text();
           if (errorText.includes('credit balance is too low') ||
               errorText.includes('invalid_request_error')) {
-            console.error('[useAgentStream] ⚠️ Credits exhausted - showing maintenance message');
-
-            if (currentAssistantMessageRef.current) {
-              currentAssistantMessageRef.current.content = 'Sorry, Volute is temporarily unavailable due to maintenance. Please check back later.';
-              setMessages((prev) => [...prev]);
-            }
-
+            setCreditsError(true); // ← trigger modal
             setIsStreaming(false);
-            setIsToolRunning(false);
-            setActiveTools([]);
             dispatch(setGenerating(false));
-            abortControllerRef.current = null;
-            currentAssistantMessageRef.current = null;
             return;
           }
         }
@@ -514,5 +513,9 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
     sources,
     highlightedSourceId,
     setHighlightedSourceId,
+    rateLimitError,
+    clearRateLimitError: () => setRateLimitError(null),
+    creditsError,
+    clearCreditsError: () => setCreditsError(false),
   };
 }

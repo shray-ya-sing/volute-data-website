@@ -5,7 +5,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 // Vercel config
 // ---------------------------------------------------------------------------
 
-export const config = { maxDuration: 300 };
+export const config = { maxDuration: 800 };
 
 // ---------------------------------------------------------------------------
 // Anthropic client
