@@ -517,7 +517,18 @@ async function deepSearch(query: string): Promise<string> {
 
   try {
     while (true) {
-      const { done, value } = await reader.read();
+
+      let done: boolean, value: Uint8Array | undefined;
+      try {
+        ({ done, value } = await reader.read());
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          console.warn(`[agent] 🔬 deepSearch stream aborted after ${Date.now() - t0}ms — returning partial result`);
+          return searchResult || 'Data search timed out. Proceed with the slide using any data already found, and let the user know live data was unavailable for this query.';
+        }
+        throw err;
+      }
+
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
@@ -1158,7 +1169,7 @@ async function executeTool(
 
   // Deep search only — no broadSearch
   const result = await deepSearch(input.query); // parallel deepSearch calls
-  
+
   if (result.startsWith('Found ')) {
     const allSources = trackSourcesFromSearchResult(sessionId, result);
     sendSSE(res, { type: 'sources_updated', sources: allSources });
