@@ -464,7 +464,7 @@ async function broadSearch(query: string): Promise<string> {
 // ---------------------------------------------------------------------------
 
 // prevent hanging deepSearch calls
-const DEEP_SEARCH_TIMEOUT_MS = 90_000; // 90s hard cap per deepSearch call
+const DEEP_SEARCH_TIMEOUT_MS = 240_000; // 280s hard cap per deepSearch call
 
 async function deepSearch(query: string): Promise<string> {
   const baseUrl = process.env.PRODUCTION_CUSTOM_BASE_URL
@@ -1157,8 +1157,8 @@ async function executeTool(
   }
 
   // Deep search only — no broadSearch
-  const result = await queuedDeepSearch(input.query); // replace await deepSearch(input.query); for serialized invocation
-
+  const result = await deepSearch(input.query); // parallel deepSearch calls
+  
   if (result.startsWith('Found ')) {
     const allSources = trackSourcesFromSearchResult(sessionId, result);
     sendSSE(res, { type: 'sources_updated', sources: allSources });
