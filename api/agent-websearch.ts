@@ -463,6 +463,9 @@ async function broadSearch(query: string): Promise<string> {
 // metric verification (SEC filings, press releases, etc.)
 // ---------------------------------------------------------------------------
 
+// prevent hanging deepSearch calls
+const DEEP_SEARCH_TIMEOUT_MS = 90_000; // 90s hard cap per deepSearch call
+
 async function deepSearch(query: string): Promise<string> {
   const baseUrl = process.env.PRODUCTION_CUSTOM_BASE_URL
     ? `https://${process.env.PRODUCTION_CUSTOM_BASE_URL}`
@@ -473,11 +476,29 @@ async function deepSearch(query: string): Promise<string> {
   console.log(`[agent] 🔬 deepSearch → "${query.slice(0, 120)}" | endpoint: ${endpoint}`);
   const t0 = Date.now();
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query }),
-  });
+  const controller = new AbortController();
+  const timeoutHandle = setTimeout(() => {
+    console.warn(`[agent] 🔬 deepSearch timeout after ${DEEP_SEARCH_TIMEOUT_MS}ms — aborting`);
+    controller.abort();
+  }, DEEP_SEARCH_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query }),
+      signal: controller.signal,
+    });
+  } catch (err: any) {
+    clearTimeout(timeoutHandle);
+    if (err.name === 'AbortError') {
+      console.warn(`[agent] 🔬 deepSearch aborted after ${Date.now() - t0}ms`);
+      return 'Search timed out — proceeding with data found so far.';
+    }
+    throw err;
+  }
+
 
   if (!response.ok) {
     const errText = await response.text().catch(() => '');
@@ -537,11 +558,17 @@ async function deepSearch(query: string): Promise<string> {
         if (event.type === 'search_result' && typeof event.text === 'string') {
           searchResult = event.text;
         }
-      } catch {
-        // ignore malformed trailing data
+      } catch (err: any) {
+          if (err.name === 'AbortError') {
+            console.warn(`[agent] 🔬 deepSearch stream aborted after ${Date.now() - t0}ms — returning partial result`);
+            // fall through — return whatever searchResult we have so far
+          } else {
+            throw err;
+          }
       }
     }
   } finally {
+    clearTimeout(timeoutHandle);
     reader.releaseLock();
   }
 
@@ -555,6 +582,26 @@ async function deepSearch(query: string): Promise<string> {
   );
 
   return searchResult;
+}
+
+// ---------------------------------------------------------------------------
+// vector_search serialization queue
+// Prevents parallel deepSearch calls from blowing the 300s Vercel timeout.
+// Each call is queued and runs only after the previous one completes.
+// ---------------------------------------------------------------------------
+
+let deepSearchQueue: Promise<void> = Promise.resolve();
+
+function queuedDeepSearch(query: string): Promise<string> {
+  let result!: Promise<string>;
+  deepSearchQueue = deepSearchQueue.then(() => {
+    result = deepSearch(query);
+    return result.then(() => {}, () => {}); // always advance queue
+  });
+  // Return the actual result promise (not the queue promise)
+  return new Promise((resolve, reject) => {
+    deepSearchQueue.then(() => result.then(resolve, reject));
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -1110,7 +1157,7 @@ async function executeTool(
   }
 
   // Deep search only — no broadSearch
-  const result = await deepSearch(input.query);
+  const result = await queuedDeepSearch(input.query); // replace await deepSearch(input.query); for serialized invocation
 
   if (result.startsWith('Found ')) {
     const allSources = trackSourcesFromSearchResult(sessionId, result);
