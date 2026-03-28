@@ -126,7 +126,7 @@ export function checkRateLimit(): {
       allowed: false,
       remaining: 0,
       resetAt: usage.windowResetAt,
-      message: `You've reached the limit of ${MAX_ANONYMOUS_REQUESTS} requests for unregistered users. Your limit will reset in ${hoursRemaining} hour${hoursRemaining !== 1 ? 's' : ''}.`,
+      message: `You've reached the preview limit of ${MAX_ANONYMOUS_REQUESTS} requests. Your limit will reset in ${hoursRemaining} hour${hoursRemaining !== 1 ? 's' : ''}.`,
     };
   }
 
