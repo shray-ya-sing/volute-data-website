@@ -888,6 +888,9 @@ const tools: Anthropic.Tool[] = [
   {
     name: 'verify_data',
     description:
+      'MANDATORY: verify_data is REQUIRED before create_or_edit_slide'+
+      'You MUST call verify_data at least once before calling create_or_edit_slide for any ' +
+      'slide that contains financial metrics, deal figures, multiples, valuations, or company'+    
       'Verify specific financial metrics and retrieve complete, sourced data points for ' +
       'named companies, deals, and time periods. Calls a dedicated deep research agent that ' +
       'queries SEC filings (424B4, 10-K, 10-Q, 8-K, DEFM14A), proprietary IPO/SPAC databases, ' +
@@ -898,11 +901,7 @@ const tools: Anthropic.Tool[] = [
       'QUERY FORMAT: Be precise — name the entities, metrics, and years you need. ' +
       'Example: "Blackstone Q4 2024 fundraising total and AUM — full year comparison" or ' +
       '"Arm Holdings IPO offer price, shares sold, and total proceeds — September 2023 424B4".\n\n' +
-      'RESULT FORMAT: Returns a "Found N relevant sources:" block. Each source block contains ' +
-      'a Title (Entity — Metric), URL, Content (exact value with confidence), and Relevance score. ' +
-      'The slide_data_points event is emitted automatically from these results — you do NOT need ' +
-      'to register data points manually. Use the returned values and URLs when building your ' +
-      'slide prompt for create_or_edit_slide.',
+      'Notify the user when you have verified the data.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -1414,9 +1413,17 @@ Call vector_search before any other data tool. This gathers the essential qualit
 - Use multiple targeted queries to cover different aspects (e.g. company overview, deal structure, market context separately).
 - Cite sources by title or URL when referencing data from these results.
 - Do NOT skip this step and jump straight to verify_data — qualitative context is essential for accurate slide narratives.
+- If vector search doesnt return enough datapoints like exact figures or deal metrics, then include these in your query to verify_data, you should use verify_data to get depth for thorough datapoints and information after your preliminary breadth first search.
 
-### Step 2 — verify_data (for specific metrics and data points)
-After vector_search has provided qualitative context, call verify_data to pin down exact metric values with primary-source verification. verify_data queries SEC filings, the proprietary IPO/SPAC database, and authoritative financial news.
+### Step 2 — verify_data (for specific metrics and data points, ALWAYS CALL THIS WHEN DATA IS NEEDED, YOU CANNOT MAKE THE SLIDE WITHOUT VERIFYING THE DATA)
+#### MANDATORY: verify_data is REQUIRED before create_or_edit_slide
+You MUST call verify_data at least once before calling create_or_edit_slide for any 
+slide that contains financial metrics, deal figures, multiples, valuations, or company
+data. This is non-negotiable. If you call create_or_edit_slide without first calling
+verify_data for a data slide, you have made an error.
+The ONLY exceptions are:
+- Pure layout/design slides with no financial data (title, table_of_contents, section_divider)
+- Explicit user instruction to skip verification'+After vector_search has provided qualitative context, call verify_data to pin down exact metric values with primary-source verification. verify_data queries SEC filings, the proprietary IPO/SPAC database, and authoritative financial news.
 
 - Write highly specific queries naming the companies, metrics, and time periods: e.g. "Blackstone Q4 2024 total fundraising and AUM" or "Arm Holdings IPO September 2023 offer price and total proceeds".
 - Call once per focused data topic — do NOT call repeatedly with the same or similar queries. If one call does not return a metric, accept it as unavailable rather than retrying with nearly identical queries.
