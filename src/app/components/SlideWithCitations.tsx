@@ -5,12 +5,14 @@ interface SlideWithCitationsProps {
   code: string;
   slideNumber: number;
   onCitationClick: (citationId: number) => void;
+  onRendered?: () => void;
 }
 
 export function SlideWithCitations({
   code,
   slideNumber,
   onCitationClick,
+  onRendered,
 }: SlideWithCitationsProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -31,11 +33,13 @@ export function SlideWithCitations({
 
   // Inject a small script into the Sandpack code that adds click listeners
   // to all [data-citation] elements and posts a message to the parent
-  const codeWithCitationHandlers = code + `
-
+  const codeWithCitationHandlers = code + `\n
 // --- Citation click handler (injected) ---
 if (typeof window !== 'undefined') {
-  document.addEventListener('click', (e) => {
+  if (window.__voluteCitationHandler__) {
+    document.removeEventListener('click', window.__voluteCitationHandler__);
+  }
+  window.__voluteCitationHandler__ = (e) => {
     const badge = e.target.closest('[data-citation]');
     if (badge) {
       const id = parseInt(badge.getAttribute('data-citation'), 10);
@@ -43,12 +47,17 @@ if (typeof window !== 'undefined') {
         window.parent.postMessage({ type: 'citation-click', id }, '*');
       }
     }
-  });
+  };
+  document.addEventListener('click', window.__voluteCitationHandler__);
 }`;
 
   return (
     <div ref={containerRef} className="w-full h-full">
-      <SandboxSlide code={codeWithCitationHandlers} slideNumber={slideNumber} />
+      <SandboxSlide
+        code={codeWithCitationHandlers}
+        slideNumber={slideNumber}
+        onRendered={onRendered}
+      />
     </div>
   );
 }

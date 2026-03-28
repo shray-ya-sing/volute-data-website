@@ -1,7 +1,6 @@
 import { useState, useCallback } from "react";
 import { Download, Loader2 } from "lucide-react";
 import { useAppSelector } from "../store/hooks";
-import { ExportUnavailableModal } from "./ExportUnavailableModal";
 
 /** Helper: trigger a browser download from a Blob */
 function downloadBlob(blob: Blob, filename: string) {
@@ -26,7 +25,6 @@ export function ExportButton() {
   const theme = useAppSelector((s) => s.theme);
 
   const [showDropdown, setShowDropdown] = useState(false);
-  const [showModal, setShowModal] = useState(false);
   const [exporting, setExporting] = useState<"pdf" | "png" | "pptx" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,12 +67,13 @@ export function ExportButton() {
         downloadBlob(blob, `${safeName(presentationName)}.pdf`);
       } else {
         let msg = `Server returned ${res.status}`;
+        const raw = await res.text();
         try {
-          const body = await res.json();
+          const body = JSON.parse(raw);
           msg = body.error || body.message || msg;
           console.error("[Export] PDF error:", body);
         } catch {
-          console.error("[Export] PDF raw error:", (await res.text()).slice(0, 500));
+          console.error("[Export] PDF raw error:", raw.slice(0, 500));
         }
         setError(msg);
       }
@@ -120,12 +119,13 @@ export function ExportButton() {
         downloadBlob(blob, `${name}${ext}`);
       } else {
         let msg = `Server returned ${res.status}`;
+        const raw = await res.text();
         try {
-          const body = await res.json();
+          const body = JSON.parse(raw);
           msg = body.error || body.message || msg;
           console.error("[Export] PNG error:", body);
         } catch {
-          console.error("[Export] PNG raw error:", (await res.text()).slice(0, 500));
+          console.error("[Export] PNG raw error:", raw.slice(0, 500));
         }
         setError(msg);
       }
@@ -152,7 +152,7 @@ export function ExportButton() {
           const res = await fetch("https://www.getvolute.com/api/generate-slide-json", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ code: slide.code, slideNumber: slide.slideNumber }),
+            body: JSON.stringify({ code: slide.code, slideNumber: slide.slideNumber, theme }),
           });
 
           if (!res.ok) {
@@ -194,12 +194,13 @@ export function ExportButton() {
         downloadBlob(blob, `${safeName(presentationName)}.pptx`);
       } else {
         let msg = `Export server returned ${exportRes.status}`;
+        const raw = await exportRes.text();
         try {
-          const body = await exportRes.json();
+          const body = JSON.parse(raw);
           msg = body.error || body.message || msg;
           console.error("[Export] PPTX error:", body);
         } catch {
-          console.error("[Export] PPTX raw error:", (await exportRes.text()).slice(0, 500));
+          console.error("[Export] PPTX raw error:", raw.slice(0, 500));
         }
         setError(msg);
       }
@@ -209,13 +210,13 @@ export function ExportButton() {
     } finally {
       setExporting(null);
     }
-  }, [slides, presentationName]);
+  }, [slides, theme, presentationName]);
 
   // ── Dropdown items ──────────────────────────────────────────────────────
   const items: { label: string; handler: () => void }[] = [
-    { label: "PDF", handler: () => setShowModal(true) },
-    { label: "PNG", handler: () => setShowModal(true) },
-    { label: "PPTX", handler: () => setShowModal(true) },
+    { label: "PDF", handler: handleExportPDF },
+    { label: "PNG", handler: handleExportPng },
+    { label: "PPTX", handler: handleExportPptx },
   ];
 
   return (
@@ -266,10 +267,6 @@ export function ExportButton() {
           </div>
         )}
       </div>
-      <ExportUnavailableModal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-      />
     </div>
   );
 }

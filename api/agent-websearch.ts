@@ -6,6 +6,7 @@ import * as https from 'https';
 
 // Import the slide generation handler directly — no HTTP call needed
 import generateSlideHandler from './generate-slide.js';
+import { error } from 'console';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -71,16 +72,6 @@ interface CreateOrEditSlideInput {
 }
 
 // ---------------------------------------------------------------------------
-// Slide data point types — used for auto-emit from parsed data-search results
-// ---------------------------------------------------------------------------
-
-interface SlideDataPoint {
-  label: string;
-  value: string;
-  sourceUrls: string[];
-}
-
-// ---------------------------------------------------------------------------
 // Vercel config
 // ---------------------------------------------------------------------------
 
@@ -107,7 +98,7 @@ function getHistory(sessionId: string): ConversationHistory {
 
 function saveHistory(sessionId: string, history: ConversationHistory): void {
   const maxEntries = MAX_HISTORY_PAIRS * 2;
-
+  
   if (history.length <= maxEntries) {
     conversationStore.set(sessionId, history);
     return;
@@ -240,90 +231,7 @@ function trackSourcesFromSearchResult(
 }
 
 // ---------------------------------------------------------------------------
-// Auto-emit slide_data_points from parsed data-search result
-//
-// Instead of relying on the agent to call a register_slide_data_points tool
-// (which was unreliable), we parse the structured "Found N relevant sources:"
-// text returned by data-search and derive SlideDataPoint[] automatically,
-// then emit the slide_data_points SSE event ourselves.
-//
-// The parsed format from data-search is:
-//   [Source N]
-//   Title: <entity> — <metric>
-//   URL: <url>
-//   Content: <metric>: <value> (<unit>) as of <date>. Source: <type>. Confidence: <high|medium|low>. <notes>
-//   Relevance: <score>%
-//   ---
-//
-// We extract label (Title after the em-dash), value (first token after the
-// colon in Content), and sourceUrl (URL line) for each source block.
-// ---------------------------------------------------------------------------
-
-function parseDataPointsFromSearchResult(
-  searchResult: string,
-  slideNumber: number,
-): SlideDataPoint[] {
-  const dataPoints: SlideDataPoint[] = [];
-
-  // Each source block matches [Source N] ... ---
-  const blockRegex = /\[Source \d+\]\nTitle: (.+)\n(?:URL: (.+)\n)?Content: ([\s\S]*?)\nRelevance: .+%/g;
-  let match;
-
-  while ((match = blockRegex.exec(searchResult)) !== null) {
-    const rawTitle   = match[1]?.trim() ?? '';
-    const url        = match[2]?.trim() ?? '';
-    const rawContent = match[3]?.trim() ?? '';
-
-    // Derive label: use the part after ' — ' in the Title if present,
-    // otherwise fall back to the full title.
-    const dashIdx = rawTitle.indexOf(' — ');
-    const label = dashIdx !== -1 ? rawTitle.slice(dashIdx + 3).trim() : rawTitle;
-
-    if (!label || !rawContent) continue;
-
-    // Derive value: the first colon-delimited segment of Content, trimmed,
-    // stopping before any parenthetical or "as of" qualifier.
-    // Content format: "Label: value (unit) as of date. ..."
-    const colonIdx = rawContent.indexOf(':');
-    let value = '';
-    if (colonIdx !== -1) {
-      // Take everything after the colon up to the first period, paren, or "as of"
-      let after = rawContent.slice(colonIdx + 1).trim();
-      // Stop at first ' (' or '. ' or ' as of'
-      const stopMatch = after.match(/\s*[\(.]|\s+as of /);
-      if (stopMatch && stopMatch.index !== undefined) {
-        after = after.slice(0, stopMatch.index).trim();
-      }
-      value = after;
-    }
-
-    if (!value) continue;
-
-    // Check if we already have a data point with this label; if so, add URL only
-    const existing = dataPoints.find(dp => dp.label === label);
-    if (existing) {
-      if (url && !existing.sourceUrls.includes(url)) {
-        existing.sourceUrls.push(url);
-      }
-    } else {
-      dataPoints.push({
-        label,
-        value,
-        sourceUrls: url ? [url] : [],
-      });
-    }
-  }
-
-  console.log(
-    `[agent] 📊 Auto-parsed ${dataPoints.length} data points from verify_data result ` +
-    `for slide ${slideNumber}`,
-  );
-
-  return dataPoints;
-}
-
-// ---------------------------------------------------------------------------
-// Search URL helpers
+// Search URL
 // ---------------------------------------------------------------------------
 
 function getSearchUrl(): { protocol: 'http' | 'https'; hostname: string; port: number | null; path: string } {
@@ -376,8 +284,9 @@ function getDatabaseSearchUrl() {
 // Logo URL Validation tool
 // ---------------------------------------------------------------------------
 
+
 async function validateLogos(
-  logos: Array<{ type: 'ticker' | 'name' | 'crypto' | 'foreign'; value: string; exchangeCode?: string }>,
+  logos: Array<{ type: 'ticker' | 'name' | 'crypto' | 'foreign'; value: string; exchangeCode?: string }>
 ): Promise<string> {
   const apiKey = process.env.LOGO_DEV_PUBLIC_KEY ?? '';
 
@@ -409,7 +318,7 @@ async function validateLogos(
         console.log(`[agent] Validation error: ${(error as any).message}`);
         return { value, type, url: null, valid: false };
       }
-    }),
+    })
   );
 
   const valid = results.filter(r => r.valid);
@@ -424,9 +333,11 @@ async function validateLogos(
   return lines.join('\n');
 }
 
+
 // ---------------------------------------------------------------------------
-// Database search (proprietary IPO/SPAC vector DB)
+// Vector search tool
 // ---------------------------------------------------------------------------
+
 
 async function databaseSearch(query: string): Promise<string> {
   const target = getDatabaseSearchUrl();
@@ -483,8 +394,9 @@ async function databaseSearch(query: string): Promise<string> {
   });
 }
 
+
 // ---------------------------------------------------------------------------
-// Vector (web/Perplexity) search
+// Vector search tool
 // ---------------------------------------------------------------------------
 
 async function vectorSearch(query: string): Promise<string> {
@@ -660,111 +572,7 @@ function parseSearchResponse(data: string, status: number, t0: number, query: st
 }
 
 // ---------------------------------------------------------------------------
-// verify_data — calls the /api/data-search endpoint (SSE) and returns the
-// final "Found N relevant sources:" text block.  Unlike the old data_search
-// tool in agent-websearch.ts, this is ONLY for verifying specific metrics
-// against primary sources (SEC filings, press releases, etc.).
-// ---------------------------------------------------------------------------
-
-async function callVerifyData(query: string): Promise<string> {
-  const baseUrl = process.env.PRODUCTION_CUSTOM_BASE_URL
-    ? `https://${process.env.PRODUCTION_CUSTOM_BASE_URL}`
-    : 'http://localhost:3001';
-
-  const endpoint = `${baseUrl}/api/data-search`;
-
-  console.log(`[agent] 🔬 callVerifyData → "${query.slice(0, 120)}" | endpoint: ${endpoint}`);
-  const t0 = Date.now();
-
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query }),
-  });
-
-  if (!response.ok) {
-    const errText = await response.text().catch(() => '');
-    console.error(`[agent] 🔬 verify_data HTTP error ${response.status}: ${errText.slice(0, 200)}`);
-    return `Error verifying data: HTTP ${response.status}`;
-  }
-
-  if (!response.body) {
-    return 'Error verifying data: no response body';
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  let searchResult = '';
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
-
-      for (const line of lines) {
-        if (!line.trim() || !line.startsWith('data: ')) continue;
-
-        let event: any;
-        try {
-          event = JSON.parse(line.slice(6));
-        } catch {
-          continue;
-        }
-
-        if (event.type === 'search_result' && typeof event.text === 'string') {
-          searchResult = event.text;
-          console.log(
-            `[agent] 🔬 verify_data received search_result: ${searchResult.length} chars`,
-          );
-        }
-
-        if (event.type === 'done') {
-          console.log(`[agent] 🔬 verify_data stream done in ${Date.now() - t0}ms`);
-          break;
-        }
-
-        if (event.type === 'error') {
-          console.error(`[agent] 🔬 verify_data error event: ${event.message}`);
-          if (!searchResult) searchResult = `Error from data search: ${event.message}`;
-        }
-      }
-    }
-
-    // Flush remaining buffer
-    if (buffer.trim().startsWith('data: ')) {
-      try {
-        const event = JSON.parse(buffer.trim().slice(6));
-        if (event.type === 'search_result' && typeof event.text === 'string') {
-          searchResult = event.text;
-        }
-      } catch {
-        // ignore malformed trailing data
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
-
-  if (!searchResult) {
-    console.warn(`[agent] 🔬 verify_data returned no search_result after ${Date.now() - t0}ms`);
-    return 'No results found for that query.';
-  }
-
-  console.log(
-    `[agent] 🔬 verify_data complete in ${Date.now() - t0}ms | ` +
-    `result: ${searchResult.length} chars`,
-  );
-
-  return searchResult;
-}
-
-// ---------------------------------------------------------------------------
-// Slide generation / editing
+// Slide generation/editing
 // ---------------------------------------------------------------------------
 
 async function createOrEditSlide(input: CreateOrEditSlideInput): Promise<string> {
@@ -860,16 +668,14 @@ async function createOrEditSlide(input: CreateOrEditSlideInput): Promise<string>
 // ---------------------------------------------------------------------------
 
 const tools: Anthropic.Tool[] = [
-  // ── 1. vector_search — qualitative context from proprietary DB + web ────
   {
     name: 'vector_search',
     description:
-      'Search the Volute IPO and SPAC news and financial data database as well as the web. ' +
+      'Search the Volute IPO and SPAC news and financial data database as well as the web ' +
       'Returns relevant articles, filings, and research findings. ' +
-      'ALWAYS call this FIRST before any other data tool to gather essential qualitative ' +
-      'context, narratives, company backgrounds, deal structures, and supporting information ' +
-      'for the query. Call it multiple times with different queries to build a complete ' +
-      'qualitative picture before moving on to verify_data for specific metrics.',
+      'Use this tool to gather data before performing any financial analysis ' +
+      'or building any deliverable. Call it multiple times with different ' +
+      'queries to build a complete picture.',
     input_schema: {
       type: 'object' as const,
       properties: {
@@ -883,50 +689,6 @@ const tools: Anthropic.Tool[] = [
       required: ['query'],
     },
   },
-
-  // ── 2. verify_data — specific metric verification via deep research agent
-  {
-    name: 'verify_data',
-    description:
-      'Verify specific financial metrics and retrieve complete, sourced data points for ' +
-      'named companies, deals, and time periods. Calls a dedicated deep research agent that ' +
-      'queries SEC filings (424B4, 10-K, 10-Q, 8-K, DEFM14A), proprietary IPO/SPAC databases, ' +
-      'and authoritative news sources.\n\n' +
-      'WHEN TO CALL: After vector_search has provided qualitative context, call verify_data ' +
-      'with specific, targeted queries to pin down exact metric values with primary sources. ' +
-      'Include company names, metric names, and time periods explicitly in your query.\n\n' +
-      'QUERY FORMAT: Be precise — name the entities, metrics, and years you need. ' +
-      'Example: "Blackstone Q4 2024 fundraising total and AUM — full year comparison" or ' +
-      '"Arm Holdings IPO offer price, shares sold, and total proceeds — September 2023 424B4".\n\n' +
-      'RESULT FORMAT: Returns a "Found N relevant sources:" block. Each source block contains ' +
-      'a Title (Entity — Metric), URL, Content (exact value with confidence), and Relevance score. ' +
-      'The slide_data_points event is emitted automatically from these results — you do NOT need ' +
-      'to register data points manually. Use the returned values and URLs when building your ' +
-      'slide prompt for create_or_edit_slide.',
-    input_schema: {
-      type: 'object' as const,
-      properties: {
-        query: {
-          type: 'string',
-          description:
-            'A specific natural language query naming the companies, metrics, and time periods ' +
-            'to verify. Include the entity names, metric names, and years explicitly. ' +
-            'Example: "KKR 2024 annual fundraising, AUM, and deal count" or ' +
-            '"Lineage Logistics IPO 2024 offer price and shares sold".',
-        },
-        slideNumber: {
-          type: 'number',
-          description:
-            'The slide number this data will be used on. Required when calling verify_data ' +
-            'before create_or_edit_slide — the backend uses this to auto-emit the ' +
-            'slide_data_points event for the correct slide.',
-        },
-      },
-      required: ['query', 'slideNumber'],
-    },
-  },
-
-  // ── 3. validate_logos ─────────────────────────────────────────────────────
   {
     name: 'validate_logos',
     description:
@@ -964,8 +726,6 @@ const tools: Anthropic.Tool[] = [
       required: ['logos'],
     },
   },
-
-  // ── 4. create_or_edit_slide ───────────────────────────────────────────────
   {
     name: 'create_or_edit_slide',
     description:
@@ -997,7 +757,7 @@ const tools: Anthropic.Tool[] = [
             'For EDITING: Describe only what to change (e.g. "change the bar chart to a line chart", ' +
             '"update the revenue figure to $2.4B", "add a footer with the source URL"). ' +
             'Do NOT include the existing code — it is fetched automatically using slideNumber.' +
-            'For logos: include validated logo.dev URLs inline as "Logo: <url>" next to the relevant company name.',
+            'For logos: include validated logo.dev URLs inline as "Logo: <url>" next to the relevant company name.',       
         },
         slideNumber: {
           type: 'number',
@@ -1093,15 +853,12 @@ const tools: Anthropic.Tool[] = [
       required: ['prompt'],
     },
   },
-
-  // ── 5. read_slide ─────────────────────────────────────────────────────────
   {
     name: 'read_slide',
     description:
       'Fetches the current code of one or more existing slides from the blob store. ' +
-      'Use when you need to read or reason about slide content NOT AVAILABLE IN YOUR CONVERSATION HISTORY — ' +
-      'for example to answer questions, write summaries, or analyse assumptions — without immediately ' +
-      'generating a new slide.\n' +
+      'Use when you need to read or reason about slide content NOT AVAILABLE IN YOUR CONVERSATION HISTORY— for example to answer questions, ' +
+      'write summaries, or analyse assumptions — without immediately generating a new slide.\n' +
       'Do NOT use before create_or_edit_slide — slide code is fetched automatically there via ' +
       'slideNumber (edit) and referenceSlideNumbers (references).',
     input_schema: {
@@ -1128,8 +885,8 @@ const tools: Anthropic.Tool[] = [
 
 interface ToolInput {
   query?: string;
-  slideNumber?: number;
   prompt?: string;
+  slideNumber?: number;
   slideNumbers?: number[];
   referenceSlideNumbers?: number[];
   context?: string;
@@ -1145,92 +902,43 @@ async function executeTool(
   resolvedImages: ImageInput[],  // pre-fetched from blob, injected server-side
   presentationId: string,        // used to fetch existing slide code from blob
   requestTheme: SlideTheme,      // user's theme forwarded from request body
-  sessionId: string,
-  res: VercelResponse,
 ): Promise<string> {
   console.log(`[agent] ⚙️  executeTool: ${name}`, JSON.stringify(input).slice(0, 200));
 
   switch (name) {
-
-    // ── vector_search — qualitative broad search ───────────────────────────
     case 'vector_search': {
       if (!input.query || typeof input.query !== 'string') {
         return 'Error: vector_search requires a "query" string parameter.';
       }
-
       const [webRes, dbRes] = await Promise.all([
         vectorSearch(input.query),
         databaseSearch(input.query),
       ]);
-
+      
       // Merge into a single "Found N relevant sources:" block
+      // so the agent loop's startsWith('Found ') check still fires
       const webBlock = webRes.startsWith('Found ') ? webRes : '';
-      const dbBlock  = dbRes.startsWith('Found ')  ? dbRes  : '';
+      const dbBlock = dbRes.startsWith('Found ') ? dbRes : '';
 
       const blocks = [webBlock, dbBlock].filter(Boolean);
       if (blocks.length === 0) return 'No results found for that query.';
 
       let combined = blocks.join('\n\n');
 
-      // Strip duplicate "Found N relevant sources:" headers and renumber sequentially
+      // Strip the "Found N relevant sources:\n\n" header from each block
       combined = combined
         .replace(/^Found \d+ relevant sources:\n\n/, '')
         .replace(/\n\nFound \d+ relevant sources:\n\n/, '\n\n');
 
+      // Renumber sequentially
       let sourceIndex = 1;
       combined = combined.replace(/\[Source \d+\]/g, () => `[Source ${sourceIndex++}]`);
-      const totalCount = sourceIndex - 1;
+      const totalCount = sourceIndex - 1;  // sourceIndex ends at totalCount + 1
 
       return `Found ${totalCount} relevant sources:\n\n${combined}`;
+      
     }
 
-    // ── verify_data — deep metric verification via data-search agent ───────
-    case 'verify_data': {
-      if (!input.query || typeof input.query !== 'string') {
-        return 'Error: verify_data requires a "query" string parameter.';
-      }
-      if (!input.slideNumber || typeof input.slideNumber !== 'number') {
-        return 'Error: verify_data requires a "slideNumber" number parameter.';
-      }
-
-      const result = await callVerifyData(input.query);
-
-      // Auto-parse data points from the returned sources block and emit
-      // slide_data_points to the frontend — no agent tool call required.
-      if (result.startsWith('Found ')) {
-        const dataPoints = parseDataPointsFromSearchResult(result, input.slideNumber);
-
-        if (dataPoints.length > 0) {
-          // Assign stable IDs matching the frontend's expectations
-          const dataPointsWithIds = dataPoints.map((dp, index) => ({
-            id: `dp-${input.slideNumber}-${index}-${Date.now()}`,
-            label: dp.label,
-            value: dp.value,
-            sourceUrls: dp.sourceUrls,
-            verifications: [],
-          }));
-
-          sendSSE(res, {
-            type: 'slide_data_points',
-            slideNumber: input.slideNumber,
-            dataPoints: dataPointsWithIds,
-          });
-
-          console.log(
-            `[agent] 📊 Auto-emitted slide_data_points: slide ${input.slideNumber}, ` +
-            `${dataPointsWithIds.length} points`,
-          );
-        }
-
-        // Also update tracked sources for the session
-        const allSources = trackSourcesFromSearchResult(sessionId, result);
-        sendSSE(res, { type: 'sources_updated', sources: allSources });
-      }
-
-      return result;
-    }
-
-    // ── create_or_edit_slide ───────────────────────────────────────────────
     case 'create_or_edit_slide': {
       if (!input.prompt || typeof input.prompt !== 'string') {
         return 'Error: create_or_edit_slide requires a "prompt" string parameter.';
@@ -1241,6 +949,7 @@ async function executeTool(
         : 'http://localhost:3001';
 
       // ── Path 1: Edit — fetch the target slide's own code from blob ────────
+      // Triggered when slideNumber refers to an existing slide (404 = new slide).
       let existingCode: string | undefined;
       if (input.slideNumber && presentationId) {
         try {
@@ -1253,11 +962,11 @@ async function executeTool(
               console.log(
                 `[agent] 📄 Fetched existing code for slide ${input.slideNumber} ` +
                 `(${codeData.code!.length} chars BEFORE MINIFYING)`,
-              );
+              );              
               existingCode = (codeData.code as string)
-                .replace(/\/\/.*$/gm, '')
-                .replace(/\n\s*\n/g, '\n')
-                .trim();
+                                  .replace(/\/\/.*$/gm, '')
+                                  .replace(/\n\s*\n/g, '\n')
+                                  .trim();
               console.log(
                 `[agent] 📄 Minified existing code for slide ${input.slideNumber} ` +
                 `(${existingCode!.length} chars AFTER MINIFYING) — treating as edit`,
@@ -1272,6 +981,10 @@ async function executeTool(
       }
 
       // ── Path 2: Reference slides — fetch code for non-target slides ───────
+      // Runs whenever referenceSlideNumbers is provided — independently of
+      // path 1. These are always slides OTHER than the target. Their code is
+      // appended to the prompt labelled by slide number only; the agent's
+      // prompt param carries all instructions on what to do with each one.
       let referenceCodes: Array<{ slideNumber: number; code: string }> = [];
       if (
         Array.isArray(input.referenceSlideNumbers) &&
@@ -1289,9 +1002,9 @@ async function executeTool(
                 if (codeData.code) {
                   console.log(`[agent] 📄 Fetched reference slide ${refNum} (${codeData.code.length} chars BEFORE MINIFYING)`);
                   const refMinifiedCode = (codeData.code as string)
-                    .replace(/\/\/.*$/gm, '')
-                    .replace(/\n\s*\n/g, '\n')
-                    .trim();
+                                  .replace(/\/\/.*$/gm, '')
+                                  .replace(/\n\s*\n/g, '\n')
+                                  .trim();
                   console.log(`[agent] 📄 Minified reference slide ${refNum} (${refMinifiedCode.length} chars AFTER MINIFYING)`);
                   return { slideNumber: refNum, code: refMinifiedCode };
                 }
@@ -1308,6 +1021,9 @@ async function executeTool(
       }
 
       // ── Build final prompt ────────────────────────────────────────────────
+      // Agent's prompt param carries all instructions about what to do with
+      // each reference slide. Just append the code blocks labelled by their
+      // slide numbers — no hardcoded instructions here.
       let finalPrompt = input.prompt;
       if (referenceCodes.length > 0) {
         const refBlocks = referenceCodes
@@ -1329,7 +1045,6 @@ async function executeTool(
       });
     }
 
-    // ── read_slide ─────────────────────────────────────────────────────────
     case 'read_slide': {
       if (!Array.isArray(input.slideNumbers) || input.slideNumbers.length === 0) {
         return 'Error: read_slide requires a non-empty "slideNumbers" array.';
@@ -1370,7 +1085,6 @@ async function executeTool(
       return results.join('\n\n');
     }
 
-    // ── validate_logos ─────────────────────────────────────────────────────
     case 'validate_logos': {
       if (!Array.isArray(input.logos) || input.logos.length === 0) {
         return 'Error: validate_logos requires a non-empty "logos" array.';
@@ -1406,41 +1120,35 @@ NEVER RECOMMEND OR ASK FOR DATA FROM ANY VENDOR LIKE CAPIQ, BLOOMBERG, FACTSET. 
 - Do not volunteer analysis or detail the user hasn't requested — answer what was asked, then stop.
 - If something is unclear, ask one focused question before proceeding.
 
-## Tools and Research Workflow
+## Tools
 
-### Step 1 — vector_search (ALWAYS FIRST)
-Call vector_search before any other data tool. This gathers the essential qualitative context: company backgrounds, deal narratives, market dynamics, news, and structural information. Use multiple targeted queries to build a full picture of the topic before proceeding to metric verification.
+### vector_search
+- Call before answering any question about a company, deal, market, or financial topic.
+- Use multiple targeted queries to build a complete picture.
+- Cite sources by title or URL when referencing data.
 
-- Use multiple targeted queries to cover different aspects (e.g. company overview, deal structure, market context separately).
-- Cite sources by title or URL when referencing data from these results.
-- Do NOT skip this step and jump straight to verify_data — qualitative context is essential for accurate slide narratives.
-
-### Step 2 — verify_data (for specific metrics and data points)
-After vector_search has provided qualitative context, call verify_data to pin down exact metric values with primary-source verification. verify_data queries SEC filings, the proprietary IPO/SPAC database, and authoritative financial news.
-
-- Write highly specific queries naming the companies, metrics, and time periods: e.g. "Blackstone Q4 2024 total fundraising and AUM" or "Arm Holdings IPO September 2023 offer price and total proceeds".
-- Call once per focused data topic — do NOT call repeatedly with the same or similar queries. If one call does not return a metric, accept it as unavailable rather than retrying with nearly identical queries.
-- The slide_data_points event is emitted automatically from verify_data results — you do NOT need to call any registration tool. Use the returned values and source URLs directly in your slide prompt.
-
-### Step 3 — validate_logos (when logos are needed)
-Call before create_or_edit_slide whenever any company, fund, or crypto logo is needed. Batch all logos into a single call. Only pass valid URLs to the slide generator; omit invalid ones from the prompt entirely.
-
-### Step 4 — create_or_edit_slide
-Use when the user asks for a slide, chart, table, or visual.
+### create_or_edit_slide
+- Use when the user asks for a slide, chart, table, or visual.
 - The slide generator has NO access to conversation history or search results. Include ALL data — every number, metric, label, and company name — directly in the prompt.
-- Annotate data points with citations: "Revenue $3.1B [cite:1]", using source numbers from your search results.
+- Annotate data points with citations: "Revenue $3.1B [cite:1]", using source numbers from vector_search results.
 - For edits: pass slideNumber only — existing code is fetched automatically. Describe only what to change in the prompt.
-- For new slides referencing existing slides: pass referenceSlideNumbers (non-target slides) and instruct the generator in your prompt what to do with each one. Omit templateCategory.
+- For new slides referencing existing slides: pass referenceSlideNumbers (the non-target slides) and instruct the generator in your prompt what to do with each one. Omit templateCategory.
 - For new slides from scratch: pass templateCategory. Omit referenceSlideNumbers.
-- Do NOT call read_slide before create_or_edit_slide — slide code is fetched automatically.
+- Do NOT call read_slide before create_or_edit_slide — slide code is already fetched automatically.
 - IMPORTANT: After generating a slide, wait for the user to review it before making any further edits or fixes. If you notice something missing, flag it in one sentence — do not autonomously re-generate.
 - Any images the user attached are forwarded directly to the slide generator — it will see them. Do not attempt to describe or re-encode image data in your prompt.
 
 ### read_slide
-Use when the user asks you to reason about, summarise, or answer questions based on existing slide content AND THE SLIDE CODE IS NOT AVAILABLE IN YOUR CONVERSATION HISTORY.
+- Use when the user asks you to reason about, summarise, or answer questions based on existing slide content AND THE SLIDE CODE ARE NOT AVAILABLE IN YOUR CONVERSATION HISTORY.
 - Examples: "explain the assumptions in slide 2", "write a paragraph summary of slides 1 and 3", "what football field range does slide 4 show".
 - Returns minified code for each requested slide — read it to extract data, structure, and values.
 - Do NOT use before create_or_edit_slide — that tool handles its own fetching automatically.
+
+### validate_logos
+- Call before create_or_edit_slide whenever any company, fund, or crypto logo is needed.
+- Batch all logos for a slide into a single call — never call per-logo.
+- Only pass URLs confirmed valid to the slide generator; omit invalid ones from the prompt entirely.
+- After slide generation, flag any invalid logos to the user in one sentence.
 
 ### What to put in your prompt to the slide generator — and what NOT to put
 
@@ -1462,6 +1170,12 @@ The only exception is if the user explicitly requests a specific design choice (
 - User attached a reference image → omit templateCategory. Keep prompt brief: state what the slide shows and tell the generator to follow the attached image for all design decisions.
 - User wants a new slide replicating an existing slide's layout → pass referenceSlideNumbers, omit templateCategory. The referenced code is the design template.
 - User wants similar style/colors but novel layout → set templateCategory as normal. Do not pass referenceSlideNumbers.
+
+### Workflow for data-driven slides
+1. Search for data with vector_search.
+2. Call validate_logos before create_or_edit_slide whenever logos are needed. Only pass URLs confirmed valid.
+3. Call create_or_edit_slide with all data embedded in the prompt and templateCategory set.
+4. Wait for user feedback before any follow-up edits.
 
 ## Images
 When the user attaches an image, assess its intent:
@@ -1552,53 +1266,30 @@ async function runStreamingAgentLoop(
           sendSSE(res, { type: 'tool_start', name: toolUse.name, input: toolUse.input });
 
           const t1 = Date.now();
-          const result = await executeTool(
-            toolUse.name,
-            toolUse.input as ToolInput,
-            resolvedImages,
-            presentationId,
-            requestTheme,
-            sessionId,
-            res,
-          );
+          const result = await executeTool(toolUse.name, toolUse.input as ToolInput, resolvedImages, presentationId, requestTheme);
 
           console.log(
             `[agent] 🛠  ${toolUse.name} completed in ${Date.now() - t1}ms | result: ${result.length} chars`,
           );
 
-          // ── vector_search: remap source IDs + emit sources ────────────
+          // ── Vector search: remap source IDs + emit sources ────────────
           if (toolUse.name === 'vector_search' && result.startsWith('Found ')) {
-            const allSources = trackSourcesFromSearchResult(sessionId, result);
-            sendSSE(res, { type: 'sources_updated', sources: allSources });
+              const allSources = trackSourcesFromSearchResult(sessionId, result);
+              sendSSE(res, { type: 'sources_updated', sources: allSources });
 
-            sendSSE(res, {
-              type: 'tool_result',
-              name: toolUse.name,
-              preview: result.slice(0, 150) + (result.length > 150 ? '…' : ''),
-            });
+              // No remapping needed — executeTool already renumbered sequentially
+              sendSSE(res, {
+                type: 'tool_result',
+                name: toolUse.name,
+                preview: result.slice(0, 150) + (result.length > 150 ? '…' : ''),
+              });
 
-            return {
-              type: 'tool_result' as const,
-              tool_use_id: toolUse.id,
-              content: result,
-            };
-          }
-
-          // ── verify_data: sources already tracked + slide_data_points
-          // already emitted inside executeTool. Just send the tool_result SSE.
-          if (toolUse.name === 'verify_data') {
-            sendSSE(res, {
-              type: 'tool_result',
-              name: toolUse.name,
-              preview: result.slice(0, 150) + (result.length > 150 ? '…' : ''),
-            });
-
-            return {
-              type: 'tool_result' as const,
-              tool_use_id: toolUse.id,
-              content: result,
-            };
-          }
+              return {
+                type: 'tool_result' as const,
+                tool_use_id: toolUse.id,
+                content: result,
+              };
+            }
 
           // ── Logo validation: emit per-logo outcomes to frontend ───────
           if (toolUse.name === 'validate_logos') {
@@ -1762,6 +1453,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const blobImages = await resolveImageRefs(imageRefs);
 
     // ── 2. Merge blob images + legacy direct images ────────────────────────────
+    // All images are made available to the agent's vision AND forwarded to the
+    // slide generator via executeTool. The LLM only sees them as vision context.
     const allImages: ImageInput[] = [...blobImages, ...images];
 
     // ── 3. Build user message content (vision + text) ─────────────────────────
@@ -1795,6 +1488,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // ── 4. Inject a note for the agent when images are present ────────────────
+    // The agent knows images exist and should reference them in slide prompts,
+    // without needing to handle the data itself.
     let promptText = prompt.trim();
     if (allImages.length > 0) {
       promptText =
@@ -1812,9 +1507,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       res,
       sessionId,
       isNewSession,
-      allImages,
-      incomingPresentationId ?? '',
-      requestTheme,
+      allImages,          // passed through to executeTool → createOrEditSlide
+      incomingPresentationId ?? '',  // used to fetch existing slide code from blob
+      requestTheme,       // forwarded to slide generator for consistent styling
     );
 
     saveHistory(sessionId, updatedHistory);
