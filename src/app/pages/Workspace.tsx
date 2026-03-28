@@ -19,6 +19,8 @@ import { TopBar } from "../components/TopBar";
 // PanelRightOpen
 import { PanelLeftOpen } from "lucide-react";
 import { useState } from "react";
+import { SlideDataModal } from "../components/SlideDataModal";
+import { ErrorBoundary } from "../components/ErrorBoundary";
 
 export interface Message {
   id: string;
