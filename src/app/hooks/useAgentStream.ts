@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { addSlide, updateSlide, setGenerating, setSlideDataPoints, updateDataPointScreenshots } from '../store/slidesSlice';
+import { store } from '../store/store';
 import { ENABLE_MOCK_AGENT } from '../config/features';
 import { captureDataPointScreenshots } from '../utils/captureScreenshots';
 //getAnonymousUserId
@@ -72,42 +73,10 @@ interface SendOptions {
 // ---------------------------------------------------------------------------
 
 function mintId(): string {
-  // Use browser crypto if available (always is in modern browsers), fall back to timestamp
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID();
   }
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
-/**
- * Poll slidesRef until a slide with the given slideNumber appears in Redux,
- * or until the timeout is exceeded.
- *
- * This is necessary because `slide_data_points` can arrive from the SSE stream
- * before the preceding `addSlide` dispatch has been committed and reflected in
- * the slidesRef snapshot. Without this guard, setSlideDataPoints silently
- * no-ops because `state.slides.find(...)` returns undefined.
- *
- * @param slideNumber  The slideNumber to wait for.
- * @param slidesRef    Ref pointing at the live slides array from Redux.
- * @param intervalMs   How often to poll (default 50 ms).
- * @param timeoutMs    Maximum time to wait before giving up (default 2000 ms).
- * @returns            True if the slide was found, false if timed out.
- */
-async function waitForSlideInRedux(
-  slideNumber: number,
-  slidesRef: React.MutableRefObject<{ slideNumber: number }[]>,
-  intervalMs = 50,
-  timeoutMs = 2000,
-): Promise<boolean> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (slidesRef.current.some((s) => s.slideNumber === slideNumber)) {
-      return true;
-    }
-    await new Promise((resolve) => setTimeout(resolve, intervalMs));
-  }
-  return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -122,14 +91,7 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
   } = options;
 
   const dispatch = useAppDispatch();
-  const slides = useAppSelector((state) => state.slides.slides);
-  const versionHistory = useAppSelector((state) => state.slides.versionHistory);
   const theme = useAppSelector((state) => state.theme);
-
-  // Detect if running in Figma Make preview
-  const isFigmaPreview = typeof window !== 'undefined' && 
-    (window.location.hostname.includes('figma.site') || 
-     window.location.hostname.includes('makeproxy'));
 
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -140,26 +102,12 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
   const [sources, setSources] = useState<TrackedSource[]>([]);
   const [highlightedSourceId, setHighlightedSourceId] = useState<number | null>(null);
 
-  // Rate limiting state
-  const [rateLimitError, setRateLimitError] = useState<{
-    message: string;
-    resetAt: number;
-  } | null>(null);
-
-  // Credits error state
-  const [creditsError, setCreditsError] = useState<boolean>(false);
-
   const abortControllerRef = useRef<AbortController | null>(null);
   const currentAssistantMessageRef = useRef<AgentMessage | null>(null);
 
   // Keep refs to always read latest values inside SSE callbacks
-  const slidesRef = useRef(slides);
-  slidesRef.current = slides;
-  const versionHistoryRef = useRef(versionHistory);
-  versionHistoryRef.current = versionHistory;
   const presentationIdRef = useRef(presentationId);
   presentationIdRef.current = presentationId;
-
 
   // ---------------------------------------------------------------------------
   // Handle individual SSE events
@@ -222,7 +170,6 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
         }
 
         case 'logos_validated': {
-          // Surfaced to UI via activeTools — no Redux state change needed
           console.log(
             `[useAgentStream] 🔍 Logos validated: ${event.validCount} valid, ${event.invalidCount} not found`,
           );
@@ -254,22 +201,14 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
           if (event.sources?.length > 0) setSources(event.sources);
 
           // ── Dispatch to Redux ─────────────────────────────────────────
-          const currentSlides = slidesRef.current;
-          const currentHistory = versionHistoryRef.current;
-          const existingSlide = currentSlides.find((s) => s.slideNumber === slideData.slideNumber);
-
-          let finalSlideNumber = slideData.slideNumber;
-          let versionNumber: number;
+          const existingSlide = store.getState().slides.slides.find(
+            (s) => s.slideNumber === slideData.slideNumber
+          );
 
           if (existingSlide) {
-            // Slide already exists — always update in place regardless of action field,
-            // because the agent sometimes returns action='created' for edits.
-            versionNumber = (currentHistory[slideData.slideNumber]?.length ?? 0) + 2;
             dispatch(updateSlide({ id: existingSlide.id, code: slideData.code }));
           } else {
-            // Brand new slide
-            versionNumber = 1;
-            dispatch(addSlide({ slideNumber: finalSlideNumber, code: slideData.code }));
+            dispatch(addSlide({ slideNumber: slideData.slideNumber, code: slideData.code }));
           }
 
           // ── Update assistant message ──────────────────────────────────
@@ -286,54 +225,31 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
         }
 
         case 'slide_data_points': {
-          // ✅ PRODUCTION DATA FLOW: This is where REAL data points arrive from the backend.
-          // The backend emits this event after the agent calls register_slide_data_points.
-          // This should NEVER be overridden by mock data in production.
-          //
-          // ⚠️ RACE CONDITION GUARD: The slide_data_points event can arrive from the SSE
-          // stream before the preceding addSlide dispatch has been committed and reflected
-          // in slidesRef. Without this guard, setSlideDataPoints silently no-ops because
-          // the reducer's state.slides.find() returns undefined, dropping all data points.
-          // We poll slidesRef until the slide appears (up to 2 s) before dispatching.
-          console.log('[useAgentStream] 📊 Slide data points received, waiting for slide in Redux:', {
-            slideNumber: event.slideNumber,
-            dataPointCount: event.dataPoints?.length,
-          });
-
+          // Dispatch immediately — the reducer will buffer the points in
+          // pendingDataPoints if the slide doesn't exist yet, and drain
+          // them automatically when addSlide fires for that slideNumber.
           if (!event.dataPoints || !Array.isArray(event.dataPoints)) {
             console.warn(`[useAgentStream] ⚠️ slide_data_points for slide #${event.slideNumber} had no dataPoints array — skipping`);
             break;
           }
 
-          // Wait for the slide to be present in Redux before dispatching data points
-          const slideReady = await waitForSlideInRedux(event.slideNumber, slidesRef);
-
-          if (!slideReady) {
-            console.warn(
-              `[useAgentStream] ⚠️ Slide #${event.slideNumber} never appeared in Redux within timeout — data points dropped.`,
-              `dataPointCount=${event.dataPoints.length}`,
-            );
-            break;
-          }
-
-          console.log('[useAgentStream] 📊 Slide data points registered:', {
+          console.log('[useAgentStream] 📊 Slide data points received, dispatching immediately:', {
             slideNumber: event.slideNumber,
             dataPointCount: event.dataPoints.length,
           });
 
-          // Store data points in Redux for the data view components.
-          // Backend doesn't send IDs, so generate them here.
           const dataPointsWithIds = event.dataPoints.map((dp: any, index: number) => ({
             id: `dp-${event.slideNumber}-${index}-${Date.now()}`,
             label: dp.label,
             value: dp.value,
             sourceUrls: dp.sourceUrls || [],
-            verifications: [], // Will be populated by verification system
+            verifications: [],
           }));
 
           dispatch(setSlideDataPoints({
             slideNumber: event.slideNumber,
             dataPoints: dataPointsWithIds,
+            mode: event.mode ?? 'append',
           }));
 
           // Capture screenshots for all data points asynchronously.
@@ -345,9 +261,8 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
                   dataPoint.id,
                   dataPoint.label,
                   dataPoint.value,
-                  dataPoint.sourceUrls
+                  dataPoint.sourceUrls,
                 );
-
                 dispatch(updateDataPointScreenshots({
                   slideNumber: event.slideNumber,
                   dataPointId: dataPoint.id,
@@ -407,33 +322,6 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
       if (isStreaming) {
         console.warn('[useAgentStream] Already streaming, ignoring send');
         return;
-      }
-
-      // ── Check rate limit for anonymous users ────────────────────────────────
-      // TODO: Skip this check if user is authenticated
-      const isAuthenticated = false; // Replace with actual auth check
-      
-      if (!isAuthenticated) {
-        const rateCheck = checkRateLimit();
-        
-        if (!rateCheck.allowed) {
-          console.warn('[useAgentStream] ⛔ Rate limit exceeded', {
-            remaining: rateCheck.remaining,
-            resetAt: new Date(rateCheck.resetAt).toISOString(),
-          });
-          
-          // Set error state to trigger modal
-          setRateLimitError({
-            message: rateCheck.message || 'Rate limit exceeded',
-            resetAt: rateCheck.resetAt,
-          });
-          
-          return; // Don't proceed with request
-        }
-        
-        // Record this request
-        recordRequest();
-        console.log('[useAgentStream] ✓ Rate limit check passed, remaining:', rateCheck.remaining - 1);
       }
 
       // Mint presentationId on first send in this session
@@ -499,21 +387,6 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
           backgroundColor: theme.slideBackgroundColor,
         });
 
-        // ── Use mock data in Figma Make preview ────────────────────────────────
-        if (isFigmaPreview && ENABLE_MOCK_AGENT) {
-          console.log('[useAgentStream] 🎭 Using mock data (Figma preview mode)');
-          const turnTools = new Map<string, ToolActivity>();
-          
-          await mockAgentStream(
-            prompt,
-            (event) => handleSSEEvent(event, turnTools, pid),
-            150 // delay in ms between events
-          );
-          
-          return;
-        }
-
-        // ── Real API call ────────────────────────────────────────────────────────
         const response = await fetch(apiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -521,25 +394,27 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
           signal: abortController.signal,
         });
 
-        // Check for credits error (400 with specific message)
+        // ── Check for credits exhausted error (400) ──────────────────────────────
         if (response.status === 400) {
-          // Clone response so we can read body and still use it if needed
           const clonedResponse = response.clone();
           const errorText = await clonedResponse.text();
-          
-          // Check if it's the credits exhausted error
-          if (errorText.includes('credit balance is too low') || 
+
+          if (errorText.includes('credit balance is too low') ||
               errorText.includes('invalid_request_error')) {
-            console.error('[useAgentStream] ⚠️ Credits exhausted');
-            setCreditsError(true);
-            
-            // Don't show the error in chat
+            console.error('[useAgentStream] ⚠️ Credits exhausted - showing maintenance message');
+
             if (currentAssistantMessageRef.current) {
-              // Remove the empty assistant message we created
-              setMessages((prev) => prev.filter(m => m.id !== currentAssistantMessageRef.current!.id));
+              currentAssistantMessageRef.current.content = 'Sorry, Volute is temporarily unavailable due to maintenance. Please check back later.';
+              setMessages((prev) => [...prev]);
             }
-            
-            return; // Exit early, modal will be shown
+
+            setIsStreaming(false);
+            setIsToolRunning(false);
+            setActiveTools([]);
+            dispatch(setGenerating(false));
+            abortControllerRef.current = null;
+            currentAssistantMessageRef.current = null;
+            return;
           }
         }
 
@@ -599,7 +474,7 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
         currentAssistantMessageRef.current = null;
       }
     },
-    [isStreaming, sessionId, apiUrl, dispatch, onError, theme, handleSSEEvent, isFigmaPreview],
+    [isStreaming, sessionId, apiUrl, dispatch, onError, onSlideGenerated, theme, handleSSEEvent],
   );
 
   // ---------------------------------------------------------------------------
@@ -612,7 +487,7 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
     }
     setMessages([]);
     setSessionId(null);
-    setPresentationId(null);          // next send() will mint a fresh one
+    setPresentationId(null);
     presentationIdRef.current = null;
     setIsStreaming(false);
     setIsToolRunning(false);
@@ -639,9 +514,5 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
     sources,
     highlightedSourceId,
     setHighlightedSourceId,
-    rateLimitError,
-    clearRateLimitError: () => setRateLimitError(null),
-    creditsError,
-    clearCreditsError: () => setCreditsError(false),
   };
 }
