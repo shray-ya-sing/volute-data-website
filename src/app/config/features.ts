@@ -28,7 +28,7 @@ export const ENABLE_MOCK_AGENT = true;
  * 
  * RECOMMENDATION: Set to false for production deployment.
  */
-export const ENABLE_MOCK_DATA = true;
+export const ENABLE_MOCK_DATA = false;
 
 /**
  * Environment detection helpers
