@@ -8,7 +8,7 @@
 
 const STORAGE_KEY = 'volute_anon_user';
 const USAGE_KEY = 'volute_anon_usage';
-const MAX_ANONYMOUS_REQUESTS = 15; // Max requests per 24-hour window
+const MAX_ANONYMOUS_REQUESTS = 30; // Max requests per 24-hour window
 const RESET_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 interface AnonymousUser {
