@@ -12,9 +12,9 @@ export function Landing() {
   const navigate = useNavigate();
 
   const samplePrompts = [
-    "Make a slide on global PE Fundraising trends by strategy",
-    "Make a precedent transactions slide on 2025 industrials buyouts and add slides with financial profiles of all targets",
-    "Make a precedent transactions slide with 2024-2025 US Mid Market PE Software Buyouts with EV/EBITDA comps",
+    "Make a precedent transactions slide on 2025 US industrials buyouts with deal value between $100M and $500M",
+    "Make a benchmarking slide with key IPO metrics for all 2025 software company IPOs in the US",
+    "Make a case study slide on the largest software PE buyout under $500M in 2025, including deal metrics like EV/EBITDA and target financials at time of deal",
   ];
 
   const handleSubmit = async (promptText?: string) => {
