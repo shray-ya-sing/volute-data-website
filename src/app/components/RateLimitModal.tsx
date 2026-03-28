@@ -70,52 +70,10 @@ export function RateLimitModal({ isOpen, onClose, message, resetTime }: RateLimi
                 <div className="flex items-center gap-2 mb-3">
                   <Sparkles className="w-5 h-5 text-indigo-600" />
                   <h3 className="font-semibold text-gray-900">
-                    Get Unlimited Access
+                    Contact Us for Enterprise Access to get higher usage limits and custom features
                   </h3>
                 </div>
-                <ul className="space-y-2 text-sm text-gray-700">
-                  <li className="flex items-start gap-2">
-                    <span className="text-indigo-600 mt-0.5">✓</span>
-                    <span>Unlimited AI-powered presentations</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-indigo-600 mt-0.5">✓</span>
-                    <span>Access to premium data sources</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-indigo-600 mt-0.5">✓</span>
-                    <span>Priority processing & support</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-indigo-600 mt-0.5">✓</span>
-                    <span>Export to PPTX with branding</span>
-                  </li>
-                </ul>
               </div>
-
-              {/* CTA Buttons */}
-              <div className="flex flex-col gap-3">
-                <button
-                  onClick={() => {
-                    // TODO: Navigate to signup page
-                    console.log('Navigate to signup');
-                  }}
-                  className="w-full py-3 px-4 bg-[var(--volute-accent)] text-white font-semibold rounded-lg hover:opacity-90 transition-opacity"
-                >
-                  Create Free Account
-                </button>
-                <button
-                  onClick={onClose}
-                  className="w-full py-3 px-4 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors"
-                >
-                  Maybe Later
-                </button>
-              </div>
-
-              {/* Footer note */}
-              <p className="text-xs text-gray-500 text-center mt-4">
-                No credit card required to sign up
-              </p>
             </div>
           </motion.div>
         </>

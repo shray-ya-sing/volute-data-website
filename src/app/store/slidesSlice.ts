@@ -12,7 +12,7 @@ export interface Slide {
   slideNumber: number;
   code: string;
   timestamp: number;
-  dataPoints?: SlideDataPoint[];  // ✨ Add dataPoints field
+  dataPoints?: SlideDataPoint[];
 }
 
 export interface SlidesState {
@@ -61,19 +61,54 @@ const defaultState: SlidesState = {
 
 const initialState: SlidesState = loadSlidesState() || defaultState;
 
+// ---------------------------------------------------------------------------
+// Helper: merge incoming data points into existing ones, deduplicating by label.
+// Incoming points win over existing ones when labels collide.
+// ---------------------------------------------------------------------------
+function mergeDataPoints(
+  existing: SlideDataPoint[],
+  incoming: SlideDataPoint[]
+): SlideDataPoint[] {
+  // Build a map keyed by label from the existing points
+  const byLabel = new Map<string, SlideDataPoint>(
+    existing.map((dp) => [dp.label, dp])
+  );
+
+  // Overwrite / add with incoming points
+  for (const dp of incoming) {
+    byLabel.set(dp.label, dp);
+  }
+
+  return Array.from(byLabel.values());
+}
+
 export const slidesSlice = createSlice({
   name: "slides",
   initialState,
   reducers: {
-    addSlide: (state, action: PayloadAction<{ slideNumber: number; code: string }>) => {
+    // -----------------------------------------------------------------------
+    addSlide: (
+      state,
+      action: PayloadAction<{ slideNumber: number; code: string }>
+    ) => {
       const { slideNumber, code } = action.payload;
-      console.log(`[slidesSlice] addSlide called: slideNumber=${slideNumber}, codeLength=${code.length}, existingSlides=[${state.slides.map(s => s.slideNumber).join(', ')}]`);
+      console.log(
+        `[slidesSlice] addSlide called: slideNumber=${slideNumber}, ` +
+          `codeLength=${code.length}, ` +
+          `existingSlides=[${state.slides.map((s) => s.slideNumber).join(", ")}]`
+      );
 
-      // If a slide with this number already exists, snapshot it before replacing
-      const existingIndex = state.slides.findIndex((s) => s.slideNumber === slideNumber);
+      const existingIndex = state.slides.findIndex(
+        (s) => s.slideNumber === slideNumber
+      );
+
       if (existingIndex !== -1) {
         const existing = state.slides[existingIndex];
-        console.log(`[slidesSlice] addSlide: replacing existing slide #${slideNumber} (id=${existing.id}) at index ${existingIndex}`);
+        console.log(
+          `[slidesSlice] addSlide: replacing existing slide #${slideNumber} ` +
+            `(id=${existing.id}) at index ${existingIndex}`
+        );
+
         if (!state.versionHistory[slideNumber]) {
           state.versionHistory[slideNumber] = [];
         }
@@ -84,18 +119,21 @@ export const slidesSlice = createSlice({
           versionNumber: nextVersion,
         });
 
-        // Replace the existing slide
         const newSlide: Slide = {
           id: `slide-${Date.now()}`,
           slideNumber,
           code,
           timestamp: Date.now(),
+          // Preserve any data points that were already attached to this slide
+          dataPoints: existing.dataPoints,
         };
         state.slides[existingIndex] = newSlide;
         state.currentSlideId = newSlide.id;
-        console.log(`[slidesSlice] addSlide: replaced → new id=${newSlide.id}, version history count=${state.versionHistory[slideNumber]?.length}`);
+        console.log(
+          `[slidesSlice] addSlide: replaced → new id=${newSlide.id}, ` +
+            `version history count=${state.versionHistory[slideNumber]?.length}`
+        );
       } else {
-        // No existing slide with this number, add new
         const newSlide: Slide = {
           id: `slide-${Date.now()}`,
           slideNumber,
@@ -104,14 +142,24 @@ export const slidesSlice = createSlice({
         };
         state.slides.push(newSlide);
         state.currentSlideId = newSlide.id;
-        console.log(`[slidesSlice] addSlide: appended new slide #${slideNumber} (id=${newSlide.id}), total slides=${state.slides.length}`);
+        console.log(
+          `[slidesSlice] addSlide: appended new slide #${slideNumber} ` +
+            `(id=${newSlide.id}), total slides=${state.slides.length}`
+        );
       }
     },
-    updateSlide: (state, action: PayloadAction<{ id: string; code: string }>) => {
+
+    // -----------------------------------------------------------------------
+    updateSlide: (
+      state,
+      action: PayloadAction<{ id: string; code: string }>
+    ) => {
       const slide = state.slides.find((s) => s.id === action.payload.id);
-      console.log(`[slidesSlice] updateSlide called: id=${action.payload.id}, found=${!!slide}${slide ? `, slideNumber=${slide.slideNumber}` : ''}`);
+      console.log(
+        `[slidesSlice] updateSlide called: id=${action.payload.id}, ` +
+          `found=${!!slide}${slide ? `, slideNumber=${slide.slideNumber}` : ""}`
+      );
       if (slide) {
-        // Snapshot the current version before updating
         const sn = slide.slideNumber;
         if (!state.versionHistory[sn]) {
           state.versionHistory[sn] = [];
@@ -127,31 +175,47 @@ export const slidesSlice = createSlice({
         slide.timestamp = Date.now();
       }
     },
+
+    // -----------------------------------------------------------------------
     deleteSlide: (state, action: PayloadAction<string>) => {
       state.slides = state.slides.filter((s) => s.id !== action.payload);
       if (state.currentSlideId === action.payload) {
         state.currentSlideId = state.slides[0]?.id || null;
       }
     },
+
+    // -----------------------------------------------------------------------
     setCurrentSlide: (state, action: PayloadAction<string>) => {
       state.currentSlideId = action.payload;
     },
+
+    // -----------------------------------------------------------------------
     setGenerating: (state, action: PayloadAction<boolean>) => {
       state.isGenerating = action.payload;
     },
+
+    // -----------------------------------------------------------------------
     setError: (state, action: PayloadAction<string | null>) => {
       state.error = action.payload;
     },
+
+    // -----------------------------------------------------------------------
     setPresentationName: (state, action: PayloadAction<string>) => {
       state.presentationName = action.payload;
     },
+
+    // -----------------------------------------------------------------------
     clearSlides: (state) => {
       state.slides = [];
       state.currentSlideId = null;
     },
+
+    // -----------------------------------------------------------------------
     clearCachedSlides: (state) => {
       state.cachedSlides = [];
     },
+
+    // -----------------------------------------------------------------------
     restoreVersion: (
       state,
       action: PayloadAction<{ slideNumber: number; versionNumber: number }>
@@ -165,7 +229,6 @@ export const slidesSlice = createSlice({
 
       const slide = state.slides.find((s) => s.slideNumber === slideNumber);
       if (slide) {
-        // Snapshot current code before restoring
         const nextVer = versions.length + 1;
         versions.push({
           code: slide.code,
@@ -176,27 +239,39 @@ export const slidesSlice = createSlice({
         slide.timestamp = Date.now();
       }
     },
+
+    // -----------------------------------------------------------------------
     clearVersionHistory: (state) => {
       state.versionHistory = {};
     },
-    reorderSlides: (state, action: PayloadAction<{ fromIndex: number; toIndex: number }>) => {
+
+    // -----------------------------------------------------------------------
+    reorderSlides: (
+      state,
+      action: PayloadAction<{ fromIndex: number; toIndex: number }>
+    ) => {
       const { fromIndex, toIndex } = action.payload;
-      console.log(`[slidesSlice] reorderSlides: moving slide from index ${fromIndex} to ${toIndex}`);
-      
-      if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || 
-          fromIndex >= state.slides.length || toIndex >= state.slides.length) {
+      console.log(
+        `[slidesSlice] reorderSlides: moving slide from index ${fromIndex} to ${toIndex}`
+      );
+
+      if (
+        fromIndex === toIndex ||
+        fromIndex < 0 ||
+        toIndex < 0 ||
+        fromIndex >= state.slides.length ||
+        toIndex >= state.slides.length
+      ) {
         return;
       }
 
-      // First, sort slides by slideNumber to ensure consistent indexing
+      // Sort by slideNumber first for consistent indexing
       state.slides.sort((a, b) => a.slideNumber - b.slideNumber);
 
-      // Reorder the slides array
       const [movedSlide] = state.slides.splice(fromIndex, 1);
       state.slides.splice(toIndex, 0, movedSlide);
 
-      // Snapshot old slideNumber → history mapping keyed by slide id,
-      // so versions travel with the slide rather than staying on the number.
+      // Snapshot old slideNumber → history mapping keyed by slide id
       const historyById: Record<string, SlideVersion[]> = {};
       state.slides.forEach((slide) => {
         if (state.versionHistory[slide.slideNumber]) {
@@ -209,7 +284,7 @@ export const slidesSlice = createSlice({
         slide.slideNumber = index + 1;
       });
 
-      // Rebuild versionHistory keyed by new slideNumber using the id-based map
+      // Rebuild versionHistory keyed by new slideNumber
       const newVersionHistory: Record<number, SlideVersion[]> = {};
       state.slides.forEach((slide) => {
         if (historyById[slide.id]) {
@@ -218,19 +293,62 @@ export const slidesSlice = createSlice({
       });
       state.versionHistory = newVersionHistory;
 
-      console.log(`[slidesSlice] reorderSlides: new order = [${state.slides.map(s => `${s.slideNumber}(${s.code.slice(0, 20)}...)`).join(', ')}]`);
+      console.log(
+        `[slidesSlice] reorderSlides: new order = [${state.slides
+          .map((s) => `${s.slideNumber}(${s.code.slice(0, 20)}...)`)
+          .join(", ")}]`
+      );
     },
+
+    // -----------------------------------------------------------------------
+    // KEY FIX: setSlideDataPoints now supports replace (default) and append modes.
+    //
+    // Payload:
+    //   slideNumber  – which slide to update
+    //   dataPoints   – the incoming points from the SSE payload
+    //   mode         – "replace" (default) | "append"
+    //                  "append"  → merge with existing, deduplicate by label
+    //                  "replace" → wipe existing and set fresh (legacy behaviour)
+    // -----------------------------------------------------------------------
     setSlideDataPoints: (
       state,
-      action: PayloadAction<{ slideNumber: number; dataPoints: SlideDataPoint[] }>
+      action: PayloadAction<{
+        slideNumber: number;
+        dataPoints: SlideDataPoint[];
+        mode?: "replace" | "append";
+      }>
     ) => {
-      const { slideNumber, dataPoints } = action.payload;
+      const { slideNumber, dataPoints, mode = "replace" } = action.payload;
       const slide = state.slides.find((s) => s.slideNumber === slideNumber);
-      if (slide) {
+
+      if (!slide) {
+        console.warn(
+          `[slidesSlice] setSlideDataPoints: no slide found for #${slideNumber}`
+        );
+        return;
+      }
+
+      if (mode === "append") {
+        const existing = slide.dataPoints ?? [];
+        const merged = mergeDataPoints(existing, dataPoints);
+        slide.dataPoints = merged;
+        console.log(
+          `[slidesSlice] setSlideDataPoints (append): slide #${slideNumber} — ` +
+            `existing=${existing.length}, incoming=${dataPoints.length}, ` +
+            `merged=${merged.length}`
+        );
+      } else {
+        // "replace" — original behaviour, kept for cases where a full refresh
+        // of data points is explicitly requested (e.g. slide regeneration).
         slide.dataPoints = dataPoints;
-        console.log(`[slidesSlice] setSlideDataPoints: added ${dataPoints.length} datapoints to slide #${slideNumber}`);
+        console.log(
+          `[slidesSlice] setSlideDataPoints (replace): slide #${slideNumber} — ` +
+            `set ${dataPoints.length} datapoints`
+        );
       }
     },
+
+    // -----------------------------------------------------------------------
     updateDataPointVerifications: (
       state,
       action: PayloadAction<{
@@ -245,10 +363,15 @@ export const slidesSlice = createSlice({
         const dataPoint = slide.dataPoints.find((dp) => dp.id === dataPointId);
         if (dataPoint) {
           dataPoint.verifications = verifications;
-          console.log(`[slidesSlice] updateDataPointVerifications: updated verifications for datapoint ${dataPointId}`);
+          console.log(
+            `[slidesSlice] updateDataPointVerifications: updated verifications ` +
+              `for datapoint ${dataPointId}`
+          );
         }
       }
     },
+
+    // -----------------------------------------------------------------------
     updateDataPointScreenshots: (
       state,
       action: PayloadAction<{
@@ -263,8 +386,30 @@ export const slidesSlice = createSlice({
         const dataPoint = slide.dataPoints.find((dp) => dp.id === dataPointId);
         if (dataPoint) {
           dataPoint.screenshots = screenshots;
-          console.log(`[slidesSlice] updateDataPointScreenshots: updated ${Object.keys(screenshots).length} screenshots for datapoint ${dataPointId}`);
+          console.log(
+            `[slidesSlice] updateDataPointScreenshots: updated ` +
+              `${Object.keys(screenshots).length} screenshots for datapoint ${dataPointId}`
+          );
         }
+      }
+    },
+
+    // -----------------------------------------------------------------------
+    // Utility: explicitly clear all data points for a slide (e.g. before a
+    // full regeneration where you want a clean slate).
+    // -----------------------------------------------------------------------
+    clearSlideDataPoints: (
+      state,
+      action: PayloadAction<{ slideNumber: number }>
+    ) => {
+      const slide = state.slides.find(
+        (s) => s.slideNumber === action.payload.slideNumber
+      );
+      if (slide) {
+        slide.dataPoints = [];
+        console.log(
+          `[slidesSlice] clearSlideDataPoints: cleared datapoints for slide #${action.payload.slideNumber}`
+        );
       }
     },
   },
@@ -286,6 +431,7 @@ export const {
   setSlideDataPoints,
   updateDataPointVerifications,
   updateDataPointScreenshots,
+  clearSlideDataPoints,
 } = slidesSlice.actions;
 
 export default slidesSlice.reducer;

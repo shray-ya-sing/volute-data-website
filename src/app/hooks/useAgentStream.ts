@@ -79,6 +79,37 @@ function mintId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+/**
+ * Poll slidesRef until a slide with the given slideNumber appears in Redux,
+ * or until the timeout is exceeded.
+ *
+ * This is necessary because `slide_data_points` can arrive from the SSE stream
+ * before the preceding `addSlide` dispatch has been committed and reflected in
+ * the slidesRef snapshot. Without this guard, setSlideDataPoints silently
+ * no-ops because `state.slides.find(...)` returns undefined.
+ *
+ * @param slideNumber  The slideNumber to wait for.
+ * @param slidesRef    Ref pointing at the live slides array from Redux.
+ * @param intervalMs   How often to poll (default 50 ms).
+ * @param timeoutMs    Maximum time to wait before giving up (default 2000 ms).
+ * @returns            True if the slide was found, false if timed out.
+ */
+async function waitForSlideInRedux(
+  slideNumber: number,
+  slidesRef: React.MutableRefObject<{ slideNumber: number }[]>,
+  intervalMs = 50,
+  timeoutMs = 2000,
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (slidesRef.current.some((s) => s.slideNumber === slideNumber)) {
+      return true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  return false;
+}
+
 // ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
@@ -255,53 +286,78 @@ export function useAgentStream(options: UseAgentStreamOptions = {}) {
         }
 
         case 'slide_data_points': {
-          // ✅ PRODUCTION DATA FLOW: This is where REAL data points arrive from the backend
-          // The backend emits this event after the agent calls register_slide_data_points
-          // This should NEVER be overridden by mock data in production
-          console.log('[useAgentStream] 📊 Slide data points registered:', {
+          // ✅ PRODUCTION DATA FLOW: This is where REAL data points arrive from the backend.
+          // The backend emits this event after the agent calls register_slide_data_points.
+          // This should NEVER be overridden by mock data in production.
+          //
+          // ⚠️ RACE CONDITION GUARD: The slide_data_points event can arrive from the SSE
+          // stream before the preceding addSlide dispatch has been committed and reflected
+          // in slidesRef. Without this guard, setSlideDataPoints silently no-ops because
+          // the reducer's state.slides.find() returns undefined, dropping all data points.
+          // We poll slidesRef until the slide appears (up to 2 s) before dispatching.
+          console.log('[useAgentStream] 📊 Slide data points received, waiting for slide in Redux:', {
             slideNumber: event.slideNumber,
             dataPointCount: event.dataPoints?.length,
           });
-          
-          // Store data points in Redux for the data view components
-          // Backend doesn't send IDs, so generate them here
-          if (event.dataPoints && Array.isArray(event.dataPoints)) {
-            const dataPointsWithIds = event.dataPoints.map((dp: any, index: number) => ({
-              id: `dp-${event.slideNumber}-${index}-${Date.now()}`,
-              label: dp.label,
-              value: dp.value,
-              sourceUrls: dp.sourceUrls || [],
-              verifications: [], // Will be populated by verification system
-            }));
 
-            dispatch(setSlideDataPoints({
-              slideNumber: event.slideNumber,
-              dataPoints: dataPointsWithIds,
-            }));
-
-            // Capture screenshots for all data points asynchronously
-            // This runs in the background and updates Redux when ready
-            dataPointsWithIds.forEach(async (dataPoint) => {
-              if (dataPoint.sourceUrls.length > 0) {
-                try {
-                  const screenshots = await captureDataPointScreenshots(
-                    dataPoint.id,
-                    dataPoint.label,
-                    dataPoint.value,
-                    dataPoint.sourceUrls
-                  );
-                  
-                  dispatch(updateDataPointScreenshots({
-                    slideNumber: event.slideNumber,
-                    dataPointId: dataPoint.id,
-                    screenshots,
-                  }));
-                } catch (error) {
-                  console.warn(`[useAgentStream] Failed to capture screenshots for datapoint ${dataPoint.id}:`, error);
-                }
-              }
-            });
+          if (!event.dataPoints || !Array.isArray(event.dataPoints)) {
+            console.warn(`[useAgentStream] ⚠️ slide_data_points for slide #${event.slideNumber} had no dataPoints array — skipping`);
+            break;
           }
+
+          // Wait for the slide to be present in Redux before dispatching data points
+          const slideReady = await waitForSlideInRedux(event.slideNumber, slidesRef);
+
+          if (!slideReady) {
+            console.warn(
+              `[useAgentStream] ⚠️ Slide #${event.slideNumber} never appeared in Redux within timeout — data points dropped.`,
+              `dataPointCount=${event.dataPoints.length}`,
+            );
+            break;
+          }
+
+          console.log('[useAgentStream] 📊 Slide data points registered:', {
+            slideNumber: event.slideNumber,
+            dataPointCount: event.dataPoints.length,
+          });
+
+          // Store data points in Redux for the data view components.
+          // Backend doesn't send IDs, so generate them here.
+          const dataPointsWithIds = event.dataPoints.map((dp: any, index: number) => ({
+            id: `dp-${event.slideNumber}-${index}-${Date.now()}`,
+            label: dp.label,
+            value: dp.value,
+            sourceUrls: dp.sourceUrls || [],
+            verifications: [], // Will be populated by verification system
+          }));
+
+          dispatch(setSlideDataPoints({
+            slideNumber: event.slideNumber,
+            dataPoints: dataPointsWithIds,
+          }));
+
+          // Capture screenshots for all data points asynchronously.
+          // This runs in the background and updates Redux when ready.
+          dataPointsWithIds.forEach(async (dataPoint) => {
+            if (dataPoint.sourceUrls.length > 0) {
+              try {
+                const screenshots = await captureDataPointScreenshots(
+                  dataPoint.id,
+                  dataPoint.label,
+                  dataPoint.value,
+                  dataPoint.sourceUrls
+                );
+
+                dispatch(updateDataPointScreenshots({
+                  slideNumber: event.slideNumber,
+                  dataPointId: dataPoint.id,
+                  screenshots,
+                }));
+              } catch (error) {
+                console.warn(`[useAgentStream] Failed to capture screenshots for datapoint ${dataPoint.id}:`, error);
+              }
+            }
+          });
           break;
         }
 
