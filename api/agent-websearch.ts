@@ -1091,74 +1091,59 @@ async function executeTool(
   switch (name) {
 
     // ── vector_search — broad + deep research, auto-emits sources + data points
-  case 'vector_search': {
-    if (!input.query || typeof input.query !== 'string') {
-      return 'Error: vector_search requires a "query" string parameter.';
-    }
-
-    // HARD REQUIREMENT: slideNumber is required for all vector_search calls because the backend uses it to automatically associate sourced data points with the correct slide for event emission. Always pass slideNumber when researching before create_or_edit_slide.
-    if (!input.slideNumber || typeof input.slideNumber !== 'number') {
-    return 'Error: vector_search requires a "slideNumber" number parameter. ' +
-           'Pass the slide number you are researching data for.';
+    case 'vector_search': {
+  if (!input.query || typeof input.query !== 'string') {
+    return 'Error: vector_search requires a "query" string parameter.';
   }
 
-    const [broadResult, deepResult] = await Promise.all([
-      broadSearch(input.query),
-      deepSearch(input.query),
-    ]);
-
-    const broadBlock = broadResult.startsWith('Found ') ? broadResult : '';
-    const deepBlock  = deepResult.startsWith('Found ')  ? deepResult  : '';
-
-    const blocks = [broadBlock, deepBlock].filter(Boolean);
-    let combined = 'No results found for that query.';
-
-    if (blocks.length > 0) {
-      let merged = blocks.join('\n\n');
-      merged = merged
-        .replace(/^Found \d+ relevant sources:\n\n/, '')
-        .replace(/\n\nFound \d+ relevant sources:\n\n/, '\n\n');
-
-      let sourceIndex = 1;
-      merged = merged.replace(/\[Source \d+\]/g, () => `[Source ${sourceIndex++}]`);
-      const totalCount = sourceIndex - 1;
-      combined = `Found ${totalCount} relevant sources:\n\n${merged}`;
-    }
-
-    if (combined.startsWith('Found ')) {
-      const allSources = trackSourcesFromSearchResult(sessionId, combined);
-      sendSSE(res, { type: 'sources_updated', sources: allSources });
-
-      if (input.slideNumber && typeof input.slideNumber === 'number') {
-        const dataPoints = parseDataPointsFromSearchResult(combined, input.slideNumber);
-
-        if (dataPoints.length > 0) {
-          const timestamp = Date.now(); // ← single timestamp for the whole batch
-          const dataPointsWithIds = dataPoints.map((dp, index) => ({
-            id: `dp-${input.slideNumber}-${index}-${timestamp}`,
-            label: dp.label,
-            value: dp.value,
-            sourceUrls: dp.sourceUrls,
-            verifications: [],
-          }));
-
-          sendSSE(res, {
-            type: 'slide_data_points',
-            slideNumber: input.slideNumber,
-            dataPoints: dataPointsWithIds,
-            mode: 'append',           // ← THE ONLY NEW FIELD
-          });
-
-          console.log(
-            `[agent] 📊 Auto-emitted slide_data_points (append): slide ${input.slideNumber}, ` +
-            `${dataPointsWithIds.length} points`,
-          );
-        }
-      }
-    }
-
-    return combined;
+  if (!input.slideNumber || typeof input.slideNumber !== 'number') {
+    console.warn(
+      `[agent] ⛔ vector_search called WITHOUT slideNumber — returning error to Claude. ` +
+      `query="${input.query?.slice(0, 80)}"`
+    );
+    return (
+      'Error: slideNumber is required. ' +
+      `You called vector_search for query "${input.query}" without slideNumber. ` +
+      'You MUST retry this exact query NOW with slideNumber set to the slide you are building. ' +
+      'Do not proceed to create_or_edit_slide until you have retried with slideNumber.'
+    );
   }
+
+  // Deep search only — no broadSearch
+  const result = await deepSearch(input.query);
+
+  if (result.startsWith('Found ')) {
+    const allSources = trackSourcesFromSearchResult(sessionId, result);
+    sendSSE(res, { type: 'sources_updated', sources: allSources });
+
+    const dataPoints = parseDataPointsFromSearchResult(result, input.slideNumber);
+
+    if (dataPoints.length > 0) {
+      const timestamp = Date.now();
+      const dataPointsWithIds = dataPoints.map((dp, index) => ({
+        id: `dp-${input.slideNumber}-${index}-${timestamp}`,
+        label: dp.label,
+        value: dp.value,
+        sourceUrls: dp.sourceUrls,
+        verifications: [],
+      }));
+
+      sendSSE(res, {
+        type: 'slide_data_points',
+        slideNumber: input.slideNumber,
+        dataPoints: dataPointsWithIds,
+        mode: 'append',
+      });
+
+      console.log(
+        `[agent] 📊 Auto-emitted slide_data_points (append): slide ${input.slideNumber}, ` +
+        `${dataPointsWithIds.length} points`,
+      );
+    }
+  }
+
+  return result;
+}
     // ── create_or_edit_slide ───────────────────────────────────────────────
     case 'create_or_edit_slide': {
       if (!input.prompt || typeof input.prompt !== 'string') {
