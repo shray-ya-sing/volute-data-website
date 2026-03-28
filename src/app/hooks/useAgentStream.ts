@@ -3,7 +3,8 @@ import { useAppDispatch, useAppSelector } from '../store/hooks';
 import { addSlide, updateSlide, setGenerating, setSlideDataPoints, updateDataPointScreenshots } from '../store/slidesSlice';
 import { ENABLE_MOCK_AGENT } from '../config/features';
 import { captureDataPointScreenshots } from '../utils/captureScreenshots';
-import { checkRateLimit, recordRequest, getAnonymousUserId } from '../utils/anonymousRateLimit';
+//getAnonymousUserId
+import { checkRateLimit, recordRequest} from '../utils/anonymousRateLimit';
 
 // ⚠️ DEVELOPMENT/PREVIEW ONLY: Mock agent for testing without backend
 // This import is ONLY used in Figma Make preview mode (auto-detected by hostname)
