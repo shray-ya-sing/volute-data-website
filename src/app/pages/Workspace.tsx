@@ -1,13 +1,24 @@
 import { useAppSelector, useAppDispatch } from "../store/hooks";
-import { clearSlides, clearCachedSlides, setSlideDataPoints } from "../store/slidesSlice";
+// setSlideDataPoints
+import { clearSlides, clearCachedSlides} from "../store/slidesSlice";
 import { clearAttachments } from "../store/attachmentsSlice";
 import { useAgentStream, type SlideData } from "../hooks/useAgentStream";
 import { attachmentPreviewsToApiImages } from "../utils/fileToBase64";
-import { generateMockDataPoints } from "../utils/mockDataPoints";
-import { SlideDataPoint } from "../types/slideData";
+//import { generateMockDataPoints } from "../utils/mockDataPoints";
+//import { SlideDataPoint } from "../types/slideData";
 import { RateLimitModal } from "../components/RateLimitModal";
 import { getTimeUntilReset } from "../utils/anonymousRateLimit";
 import { CreditsErrorModal } from "../components/CreditsErrorModal";
+import { useEffect, useCallback, useRef } from "react";
+import { useLocation } from "react-router";
+import { ChatSidebar } from "../components/ChatSidebar";
+import type { AttachmentPreview } from "../components/ChatSidebar";
+import { CanvasView } from "../components/CanvasView";
+//import { SourcePanel } from "../components/SourcePanel";
+import { TopBar } from "../components/TopBar";
+// PanelRightOpen
+import { PanelLeftOpen } from "lucide-react";
+import { useState } from "react";
 
 export interface Message {
   id: string;
