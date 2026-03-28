@@ -156,7 +156,7 @@ async function runSearchLoop(
 
   let finalText = '';
   let iteration = 0;
-  const MAX_ITERATIONS = 15;
+  const MAX_ITERATIONS = 7;// more will create vercel runtime timeouts
 
   while (iteration < MAX_ITERATIONS) {
     iteration++;
