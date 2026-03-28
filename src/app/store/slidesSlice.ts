@@ -15,6 +15,7 @@ export interface Slide {
   dataPoints?: SlideDataPoint[];
 }
 
+// Add to SlidesState interface
 export interface SlidesState {
   slides: Slide[];
   cachedSlides: Slide[];
@@ -22,17 +23,19 @@ export interface SlidesState {
   isGenerating: boolean;
   error: string | null;
   presentationName: string;
-  /** version history keyed by slideNumber → array of prior versions */
   versionHistory: Record<number, SlideVersion[]>;
+  pendingDataPoints: Record<number, SlideDataPoint[]>; // ← ADD THIS
 }
 
 const STORAGE_KEY = "volute_slides";
+
 
 function loadSlidesState(): SlidesState | undefined {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
+      // Update loadSlidesState to include it
       return {
         slides: [],
         cachedSlides: parsed.slides || [],
@@ -41,6 +44,7 @@ function loadSlidesState(): SlidesState | undefined {
         error: null,
         presentationName: parsed.presentationName || "Untitled Presentation",
         versionHistory: parsed.versionHistory || {},
+        pendingDataPoints: {}, // ← never persist pending points
       };
     }
   } catch (e) {
@@ -49,6 +53,7 @@ function loadSlidesState(): SlidesState | undefined {
   return undefined;
 }
 
+// Add to defaultState
 const defaultState: SlidesState = {
   slides: [],
   cachedSlides: [],
@@ -57,6 +62,7 @@ const defaultState: SlidesState = {
   error: null,
   presentationName: "Untitled Presentation",
   versionHistory: {},
+  pendingDataPoints: {}, // ← data points that have arrived for slides not yet created (keyed by slideNumber)
 };
 
 const initialState: SlidesState = loadSlidesState() || defaultState;
@@ -92,6 +98,7 @@ export const slidesSlice = createSlice({
       action: PayloadAction<{ slideNumber: number; code: string }>
     ) => {
       const { slideNumber, code } = action.payload;
+
       console.log(
         `[slidesSlice] addSlide called: slideNumber=${slideNumber}, ` +
           `codeLength=${code.length}, ` +
@@ -127,6 +134,7 @@ export const slidesSlice = createSlice({
           // Preserve any data points that were already attached to this slide
           dataPoints: existing.dataPoints,
         };
+        // Replace the existing slide in-place to preserve array references
         state.slides[existingIndex] = newSlide;
         state.currentSlideId = newSlide.id;
         console.log(
@@ -142,9 +150,21 @@ export const slidesSlice = createSlice({
         };
         state.slides.push(newSlide);
         state.currentSlideId = newSlide.id;
+
         console.log(
           `[slidesSlice] addSlide: appended new slide #${slideNumber} ` +
             `(id=${newSlide.id}), total slides=${state.slides.length}`
+        );
+      }
+
+      // ← Drain pending points — works for both branches
+      if (state.pendingDataPoints[slideNumber]?.length) {
+        const pending = state.pendingDataPoints[slideNumber];
+        const target = state.slides.find((s) => s.slideNumber === slideNumber)!;
+        target.dataPoints = mergeDataPoints(target.dataPoints ?? [], pending);
+        delete state.pendingDataPoints[slideNumber];
+        console.log(
+          `[slidesSlice] addSlide: drained ${pending.length} pending data points onto slide #${slideNumber}`
         );
       }
     },
@@ -322,24 +342,29 @@ export const slidesSlice = createSlice({
       const slide = state.slides.find((s) => s.slideNumber === slideNumber);
 
       if (!slide) {
-        console.warn(
-          `[slidesSlice] setSlideDataPoints: no slide found for #${slideNumber}`
+        // ← CHANGED: buffer instead of dropping
+        const existing = state.pendingDataPoints[slideNumber] ?? [];
+        state.pendingDataPoints[slideNumber] =
+          mode === "append"
+            ? mergeDataPoints(existing, dataPoints)
+            : dataPoints;
+        console.log(
+          `[slidesSlice] setSlideDataPoints: slide #${slideNumber} not yet in store — ` +
+            `buffered ${state.pendingDataPoints[slideNumber].length} points (mode=${mode})`
         );
         return;
       }
 
+      // slide exists — same logic as before
       if (mode === "append") {
         const existing = slide.dataPoints ?? [];
         const merged = mergeDataPoints(existing, dataPoints);
         slide.dataPoints = merged;
         console.log(
           `[slidesSlice] setSlideDataPoints (append): slide #${slideNumber} — ` +
-            `existing=${existing.length}, incoming=${dataPoints.length}, ` +
-            `merged=${merged.length}`
+            `existing=${existing.length}, incoming=${dataPoints.length}, merged=${merged.length}`
         );
       } else {
-        // "replace" — original behaviour, kept for cases where a full refresh
-        // of data points is explicitly requested (e.g. slide regeneration).
         slide.dataPoints = dataPoints;
         console.log(
           `[slidesSlice] setSlideDataPoints (replace): slide #${slideNumber} — ` +
@@ -347,7 +372,6 @@ export const slidesSlice = createSlice({
         );
       }
     },
-
     // -----------------------------------------------------------------------
     updateDataPointVerifications: (
       state,
