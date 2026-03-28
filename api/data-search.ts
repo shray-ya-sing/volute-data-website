@@ -420,6 +420,9 @@ const SYSTEM_PROMPT = `You are a financial data research specialist. Your task i
 2. Company investor relations page — strong secondary
 3. Company website About/Products pages — secondary
 
+WIKIPEDIA, RANDOM WSEBSITES LIKE STOCKTWIT, ZOOMINFO, LINKEDIN, ETC ARE NOT RELIABLE SOURCES FOR ANY FINANCIAL DATA. DO NOT USE THEM UNLESS ABSOLUTELY NECESSARY AND YOU HAVE NO OTHER SOURCES. DO NOT USE THEM, USE FILINGS OR RELIABLE WEBSITES.
+
+
 ## Aditional search tools
 ### proprietary_database_search
 Use to search the Volute curated database of IPO and SPAC news articles and press releases from 2023 onwards. Call this when researching any IPO or SPAC from that period AS A SECONDARY SOURCE.
@@ -453,6 +456,8 @@ Use for general web search across public webpages AS A SECONDARY SOURCE if you f
    - Any values that contradicted the primary source
 
 6. Search each entity fully before moving to the next.
+MAKE YOUR SEARCH EFFICIENT BY MAKING QUERIES MORE SPECIFIC BY INCLUDING THE SOURCES LIKE SEC FILING, WALL STREET JOURNAL, BLOOMBERG, PRNEWSWIRE, BUSINESSWIRE, the company website like XYZ company website. 
+
 
 ## Output Format
 
