@@ -9,7 +9,6 @@
             "@babel/traverse": "^7.29.0",
             "@babel/types": "^7.29.0",
             "@browserbasehq/sdk": "^2.9.0",
-            "@browserbasehq/stagehand": "^3.2.0",
             "@codesandbox/sandpack-react": "^2.20.0",
             "@mozilla/readability": "^0.6.0",
             "@mui/icons-material": "^7.3.8",
